@@ -3,19 +3,24 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path"
+	"strings"
+	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const constraintGroup = "constraints.gatekeeper.sh"
+
 type Client interface {
 	AddData(context.Context, interface{}) error
 	RemoveData(context.Context, interface{}) error
 
-	AddTemplate(context.Context, v1alpha1.ConstraintTemplate) error
+	AddTemplate(context.Context, v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
 	RemoveTemplate(context.Context, v1alpha1.ConstraintTemplate) error
 
 	AddConstraint(context.Context, unstructured.Unstructured) error
@@ -31,16 +36,22 @@ type Client interface {
 	Audit(context.Context) ([]*types.Result, error)
 }
 
+type ClientOpt func(*client)
+
+type MatchSchemaProvider interface {
+	// MatchSchema returns the JSON Schema for the `match` field of a constraint
+	MatchSchema() apiextensionsv1beta1.JSONSchemaProps
+}
+
 type TargetHandler interface {
+	MatchSchemaProvider
+
 	GetName() string
 
-	// Libraries are the pieces of Rego code required to stitch together constraint evaluation
+	// Libraries returns the pieces of Rego code required to stitch together constraint evaluation
 	// for the target. Current required libraries are `matching_constraints` and
 	// `matching_reviews_and_constraints`
 	Libraries() map[string][]byte
-
-	// MatchSchema returns the JSON Schema for the `match` field of a constraint
-	MatchSchema() apiextensionsv1beta1.JSONSchemaProps
 
 	// ProcessData takes a potential data object and returns:
 	//   true if the target handles the data type
@@ -52,23 +63,142 @@ type TargetHandler interface {
 var _ Client = &client{}
 
 type client struct {
-	Backend *Backend
+	backend           *Backend
+	targets           map[string]TargetHandler
+	constraintCRDsMux sync.RWMutex
+	constraintCRDs    map[string]*apiextensionsv1beta1.CustomResourceDefinition
 }
 
+// createDataPath compiles the data destination: data.external.<target>.<path>
+func createDataPath(target, subpath string) string {
+	subpaths := strings.Split(subpath, "/")
+	p := []string{"", "data", "external", target}
+	p = append(p, subpaths...)
+
+	return path.Join(p...)
+}
+
+// AddData inserts the provided data into OPA for every target that can handle the data.
 func (c *client) AddData(ctx context.Context, data interface{}) error {
-	return errors.New("NOT IMPLEMENTED")
+	for target, h := range c.targets {
+		handled, path, processedData, error := h.ProcessData(data)
+		// Should we instead swallow errors and log them to avoid poorly-behaved targets
+		// short-circuiting calls?
+		if error != nil {
+			return error
+		}
+		if !handled {
+			continue
+		}
+		// Same short-circuiting question here
+		if err := c.backend.driver.PutData(ctx, createDataPath(target, path), processedData); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
+// RemoveData removes data from OPA for every target that can handle the data.
 func (c *client) RemoveData(ctx context.Context, data interface{}) error {
-	return errors.New("NOT IMPLEMENTED")
+	for target, h := range c.targets {
+		handled, path, _, error := h.ProcessData(data)
+		// Should we instead swallow errors and log them to avoid poorly-behaved targets
+		// short-circuiting calls?
+		if error != nil {
+			return error
+		}
+		if !handled {
+			continue
+		}
+		// Same short-circuiting question here
+		if err := c.backend.driver.DeleteData(ctx, createDataPath(target, path)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (c *client) AddTemplate(ctx context.Context, templ v1alpha1.ConstraintTemplate) error {
-	return errors.New("NOT IMPLEMENTED")
+// createTemplatePath returns the package path for a given template: templates.<target>.<name>
+func createTemplatePath(target, name string) string {
+	return fmt.Sprintf("templates.%s.%s", target, name)
 }
 
+// AddTemplate adds the template source code to OPA and registers the CRD with the client for
+// schema validation on calls to AddConstraint. It also returns a copy of the CRD describing
+// the constraint.
+func (c *client) AddTemplate(ctx context.Context, templ v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
+	if err := validateTargets(&templ); err != nil {
+		return nil, err
+	}
+
+	var src string
+	var target TargetHandler
+	for k, v := range templ.Spec.Targets {
+		t, ok := c.targets[k]
+		if !ok {
+			return nil, fmt.Errorf("Target %s not recognized", k)
+		}
+		target = t
+		src = v.Rego
+	}
+
+	schema := createSchema(&templ, target)
+	crd := c.backend.crd.createCRD(&templ, schema)
+	if err := c.backend.crd.validateCRD(crd); err != nil {
+		return nil, err
+	}
+
+	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
+	conformingSrc, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
+	if err != nil {
+		return nil, err
+	}
+
+	c.constraintCRDsMux.Lock()
+	defer c.constraintCRDsMux.Unlock()
+	if err := c.backend.driver.PutRule(ctx, path, conformingSrc); err != nil {
+		return nil, err
+	}
+
+	c.constraintCRDs[crd.Spec.Names.Kind] = crd
+	crdCopy := &apiextensionsv1beta1.CustomResourceDefinition{}
+	crd.DeepCopyInto(crdCopy)
+
+	return crdCopy, nil
+}
+
+// RemoveTemplate removes the template source code from OPA and removes the CRD from the validation
+// registry.
 func (c *client) RemoveTemplate(ctx context.Context, templ v1alpha1.ConstraintTemplate) error {
-	return errors.New("NOT IMPLEMENTED")
+	if err := validateTargets(&templ); err != nil {
+		return err
+	}
+
+	var target TargetHandler
+	for k := range templ.Spec.Targets {
+		t, ok := c.targets[k]
+		if !ok {
+			return fmt.Errorf("Target %s not recognized", k)
+		}
+		target = t
+	}
+
+	schema := createSchema(&templ, target)
+	crd := c.backend.crd.createCRD(&templ, schema)
+	if err := c.backend.crd.validateCRD(crd); err != nil {
+		return err
+	}
+
+	path := createTemplatePath(target.GetName(), templ.Spec.CRD.Spec.Names.Kind)
+
+	c.constraintCRDsMux.Lock()
+	defer c.constraintCRDsMux.Unlock()
+	if err := c.backend.driver.DeleteRule(ctx, path); err != nil {
+		return err
+	}
+
+	delete(c.constraintCRDs, crd.Spec.Names.Kind)
+	return nil
 }
 
 func (c *client) AddConstraint(ctx context.Context, constraint unstructured.Unstructured) error {
@@ -89,35 +219,4 @@ func (c *client) Review(ctx context.Context, obj interface{}) ([]*types.Result, 
 
 func (c *client) Audit(ctx context.Context) ([]*types.Result, error) {
 	return nil, errors.New("NOT IMPLEMENTED")
-}
-
-type Backend struct {
-	driver drivers.Driver
-}
-
-type BackendOpt func(*Backend)
-
-func Driver(d drivers.Driver) BackendOpt {
-	return func(b *Backend) {
-		b.driver = d
-	}
-}
-
-func NewBackend(opts ...BackendOpt) (*Backend, error) {
-	b := &Backend{}
-	for _, opt := range opts {
-		opt(b)
-	}
-
-	if b.driver == nil {
-		return nil, errors.New("No driver supplied to the backend")
-	}
-
-	return b, nil
-}
-
-type ClientOpt func(*client)
-
-func (b *Backend) NewClient(opts ...ClientOpt) (*client, error) {
-	return &client{Backend: b}, nil
 }

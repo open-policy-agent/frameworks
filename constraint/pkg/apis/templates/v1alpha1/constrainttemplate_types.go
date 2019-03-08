@@ -34,18 +34,10 @@ type CRD struct {
 }
 
 type CRDSpec struct {
-	Names      CRDNames    `json:"names,omitempty"`
-	Validation *Validation `json:"validation,omitempty"`
+	Names      apiextensionsv1beta1.CustomResourceDefinitionNames `json:"names,omitempty"`
+	Validation *Validation                                        `json:"validation,omitempty"`
 }
 
-type CRDNames struct {
-	Kind     string `json:"kind,omitempty"`
-	ListKind string `json:"listKind,omitempty"`
-	Plural   string `json:"plural,omitempty"`
-	Singular string `json:"singular,omitempty"`
-}
-
-// TODO We may want to only allow validation on the spec
 type Validation struct {
 	OpenAPIV3Schema *apiextensionsv1beta1.JSONSchemaProps `json:"openAPIV3Schema,omitempty"`
 }
