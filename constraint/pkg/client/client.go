@@ -81,11 +81,11 @@ func createDataPath(target, subpath string) string {
 // AddData inserts the provided data into OPA for every target that can handle the data.
 func (c *client) AddData(ctx context.Context, data interface{}) error {
 	for target, h := range c.targets {
-		handled, path, processedData, error := h.ProcessData(data)
+		handled, path, processedData, err := h.ProcessData(data)
 		// Should we instead swallow errors and log them to avoid poorly-behaved targets
 		// short-circuiting calls?
-		if error != nil {
-			return error
+		if err != nil {
+			return err
 		}
 		if !handled {
 			continue
@@ -101,11 +101,11 @@ func (c *client) AddData(ctx context.Context, data interface{}) error {
 // RemoveData removes data from OPA for every target that can handle the data.
 func (c *client) RemoveData(ctx context.Context, data interface{}) error {
 	for target, h := range c.targets {
-		handled, path, _, error := h.ProcessData(data)
+		handled, path, _, err := h.ProcessData(data)
 		// Should we instead swallow errors and log them to avoid poorly-behaved targets
 		// short-circuiting calls?
-		if error != nil {
-			return error
+		if err != nil {
+			return err
 		}
 		if !handled {
 			continue
