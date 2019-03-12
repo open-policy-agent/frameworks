@@ -19,59 +19,64 @@ func ensureRegoConformance(kind, path, rego string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := rewritePackage(path, module); err != nil {
-		return "", err
-	}
 	if len(module.Imports) != 0 {
 		return "", errors.New("Use of the `import` keyword is not allowed")
 	}
+	// Temporarily unset Package.Path to avoid triggering a "prohibited data field" error
+	module.Package.Path = nil
 	if err := checkDataAccess(module); err != nil {
 		return "", err
 	}
+	module.Package.Path = packageRef(path)
 	return module.String(), nil
 }
 
-// rewritePackage rewrites the `package` statement in Rego with the provided package path
-func rewritePackage(path string, module *ast.Module) error {
-	if module.Package == nil {
-		return errors.New("No `package` statement parsed")
-	}
+// packageRef constructs a Ref to the provided package path string
+func packageRef(path string) ast.Ref {
 	pathParts := strings.Split(path, ".")
-	packageRef := ast.EmptyRef()
-	if pathParts[0] != "data" {
-		packageRef = append(packageRef, ast.NewTerm(ast.String("data")))
-	}
+	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
 	for _, v := range pathParts {
-		packageRef = append(packageRef, ast.NewTerm(ast.String(v)))
+		packageRef = append(packageRef, ast.StringTerm(v))
 	}
-	module.Package.Path = packageRef
-	return nil
+	return packageRef
 }
 
-func makeInvalidRootFieldErr(val ast.Value, allowed map[string]bool) string {
+func makeInvalidRootFieldErr(val ast.Value, allowed map[string]bool) error {
 	var validFields []string
 	for field := range allowed {
 		validFields = append(validFields, field)
 	}
-	return fmt.Sprintf("Invalid `data` field: %s. Valid fields are: %s", val.String(), strings.Join(validFields, ", "))
+	return fmt.Errorf("Invalid `data` field: %s. Valid fields are: %s", val.String(), strings.Join(validFields, ", "))
+}
+
+var _ error = Errors{}
+
+type Errors []error
+
+func (errs Errors) Error() string {
+	s := make([]string, len(errs))
+	for _, e := range errs {
+		s = append(s, e.Error())
+	}
+	return strings.Join(s, "\n")
 }
 
 // checkDataAccess makes sure that data is only referenced in terms of valid subfields
-func checkDataAccess(module *ast.Module) error {
+func checkDataAccess(module *ast.Module) Errors {
 	// Currently rules should only access data.inventory
 	validDataFields := map[string]bool{
 		"inventory": true,
 	}
 
-	var errs []string
+	var errs Errors
 	ast.WalkRefs(module, func(r ast.Ref) bool {
 		if r.HasPrefix(ast.DefaultRootRef) {
 			if len(r) < 2 {
-				errs = append(errs, fmt.Sprintf("All references to `data` must access a field of `data`: %s", r))
+				errs = append(errs, fmt.Errorf("All references to `data` must access a field of `data`: %s", r))
 				return false
 			}
 			if !r[1].IsGround() {
-				errs = append(errs, fmt.Sprintf("Fields of `data` must be accessed with a literal value (e.g. `data.inventory`, not `data[var]`): %s", r))
+				errs = append(errs, fmt.Errorf("Fields of `data` must be accessed with a literal value (e.g. `data.inventory`, not `data[var]`): %s", r))
 				return false
 			}
 			v := r[1].Value
@@ -89,7 +94,7 @@ func checkDataAccess(module *ast.Module) error {
 	})
 
 	if len(errs) > 0 {
-		return errors.New(strings.Join([]string(errs), "\n"))
+		return errs
 	}
 	return nil
 }
