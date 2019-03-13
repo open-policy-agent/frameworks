@@ -3,12 +3,16 @@ package client
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	apivalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
 // validateTargets ensures that the targets field has the appropriate values
@@ -81,6 +85,34 @@ func (h *crdHelper) validateCRD(crd *apiextensionsv1beta1.CustomResourceDefiniti
 	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(internalCRD)
 	if len(errors) > 0 {
 		return errors.ToAggregate()
+	}
+	return nil
+}
+
+// validateCR validates the provided custom resource against its CustomResourceDefinition
+func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensionsv1beta1.CustomResourceDefinition) error {
+	internalCRD := &apiextensions.CustomResourceDefinition{}
+	if err := h.scheme.Convert(crd, internalCRD, nil); err != nil {
+		return err
+	}
+	validator, _, err := validation.NewSchemaValidator(internalCRD.Spec.Validation)
+	if err != nil {
+		return err
+	}
+	if err := validation.ValidateCustomResource(cr, validator); err != nil {
+		return err
+	}
+	if errs := apivalidation.IsDNS1123Subdomain(cr.GetName()); len(errs) != 0 {
+		return fmt.Errorf("Invalid Name: %s", strings.Join(errs, "\n"))
+	}
+	if cr.GetKind() != crd.Spec.Names.Kind {
+		return fmt.Errorf("Wrong kind for constraint %s. Have %s, want %s", cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
+	}
+	if cr.GroupVersionKind().Group != constraintGroup {
+		return fmt.Errorf("Wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
+	}
+	if cr.GroupVersionKind().Version != crd.Spec.Version {
+		return fmt.Errorf("Wrong version for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Version, crd.Spec.Version)
 	}
 	return nil
 }

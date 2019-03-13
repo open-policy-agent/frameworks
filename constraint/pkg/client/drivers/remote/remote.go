@@ -28,24 +28,36 @@ func (d driver) PutRule(ctx context.Context, name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
-func (d driver) DeleteRule(ctx context.Context, name string) error {
-	return d.opa.DeletePolicy(name)
+// DeleteRule deletes a rule from OPA and returns true if a rule was found and deleted, false
+// if a rule was not found, and any errors
+func (d driver) DeleteRule(ctx context.Context, name string) (bool, error) {
+	err := d.opa.DeletePolicy(name)
+	if err != nil {
+		if e, ok := err.(*Error); ok {
+			if e.Code == types.CodeResourceNotFound {
+				return false, nil
+			}
+		}
+	}
+	return err == nil, err
 }
 
 func (d driver) PutData(ctx context.Context, path string, data interface{}) error {
 	return d.opa.PutData(path, data)
 }
 
-func (d driver) DeleteData(ctx context.Context, path string) error {
+// DeleteData deletes data from OPA and returns true if data was found and deleted, false
+// if data was not found, and any errors
+func (d driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
 		if e, ok := err.(*Error); ok {
 			if e.Code == types.CodeResourceNotFound {
-				return nil
+				return false, nil
 			}
 		}
 	}
-	return err
+	return err == nil, err
 }
 
 func (d driver) Query(ctx context.Context, path string, input interface{}) ([]*ctypes.Result, error) {

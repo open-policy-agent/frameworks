@@ -36,5 +36,15 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 
 // NewClient creates a new client for the supplied backend
 func (b *Backend) NewClient(opts ...ClientOpt) (*client, error) {
-	return &client{backend: b}, nil
+	c := &client{backend: b}
+	var errs Errors
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	return c, nil
 }
