@@ -265,8 +265,8 @@ func (c *client) getConstraintEntry(constraint *unstructured.Unstructured, lock 
 
 // AddConstraint validates the constraint and, if valid, inserts it into OPA
 func (c *client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.constraintsMux.RLock()
+	defer c.constraintsMux.RUnlock()
 	if err := c.validateConstraint(constraint, false); err != nil {
 		return err
 	}
@@ -290,8 +290,8 @@ func (c *client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 
 // RemoveConstraint removes a constraint from OPA
 func (c *client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.constraintsMux.RLock()
+	defer c.constraintsMux.RUnlock()
 	entry, err := c.getConstraintEntry(constraint, false)
 	if err != nil {
 		return err
