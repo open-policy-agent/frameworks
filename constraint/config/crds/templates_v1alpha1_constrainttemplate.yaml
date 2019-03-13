@@ -33,15 +33,6 @@ spec:
                 spec:
                   properties:
                     names:
-                      properties:
-                        kind:
-                          type: string
-                        listKind:
-                          type: string
-                        plural:
-                          type: string
-                        singular:
-                          type: string
                       type: object
                     validation:
                       type: object
