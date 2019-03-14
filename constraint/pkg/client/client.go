@@ -363,7 +363,7 @@ func (c *client) init() error {
 			"matching_reviews_and_constraints": 2,
 			"matching_constraints":             1,
 		}
-		if err := requireRules(lib, req); err != nil {
+		if err := requireRules(fmt.Sprintf("%s_libraries", t.GetName()), lib, req); err != nil {
 			return err
 		}
 		if err := c.backend.driver.PutRule(

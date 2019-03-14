@@ -3,6 +3,8 @@ package regolib
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"text/template"
 
@@ -29,7 +31,7 @@ func TestRegoExecutes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Could not parse rego for template %s: %s", tt.Template.Name(), err)
 			}
-			r := rego.New(rego.Query("data.hooks.foo.deny"), rego.Compiler(compiler))
+			r := rego.New(rego.Query(fmt.Sprintf("data.hooks.foo.%s", strings.ToLower(tt.Template.Name()))), rego.Compiler(compiler))
 			if _, err := r.Eval(context.Background()); err != nil {
 				t.Fatalf("Could not execute rego for template %s: %s", tt.Template.Name(), err)
 			}
