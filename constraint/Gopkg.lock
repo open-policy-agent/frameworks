@@ -441,13 +441,26 @@
   version = "v1.5.0"
 
 [[projects]]
-  digest = "1:81c48f7dea1ff3b3b74aebd13355f96fc6a6c4f7de3140bd24fdc09d330a141d"
+  digest = "1:0ca062847337b478c16b7766528641167ae0c182a1da12e732e182a2834c1ff6"
   name = "github.com/open-policy-agent/opa"
   packages = [
     "ast",
+    "internal/compiler/wasm",
+    "internal/compiler/wasm/opa",
+    "internal/ir",
+    "internal/leb128",
+    "internal/planner",
+    "internal/wasm/constant",
+    "internal/wasm/encoding",
+    "internal/wasm/instruction",
+    "internal/wasm/module",
+    "internal/wasm/opcode",
+    "internal/wasm/types",
     "metrics",
+    "rego",
     "server/types",
     "storage",
+    "storage/inmem",
     "topdown",
     "topdown/builtins",
     "topdown/copypropagation",
@@ -1094,6 +1107,7 @@
   input-imports = [
     "github.com/onsi/gomega",
     "github.com/open-policy-agent/opa/ast",
+    "github.com/open-policy-agent/opa/rego",
     "github.com/open-policy-agent/opa/server/types",
     "golang.org/x/net/context",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions",
@@ -1105,6 +1119,7 @@
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/types",
+    "k8s.io/apimachinery/pkg/util/validation",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/rest",
     "k8s.io/code-generator/cmd/client-gen",

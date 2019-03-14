@@ -1,14 +1,16 @@
 package client
 
 import (
+	"context"
 	"errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 )
 
 type Backend struct {
-	driver drivers.Driver
-	crd    *crdHelper
+	driver    drivers.Driver
+	crd       *crdHelper
+	hasClient bool
 }
 
 type BackendOpt func(*Backend)
@@ -35,7 +37,10 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 }
 
 // NewClient creates a new client for the supplied backend
-func (b *Backend) NewClient(opts ...ClientOpt) (*client, error) {
+func (b *Backend) NewClient(opts ...ClientOpt) (Client, error) {
+	if b.hasClient {
+		return nil, errors.New("Currently only one client per backend is supported")
+	}
 	c := &client{backend: b}
 	var errs Errors
 	for _, opt := range opts {
@@ -45,6 +50,12 @@ func (b *Backend) NewClient(opts ...ClientOpt) (*client, error) {
 	}
 	if len(errs) > 0 {
 		return nil, errs
+	}
+	if err := b.driver.Init(context.Background()); err != nil {
+		return nil, err
+	}
+	if err := c.init(); err != nil {
+		return nil, err
 	}
 	return c, nil
 }

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -70,10 +72,10 @@ type TargetHandler interface {
 
 	GetName() string
 
-	// Libraries returns the pieces of Rego code required to stitch together constraint evaluation
+	// Library returns the pieces of Rego code required to stitch together constraint evaluation
 	// for the target. Current required libraries are `matching_constraints` and
 	// `matching_reviews_and_constraints`
-	Libraries() map[string][]byte
+	Library() string
 
 	// ProcessData takes a potential data object and returns:
 	//   true if the target handles the data type
@@ -312,8 +314,8 @@ func (c *client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	return nil
 }
 
-// validateConstraint is an internal function that allows us to toggle a read lock when validating
-// a constraint
+// validateConstraint is an internal function that allows us to toggle whether we use a read lock
+// when validating a constraint
 func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock bool) error {
 	entry, err := c.getConstraintEntry(constraint, lock)
 	if err != nil {
@@ -326,6 +328,53 @@ func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock 
 // the registered CRD for that constraint.
 func (c *client) ValidateConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	return c.validateConstraint(constraint, true)
+}
+
+// init initializes the OPA backend for the client
+func (c *client) init() error {
+	for _, t := range c.targets {
+		hooks := fmt.Sprintf("hooks.%s", t.GetName())
+		templMap := map[string]string{"Target": t.GetName()}
+
+		deny := &bytes.Buffer{}
+		if err := regolib.Deny.Execute(deny, templMap); err != nil {
+			return err
+		}
+		if err := c.backend.driver.PutRule(
+			context.Background(),
+			fmt.Sprintf("%s.deny", hooks),
+			deny.String()); err != nil {
+			return err
+		}
+
+		audit := &bytes.Buffer{}
+		if err := regolib.Audit.Execute(audit, templMap); err != nil {
+			return err
+		}
+		if err := c.backend.driver.PutRule(
+			context.Background(),
+			fmt.Sprintf("%s.audit", hooks),
+			audit.String()); err != nil {
+			return err
+		}
+
+		lib := t.Library()
+		req := ruleArities{
+			"matching_reviews_and_constraints": 2,
+			"matching_constraints":             1,
+		}
+		if err := requireRules(lib, req); err != nil {
+			return err
+		}
+		if err := c.backend.driver.PutRule(
+			context.Background(),
+			fmt.Sprintf("%s.library", hooks),
+			lib); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *client) Reset(ctx context.Context) error {
