@@ -182,6 +182,16 @@ func TestGetRuleArity(t *testing.T) {
 			Rego:          `package hello v[[b, {"arg": a}]]{a == 1; b == 2}`,
 			ErrorExpected: true,
 		},
+		{
+			Name:          "No String Key",
+			Rego:          `package hello v["q"]{1 == 1}`,
+			ErrorExpected: true,
+		},
+		{
+			Name:          "No String Array Entry",
+			Rego:          `package hello v[[b, "a"]]{b == 2}`,
+			ErrorExpected: true,
+		},
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
