@@ -103,8 +103,8 @@ func checkDataAccess(module *ast.Module) Errors {
 type ruleArities map[string]int
 
 // requireRules makes sure the listed rules are specified with the required arity
-func requireRules(rego string, reqs ruleArities) error {
-	module, err := ast.ParseModule("foo", rego)
+func requireRules(name, rego string, reqs ruleArities) error {
+	module, err := ast.ParseModule(name, rego)
 	if err != nil {
 		return err
 	}
@@ -151,11 +151,14 @@ func getRuleArity(r *ast.Rule) (int, error) {
 		errs := false
 		for _, e := range v {
 			if _, ok := e.Value.(ast.Var); !ok {
-				errs = true
+				// for multi-arity args, a dev may be building the review object in the head of the rule
+				if _, ok := e.Value.(ast.Object); !ok {
+					errs = true
+				}
 			}
 		}
 		if errs {
-			return 0, fmt.Errorf("Invalid rule signature: only single variables or arrays of variables allowed: %s", v.String())
+			return 0, fmt.Errorf("Invalid rule signature: only single variables or arrays of variables or objects allowed: %s", v.String())
 		}
 		return len(v), nil
 	}

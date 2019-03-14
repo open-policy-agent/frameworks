@@ -168,18 +168,13 @@ func TestGetRuleArity(t *testing.T) {
 			ArityExpected: 5,
 		},
 		{
+			Name:          "Object in Array Allowed",
+			Rego:          `package hello v[[{"arg": a}, b]]{a == 1; b == 2}`,
+			ArityExpected: 2,
+		},
+		{
 			Name:          "No Object",
 			Rego:          `package hello v[{"arg": a}]{a == 1}`,
-			ErrorExpected: true,
-		},
-		{
-			Name:          "No Object in Array",
-			Rego:          `package hello v[[{"arg": a}, b]]{a == 1; b == 2}`,
-			ErrorExpected: true,
-		},
-		{
-			Name:          "No Object in Array (reverse)",
-			Rego:          `package hello v[[b, {"arg": a}]]{a == 1; b == 2}`,
 			ErrorExpected: true,
 		},
 		{
@@ -190,6 +185,11 @@ func TestGetRuleArity(t *testing.T) {
 		{
 			Name:          "No String Array Entry",
 			Rego:          `package hello v[[b, "a"]]{b == 2}`,
+			ErrorExpected: true,
+		},
+		{
+			Name:          "No String Array Entry (reversed)",
+			Rego:          `package hello v[["a", b]]{b == 2}`,
 			ErrorExpected: true,
 		},
 	}
@@ -276,7 +276,7 @@ func TestRequireRules(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
-			err := requireRules(tt.Rego, tt.RequiredRules)
+			err := requireRules("foo", tt.Rego, tt.RequiredRules)
 			if (err == nil) && tt.ErrorExpected {
 				t.Fatalf("err = nil; want non-nil")
 			}
