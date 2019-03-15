@@ -51,6 +51,9 @@ func (b *Backend) NewClient(opts ...ClientOpt) (Client, error) {
 	if len(errs) > 0 {
 		return nil, errs
 	}
+	if len(c.targets) == 0 {
+		return nil, errors.New("No targets registered. Please register a target via client.Targets()")
+	}
 	if err := b.driver.Init(context.Background()); err != nil {
 		return nil, err
 	}
