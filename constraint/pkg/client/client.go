@@ -101,7 +101,7 @@ type client struct {
 // createDataPath compiles the data destination: data.external.<target>.<path>
 func createDataPath(target, subpath string) string {
 	subpaths := strings.Split(subpath, "/")
-	p := []string{"", "data", "external", target}
+	p := []string{"", "external", target}
 	p = append(p, subpaths...)
 
 	return path.Join(p...)
