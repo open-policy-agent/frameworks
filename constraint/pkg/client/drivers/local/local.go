@@ -38,7 +38,7 @@ func copyModules(modules map[string]*ast.Module, filter string) map[string]*ast.
 	return m
 }
 
-func (d *driver) PutRule(ctx context.Context, name string, src string) error {
+func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 	module, err := ast.ParseModule(name, src)
@@ -68,9 +68,9 @@ func (d *driver) PutRule(ctx context.Context, name string, src string) error {
 	return nil
 }
 
-// DeleteRule deletes a rule from OPA and returns true if a rule was found and deleted, false
+// DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
 // if a rule was not found, and any errors
-func (d *driver) DeleteRule(ctx context.Context, name string) (bool, error) {
+func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 	if _, ok := d.modules[name]; !ok {
