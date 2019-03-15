@@ -24,13 +24,13 @@ func (d *driver) Init(ctx context.Context) error {
 	return nil
 }
 
-func (d *driver) PutRule(ctx context.Context, name string, src string) error {
+func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
-// DeleteRule deletes a rule from OPA and returns true if a rule was found and deleted, false
+// DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
 // if a rule was not found, and any errors
-func (d *driver) DeleteRule(ctx context.Context, name string) (bool, error) {
+func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
 		if e, ok := err.(*Error); ok {

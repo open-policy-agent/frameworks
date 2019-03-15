@@ -66,7 +66,7 @@ func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
 	return true
 }
 
-func TestPutRule(t *testing.T) {
+func TestPutModule(t *testing.T) {
 	tc := []testCase{
 		{
 			Name:          "Put One Rule",
@@ -92,7 +92,7 @@ func TestPutRule(t *testing.T) {
 			dr := New()
 			d := dr.(*driver)
 			for _, r := range tt.Rules {
-				err := d.PutRule(context.Background(), r[0], r[1])
+				err := d.PutModule(context.Background(), r[0], r[1])
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}
@@ -105,13 +105,13 @@ func TestPutRule(t *testing.T) {
 				t.Errorf("Eval error: %s", err)
 			}
 			if !resultsEqual(res, tt.ExpectedVals, t) {
-				fmt.Printf("For Test TestPutRule/%s: modules: %v\n", tt.Name, d.modules)
+				fmt.Printf("For Test TestPutModule/%s: modules: %v\n", tt.Name, d.modules)
 			}
 		})
 	}
 }
 
-func TestDeleteRule(t *testing.T) {
+func TestDeleteModule(t *testing.T) {
 	tc := []deleteTestCase{
 		{
 			Name: "Delete One Rule",
@@ -171,7 +171,7 @@ func TestDeleteRule(t *testing.T) {
 			for _, a := range tt.Actions {
 				if a.Op == add {
 					for _, r := range a.Data.Rules {
-						err := d.PutRule(context.Background(), r[0], r[1])
+						err := d.PutModule(context.Background(), r[0], r[1])
 						if (err == nil) && a.ErrorExpected {
 							t.Fatalf("PUT err = nil; want non-nil")
 						}
@@ -182,7 +182,7 @@ func TestDeleteRule(t *testing.T) {
 					// remove
 				} else {
 					for _, r := range a.Data.Rules {
-						b, err := d.DeleteRule(context.Background(), r[0])
+						b, err := d.DeleteModule(context.Background(), r[0])
 						if (err == nil) && a.ErrorExpected {
 							t.Fatalf("DELETE err = nil; want non-nil")
 						}
@@ -190,7 +190,7 @@ func TestDeleteRule(t *testing.T) {
 							t.Fatalf("DELETE err = \"%s\"; want nil", err)
 						}
 						if b != a.ExpectedBool {
-							t.Fatalf("DeleteRule(\"%s\") = %t; want %t", r[0], b, a.ExpectedBool)
+							t.Fatalf("DeleteModule(\"%s\") = %t; want %t", r[0], b, a.ExpectedBool)
 						}
 					}
 				}
@@ -199,7 +199,7 @@ func TestDeleteRule(t *testing.T) {
 					t.Errorf("Eval error: %s", err)
 				}
 				if !resultsEqual(res, a.ExpectedVals, t) {
-					fmt.Printf("For Test TestPutRule/%s: modules: %v\n", tt.Name, d.modules)
+					fmt.Printf("For Test TestPutModule/%s: modules: %v\n", tt.Name, d.modules)
 				}
 			}
 		})
@@ -351,7 +351,7 @@ func TestDeleteData(t *testing.T) {
 								t.Fatalf("DELETE err = \"%s\"; want nil", err)
 							}
 							if b != a.ExpectedBool {
-								t.Fatalf("DeleteRule(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
+								t.Fatalf("DeleteModule(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
 							}
 							res, err := d.eval(context.Background(), makeDataPath(k), nil)
 							if err != nil {
@@ -410,7 +410,7 @@ func TestQuery(t *testing.T) {
 			}
 		}
 
-		if err := d.PutRule(context.Background(), "test", `package hooks deny[r] { r = data.constraints[_] }`); err != nil {
+		if err := d.PutModule(context.Background(), "test", `package hooks deny[r] { r = data.constraints[_] }`); err != nil {
 			t.Fatal(err)
 		}
 		res, err := d.Query(context.Background(), "hooks.deny", nil)

@@ -185,7 +185,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
-	if err := c.backend.driver.PutRule(ctx, path, conformingSrc); err != nil {
+	if err := c.backend.driver.PutModule(ctx, path, conformingSrc); err != nil {
 		return nil, err
 	}
 
@@ -222,7 +222,7 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintT
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
-	_, err := c.backend.driver.DeleteRule(ctx, path)
+	_, err := c.backend.driver.DeleteModule(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func (c *client) init() error {
 		if err := regolib.Deny.Execute(deny, templMap); err != nil {
 			return err
 		}
-		if err := c.backend.driver.PutRule(
+		if err := c.backend.driver.PutModule(
 			context.Background(),
 			fmt.Sprintf("%s.deny", hooks),
 			deny.String()); err != nil {
@@ -351,7 +351,7 @@ func (c *client) init() error {
 		if err := regolib.Audit.Execute(audit, templMap); err != nil {
 			return err
 		}
-		if err := c.backend.driver.PutRule(
+		if err := c.backend.driver.PutModule(
 			context.Background(),
 			fmt.Sprintf("%s.audit", hooks),
 			audit.String()); err != nil {
@@ -366,7 +366,7 @@ func (c *client) init() error {
 		if err := requireRules(fmt.Sprintf("%s_libraries", t.GetName()), lib, req); err != nil {
 			return err
 		}
-		if err := c.backend.driver.PutRule(
+		if err := c.backend.driver.PutModule(
 			context.Background(),
 			fmt.Sprintf("%s.library", hooks),
 			lib); err != nil {
