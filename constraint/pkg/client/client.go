@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
+	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
@@ -33,15 +35,20 @@ type Client interface {
 	Reset(context.Context) error
 
 	// Review makes sure the provided object satisfies all stored constraints
-	Review(context.Context, interface{}) ([]*types.Result, error)
+	Review(context.Context, interface{}) (types.Responses, error)
 
 	// Audit makes sure the cached state of the system satisfies all stored constraints
-	Audit(context.Context) ([]*types.Result, error)
+	Audit(context.Context) (types.Responses, error)
+
+	// Dump dumps the state of OPA to aid in debugging
+	Dump(context.Context) (string, error)
 }
 
 type ClientOpt func(*client) error
 
 // Client options
+
+var targetNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*$`)
 
 func Targets(ts ...TargetHandler) ClientOpt {
 	return func(c *client) error {
@@ -50,6 +57,8 @@ func Targets(ts ...TargetHandler) ClientOpt {
 		for _, t := range ts {
 			if t.GetName() == "" {
 				errs = append(errs, errors.New("Invalid target: a target is returning an empty string for GetName()"))
+			} else if !targetNameRegex.MatchString(t.GetName()) {
+				errs = append(errs, fmt.Errorf("Target name \"%s\" is not of the form %s", t.GetName(), targetNameRegex.String()))
 			} else {
 				handlers[t.GetName()] = t
 			}
@@ -75,13 +84,26 @@ type TargetHandler interface {
 	// Library returns the pieces of Rego code required to stitch together constraint evaluation
 	// for the target. Current required libraries are `matching_constraints` and
 	// `matching_reviews_and_constraints`
-	Library() string
+	//
+	// Libraries are currently templates that have the following parameters:
+	//   ConstraintsRoot: The root path under which all constraints for the target are stored
+	//   DataRoot: The root path under which all data for the target is stored
+	Library() *template.Template
 
 	// ProcessData takes a potential data object and returns:
 	//   true if the target handles the data type
 	//   the path under which the data should be stored in OPA
 	//   the data in an object that can be cast into JSON, suitable for storage in OPA
 	ProcessData(interface{}) (bool, string, interface{}, error)
+
+	// HandleReview takes a potential review request and builds the `review` field of the input
+	// object. it returns:
+	//		true if the target handles the data type
+	//		the data for the `review` field
+	HandleReview(interface{}) (bool, interface{}, error)
+
+	// HandleViolation allows for post-processing of the result object, which can be mutated directly
+	HandleViolation(result *types.Result) error
 }
 
 var _ Client = &client{}
@@ -101,10 +123,10 @@ type client struct {
 // createDataPath compiles the data destination: data.external.<target>.<path>
 func createDataPath(target, subpath string) string {
 	subpaths := strings.Split(subpath, "/")
-	p := []string{"", "external", target}
+	p := []string{"external", target}
 	p = append(p, subpaths...)
 
-	return path.Join(p...)
+	return "/" + path.Join(p...)
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.
@@ -245,7 +267,7 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 	if gvk.Kind == "" {
 		return "", fmt.Errorf("Empty kind for the constraint named %s", constraint.GetName())
 	}
-	return path.Join("constraints", target, "cluster", gvk.Group, gvk.Version, gvk.Kind, constraint.GetName()), nil
+	return "/" + path.Join("constraints", target, "cluster", gvk.Group, gvk.Version, gvk.Kind, constraint.GetName()), nil
 }
 
 // getConstraintEntry returns the constraint entry for a given constraint
@@ -283,7 +305,7 @@ func (c *client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		if err != nil {
 			return err
 		}
-		if err := c.backend.driver.PutData(ctx, path, constraint); err != nil {
+		if err := c.backend.driver.PutData(ctx, path, constraint.Object); err != nil {
 			return err
 		}
 	}
@@ -358,18 +380,28 @@ func (c *client) init() error {
 			return err
 		}
 
-		lib := t.Library()
+		libTempl := t.Library()
+		libBuf := &bytes.Buffer{}
+		if err := libTempl.Execute(libBuf, map[string]string{
+			"ConstraintsRoot": fmt.Sprintf(`data.constraints.%s.cluster["%s"].v1alpha1`, t.GetName(), constraintGroup),
+			"DataRoot":        fmt.Sprintf(`data.external.%s`, t.GetName()),
+		}); err != nil {
+			return err
+		}
+		lib := libBuf.String()
 		req := ruleArities{
 			"matching_reviews_and_constraints": 2,
 			"matching_constraints":             1,
 		}
 		if err := requireRules(fmt.Sprintf("%s_libraries", t.GetName()), lib, req); err != nil {
+			return fmt.Errorf("Problem with the below rego for %s target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
+		}
+		path := fmt.Sprintf("%s.library", hooks)
+		src, err := rewritePackage(path, lib)
+		if err != nil {
 			return err
 		}
-		if err := c.backend.driver.PutModule(
-			context.Background(),
-			fmt.Sprintf("%s.library", hooks),
-			lib); err != nil {
+		if err := c.backend.driver.PutModule(context.Background(), path, src); err != nil {
 			return err
 		}
 	}
@@ -378,13 +410,73 @@ func (c *client) init() error {
 }
 
 func (c *client) Reset(ctx context.Context) error {
-	return errors.New("NOT IMPLEMENTED")
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
+	for name := range c.targets {
+		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/external/%s", name)); err != nil {
+			return err
+		}
+		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/constraints/%s", name)); err != nil {
+			return err
+		}
+	}
+	for name, v := range c.constraints {
+		for _, t := range v.Targets {
+			if _, err := c.backend.driver.DeleteModule(ctx, fmt.Sprintf("templates.%s.%s", t, name)); err != nil {
+				return err
+			}
+		}
+	}
+	c.constraints = make(map[string]*constraintEntry)
+	return nil
 }
 
-func (c *client) Review(ctx context.Context, obj interface{}) ([]*types.Result, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+func (c *client) Review(ctx context.Context, obj interface{}) (types.Responses, error) {
+	responses := types.Responses{}
+	for name, target := range c.targets {
+		handled, review, err := target.HandleReview(obj)
+		// Short-circuiting question applies here as well
+		if err != nil {
+			return nil, err
+		}
+		if !handled {
+			continue
+		}
+		input := map[string]interface{}{"review": review}
+		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf("hooks.%s.deny", name), input)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range resp.Results {
+			if err := target.HandleViolation(r); err != nil {
+				return nil, err
+			}
+		}
+		resp.Target = name
+		responses[name] = resp
+	}
+	return responses, nil
 }
 
-func (c *client) Audit(ctx context.Context) ([]*types.Result, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+func (c *client) Audit(ctx context.Context) (types.Responses, error) {
+	responses := types.Responses{}
+	for name, target := range c.targets {
+		// Short-circuiting question applies here as well
+		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf("hooks.%s.audit", name), nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range resp.Results {
+			if err := target.HandleViolation(r); err != nil {
+				return nil, err
+			}
+		}
+		resp.Target = name
+		responses[name] = resp
+	}
+	return responses, nil
+}
+
+func (c *client) Dump(ctx context.Context) (string, error) {
+	return c.backend.driver.Dump(ctx)
 }

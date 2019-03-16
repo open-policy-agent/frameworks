@@ -15,5 +15,7 @@ type Driver interface {
 	PutData(ctx context.Context, path string, data interface{}) error
 	DeleteData(ctx context.Context, path string) (bool, error)
 
-	Query(ctx context.Context, path string, input interface{}) ([]*types.Result, error)
+	Query(ctx context.Context, path string, input interface{}) (*types.Response, error)
+
+	Dump(ctx context.Context) (string, error)
 }
