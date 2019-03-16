@@ -7,7 +7,12 @@ package hooks.{{.Target}}
 
 deny[response] {
 	data.hooks.{{.Target}}.library.matching_constraints[constraint]
-	data.templates.{{.Target}}[_].deny[response] with input.constraint as constraint
+	data.templates.{{.Target}}[constraint.kind].deny[r] with input.constraint as constraint
+	response = {
+		"msg": r.msg,
+		"metadata": {"details": r.details},
+		"constraint": constraint
+	}
 }
 `
 
@@ -19,9 +24,15 @@ audit[response] {
 	data.hooks.{{.Target}}.library.matching_reviews_and_constraints[[review, constraint]]
 	inp := {
 		"review": review,
-		"constraint": constraint
+		"constraint": constraint,
 	}
-	data.templates.{{.Target}}[_].deny[response] with input as inp
+	data.templates.{{.Target}}[constraint.kind].deny[r] with input as inp
+	response = {
+		"msg": r.msg,
+		"metadata": {"details": r.details},
+		"constraint": constraint,
+		"review": review,
+	}
 }
 `
 )

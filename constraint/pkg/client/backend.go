@@ -41,7 +41,10 @@ func (b *Backend) NewClient(opts ...ClientOpt) (Client, error) {
 	if b.hasClient {
 		return nil, errors.New("Currently only one client per backend is supported")
 	}
-	c := &client{backend: b}
+	c := &client{
+		backend:     b,
+		constraints: make(map[string]*constraintEntry),
+	}
 	var errs Errors
 	for _, opt := range opts {
 		if err := opt(c); err != nil {

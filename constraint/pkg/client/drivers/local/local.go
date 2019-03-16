@@ -1,8 +1,10 @@
 package local
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -12,15 +14,37 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
+	"github.com/open-policy-agent/opa/topdown"
 )
+
+type Arg func(*driver)
+
+func Tracing(enabled bool) Arg {
+	return func(d *driver) {
+		d.traceEnabled = enabled
+	}
+}
+
+func New(args ...Arg) drivers.Driver {
+	d := &driver{
+		compiler: ast.NewCompiler(),
+		modules:  make(map[string]*ast.Module),
+		storage:  inmem.New(),
+	}
+	for _, arg := range args {
+		arg(d)
+	}
+	return d
+}
 
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	modulesMux sync.RWMutex
-	compiler   *ast.Compiler
-	modules    map[string]*ast.Module
-	storage    storage.Store
+	modulesMux   sync.RWMutex
+	compiler     *ast.Compiler
+	modules      map[string]*ast.Module
+	storage      storage.Store
+	traceEnabled bool
 }
 
 func (d *driver) Init(ctx context.Context) error {
@@ -165,22 +189,37 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-func (d *driver) eval(ctx context.Context, path string, input interface{}) (rego.ResultSet, error) {
+func (d *driver) eval(ctx context.Context, path string, input interface{}) (rego.ResultSet, string, error) {
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
-	rego := rego.New(
+	args := []func(*rego.Rego){
 		rego.Compiler(d.compiler),
 		rego.Store(d.storage),
 		rego.Input(input),
 		rego.Query(path),
-	)
-	return rego.Eval(ctx)
+	}
+	if d.traceEnabled {
+		buf := topdown.NewBufferTracer()
+		args = append(args, rego.Tracer(buf))
+		rego := rego.New(args...)
+		res, err := rego.Eval(ctx)
+		b := &bytes.Buffer{}
+		topdown.PrettyTrace(b, *buf)
+		return res, b.String(), err
+	}
+	rego := rego.New(args...)
+	res, err := rego.Eval(ctx)
+	return res, "", err
 }
 
-func (d *driver) Query(ctx context.Context, path string, input interface{}) ([]*types.Result, error) {
+func (d *driver) Query(ctx context.Context, path string, input interface{}) (*types.Response, error) {
 	// Add a variable binding to the path
+	inp, err := json.MarshalIndent(input, "", "   ")
+	if err != nil {
+		return nil, err
+	}
 	path = fmt.Sprintf("data.%s[result]", path)
-	rs, err := d.eval(ctx, path, input)
+	rs, trace, err := d.eval(ctx, path, input)
 	if err != nil {
 		return nil, err
 	}
@@ -196,13 +235,44 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}) ([]*
 		}
 		results = append(results, result)
 	}
-	return results, nil
+	return &types.Response{
+		Trace:   trace,
+		Results: results,
+		Input:   string(inp),
+	}, nil
 }
 
-func New() drivers.Driver {
-	return &driver{
-		compiler: ast.NewCompiler(),
-		modules:  make(map[string]*ast.Module),
-		storage:  inmem.New(),
+func (d *driver) Dump(ctx context.Context) (string, error) {
+	d.modulesMux.RLock()
+	defer d.modulesMux.RUnlock()
+	mods := make(map[string]string, len(d.modules))
+	for k, v := range d.modules {
+		mods[k] = v.String()
 	}
+	data, _, err := d.eval(ctx, "data", nil)
+	if err != nil {
+		return "", err
+	}
+	var dt interface{}
+	// There should be only 1 or 0 expression values
+	if len(data) > 1 {
+		return "", errors.New("Too many dump results")
+	}
+	for _, da := range data {
+		if len(data) > 1 {
+			return "", errors.New("Too many expressions results")
+		}
+		for _, e := range da.Expressions {
+			dt = e.Value
+		}
+	}
+	resp := map[string]interface{}{
+		"modules": mods,
+		"data":    dt,
+	}
+	b, err := json.MarshalIndent(resp, "", "   ")
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

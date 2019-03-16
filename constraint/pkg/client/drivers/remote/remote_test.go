@@ -77,14 +77,14 @@ func TestQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(res) != 2 {
-			t.Errorf("Expected length to be 2 but got: %d", len(res))
+		if len(res.Results) != 2 {
+			t.Errorf("Expected length to be 2 but got: %d", len(res.Results))
 		}
-		if res[0].Msg != "totally invalid" {
-			t.Errorf("Expected res[0].Msg to be `totally invalid` but got: %s", res[0].Msg)
+		if res.Results[0].Msg != "totally invalid" {
+			t.Errorf("Expected res[0].Msg to be `totally invalid` but got: %s", res.Results[0].Msg)
 		}
-		if res[1].Msg != "yep" {
-			t.Errorf("Expected res[1].Msg to be `yep` but got: %s", res[1].Msg)
+		if res.Results[1].Msg != "yep" {
+			t.Errorf("Expected res[1].Msg to be `yep` but got: %s", res.Results[1].Msg)
 		}
 	})
 }

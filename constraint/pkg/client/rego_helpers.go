@@ -31,6 +31,19 @@ func ensureRegoConformance(kind, path, rego string) (string, error) {
 	return module.String(), nil
 }
 
+// rewritePackage rewrites the package in a rego module
+func rewritePackage(path, rego string) (string, error) {
+	if rego == "" {
+		return "", errors.New("Rego source code is empty")
+	}
+	module, err := ast.ParseModule(path, rego)
+	if err != nil {
+		return "", err
+	}
+	module.Package.Path = packageRef(path)
+	return module.String(), nil
+}
+
 // packageRef constructs a Ref to the provided package path string
 func packageRef(path string) ast.Ref {
 	pathParts := strings.Split(path, ".")

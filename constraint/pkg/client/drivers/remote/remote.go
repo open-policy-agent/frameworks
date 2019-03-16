@@ -60,7 +60,7 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return err == nil, err
 }
 
-func (d *driver) Query(ctx context.Context, path string, input interface{}) ([]*ctypes.Result, error) {
+func (d *driver) Query(ctx context.Context, path string, input interface{}) (*ctypes.Response, error) {
 	response, err := d.opa.Query(path, input)
 	if err != nil {
 		return nil, err
@@ -71,5 +71,17 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}) ([]*
 		return nil, err
 	}
 
-	return results, nil
+	return &ctypes.Response{Results: results}, nil
+}
+
+func (d *driver) Dump(ctx context.Context) (string, error) {
+	response, err := d.opa.Query("", nil)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.MarshalIndent(response, "", "   ")
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
