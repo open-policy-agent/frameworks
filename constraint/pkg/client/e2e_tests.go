@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/pkg/errors"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -63,28 +63,28 @@ func newConstraint(kind, name string, params map[string]string) *unstructured.Un
 var tests = map[string]func(Client) error{
 
 	"Add Template": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
-		return err
+		return errors.Wrap(tr.Error(), "AddTemplate")
 	},
 
 	"Deny All": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
-		if err != nil {
-			return err
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
-		rsps, err := c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
-		if err != nil {
-			return err
+		rsps, tr := c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "Review")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -102,28 +102,28 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit x2": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
-deny[{"msg": "DENIED", "details": {}}] {
-	"always" == "always"
-}`))
-		if err != nil {
-			return err
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+	deny[{"msg": "DENIED", "details": {}}] {
+		"always" == "always"
+	}`))
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddData")
 		}
 		obj2 := &targetData{Name: "Max", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj2); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj2); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddDataX2")
 		}
-		rsps, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps, tr := c.Audit(ctx)
+		if tr != nil {
+			return errors.Wrap(tr.Error(), "Audit")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -143,24 +143,24 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
-deny[{"msg": "DENIED", "details": {}}] {
-	"always" == "always"
-}`))
-		if err != nil {
-			return err
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+	deny[{"msg": "DENIED", "details": {}}] {
+		"always" == "always"
+	}`))
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj); tr != nil {
+			return errors.Wrap(tr.Error(), "AddData")
 		}
-		rsps, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "Audit")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -181,28 +181,28 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Data": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
-deny[{"msg": "DENIED", "details": {}}] {
-	"always" == "always"
-}`))
-		if err != nil {
-			return err
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+	deny[{"msg": "DENIED", "details": {}}] {
+		"always" == "always"
+	}`))
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddData")
 		}
 		obj2 := &targetData{Name: "Max", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj2); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj2); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddDataX2")
 		}
-		rsps, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "Audit")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -219,12 +219,12 @@ deny[{"msg": "DENIED", "details": {}}] {
 			}
 		}
 
-		if err := c.RemoveData(ctx, obj2); err != nil {
-			return err
+		if tr := c.RemoveData(ctx, obj2); tr.Error() != nil {
+			return tr.Error()
 		}
-		rsps2, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps2, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return tr.Error()
 		}
 		if len(rsps2) == 0 {
 			return errors.New("No responses returned")
@@ -245,24 +245,24 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Constraint": func(c Client) error {
-		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
-deny[{"msg": "DENIED", "details": {}}] {
-	"always" == "always"
-}`))
-		if err != nil {
-			return err
+		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+	deny[{"msg": "DENIED", "details": {}}] {
+		"always" == "always"
+	}`))
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddData")
 		}
-		rsps, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "Audit")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -280,12 +280,12 @@ deny[{"msg": "DENIED", "details": {}}] {
 			return e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps)
 		}
 
-		if err := c.RemoveConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.RemoveConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "RemoveConstraint")
 		}
-		rsps2, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps2, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AuditX2")
 		}
 		if len(rsps2.Results()) != 0 {
 			return e("Responses returned", rsps2)
@@ -295,24 +295,24 @@ deny[{"msg": "DENIED", "details": {}}] {
 
 	"Remove Template": func(c Client) error {
 		tmpl := newConstraintTemplate("Foo", `package foo
-deny[{"msg": "DENIED", "details": {}}] {
-	"always" == "always"
-}`)
-		_, err := c.AddTemplate(ctx, tmpl)
-		if err != nil {
-			return err
+	deny[{"msg": "DENIED", "details": {}}] {
+		"always" == "always"
+	}`)
+		_, tr := c.AddTemplate(ctx, tmpl)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if err := c.AddConstraint(ctx, cstr); err != nil {
-			return err
+		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if err := c.AddData(ctx, obj); err != nil {
-			return err
+		if tr := c.AddData(ctx, obj); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AddData")
 		}
-		rsps, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "Audit")
 		}
 		if len(rsps) == 0 {
 			return errors.New("No responses returned")
@@ -330,12 +330,12 @@ deny[{"msg": "DENIED", "details": {}}] {
 			return e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps)
 		}
 
-		if err := c.RemoveTemplate(ctx, tmpl); err != nil {
-			return err
+		if tr := c.RemoveTemplate(ctx, tmpl); tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "RemoveTemplate")
 		}
-		rsps2, err := c.Audit(ctx)
-		if err != nil {
-			return err
+		rsps2, tr := c.Audit(ctx)
+		if tr.Error() != nil {
+			return errors.Wrap(tr.Error(), "AuditX2")
 		}
 		if len(rsps2.Results()) != 0 {
 			return e("Responses returned", rsps2)
@@ -344,4 +344,4 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 }
 
-// TODO: Test metadata, test idempotence, test multiple targets, test remote backend. Enable trace for remote backend
+// TODO: Test metadata, test idempotence, test multiple targets

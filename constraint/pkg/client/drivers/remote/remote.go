@@ -4,24 +4,70 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/open-policy-agent/opa/server/types"
+	"github.com/pkg/errors"
 )
 
-func New(url string, opaCAs *x509.CertPool, auth string) drivers.Driver {
-	return &driver{opa: newHttpClient(url, opaCAs, auth)}
+type arg func(*inits)
+
+type inits struct {
+	url          string
+	opaCAs       *x509.CertPool
+	auth         string
+	traceEnabled bool
+}
+
+func URL(url string) arg {
+	return func(i *inits) {
+		i.url = url
+	}
+}
+
+func OpaCA(ca *x509.CertPool) arg {
+	return func(i *inits) {
+		i.opaCAs = ca
+	}
+}
+
+func Auth(auth string) arg {
+	return func(i *inits) {
+		i.auth = auth
+	}
+}
+
+func Tracing(enabled bool) arg {
+	return func(i *inits) {
+		i.traceEnabled = enabled
+	}
+}
+
+func New(args ...arg) (drivers.Driver, error) {
+	i := &inits{}
+	for _, arg := range args {
+		arg(i)
+	}
+	if i.url == "" {
+		return nil, errors.New("OPA URL not set")
+	}
+	return &driver{opa: newHttpClient(i.url, i.opaCAs, i.auth), traceEnabled: i.traceEnabled}, nil
 }
 
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	opa client
+	opa          client
+	traceEnabled bool
 }
 
 func (d *driver) Init(ctx context.Context) error {
 	return nil
+}
+
+func (d *driver) addTrace(path string) string {
+	return path + "?explain=full&pretty=true"
 }
 
 func (d *driver) PutModule(ctx context.Context, name string, src string) error {
@@ -33,8 +79,8 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
-		if e, ok := err.(*Error); ok {
-			if e.Code == types.CodeResourceNotFound {
+		if e, ok := errors.Cause(err).(*Error); ok {
+			if e.Status == 404 {
 				return false, nil
 			}
 		}
@@ -51,8 +97,8 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
-		if e, ok := err.(*Error); ok {
-			if e.Code == types.CodeResourceNotFound {
+		if e, ok := errors.Cause(err).(*Error); ok {
+			if e.Status == 404 {
 				return false, nil
 			}
 		}
@@ -61,17 +107,38 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 }
 
 func (d *driver) Query(ctx context.Context, path string, input interface{}) (*ctypes.Response, error) {
-	response, err := d.opa.Query(path, input)
+	path = strings.Replace(path, ".", "/", -1)
+	response, err := d.opa.Query(d.addTrace(path), input)
 	if err != nil {
 		return nil, err
 	}
+
 	var results []*ctypes.Result
-
-	if err := json.Unmarshal(response, &results); err != nil {
-		return nil, err
+	if response.Result != nil {
+		if err := json.Unmarshal(response.Result, &results); err != nil {
+			rawJson := string(response.Result)
+			return nil, errors.Wrapf(err, "DriverQuery: Unmarshal result: %s", rawJson)
+		}
 	}
+	resp := &ctypes.Response{Results: results}
 
-	return &ctypes.Response{Results: results}, nil
+	if d.traceEnabled && response.Explanation != nil {
+		var t interface{}
+		if err := json.Unmarshal(response.Explanation, &t); err != nil {
+			return nil, err
+		}
+		trace, err := json.MarshalIndent(t, "", "   ")
+		if err != nil {
+			return nil, err
+		}
+		tr := string(trace)
+		resp.Trace = &tr
+	}
+	inp, err := json.MarshalIndent(input, "", "   ")
+	i := string(inp)
+	resp.Input = &i
+
+	return resp, nil
 }
 
 func (d *driver) Dump(ctx context.Context) (string, error) {
@@ -79,7 +146,30 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	b, err := json.MarshalIndent(response, "", "   ")
+	resp := make(map[string]interface{})
+	resp["data"] = response.Result
+
+	polResponse, err := d.opa.ListPolicies()
+	if err != nil {
+		return "", err
+	}
+	pols := make([]map[string]interface{}, 0)
+	err = json.Unmarshal(polResponse.Result, &pols)
+	if err != nil {
+		return "", err
+	}
+	policies := make(map[string]string)
+	for _, v := range pols {
+		id, ok := v["id"]
+		raw, ok2 := v["raw"]
+		ids, ok3 := id.(string)
+		raws, ok4 := raw.(string)
+		if ok && ok2 && ok3 && ok4 {
+			policies[ids] = raws
+		}
+	}
+	resp["modules"] = policies
+	b, err := json.MarshalIndent(resp, "", "   ")
 	if err != nil {
 		return "", err
 	}
