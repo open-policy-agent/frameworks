@@ -220,11 +220,11 @@ deny[{"msg": "DENIED", "details": {}}] {
 		}
 
 		if tr := c.RemoveData(ctx, obj2); tr.Error() != nil {
-			return tr.Error()
+			return errors.Wrapf(tr.Error(), "RemoveData")
 		}
 		rsps2, tr := c.Audit(ctx)
 		if tr.Error() != nil {
-			return tr.Error()
+			return errors.Wrapf(tr.Error(), "AuditX2")
 		}
 		if len(rsps2) == 0 {
 			return errors.New("No responses returned")
