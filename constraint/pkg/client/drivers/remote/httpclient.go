@@ -11,19 +11,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // Error contains the standard error fields returned by OPA.
 type Error struct {
-	Code    string          `json:"code"`
-	Message string          `json:"message"`
-	Errors  json.RawMessage `json:"errors,omitempty"`
+	Status  int
+	Message string
 }
 
 func (err *Error) Error() string {
-	return fmt.Sprintf("code %v: %v", err.Code, err.Message)
+	return fmt.Sprintf("code %v: %v", err.Status, err.Message)
 }
 
 // Undefined represents an undefined response from OPA.
@@ -50,6 +52,7 @@ type client interface {
 type Policies interface {
 	InsertPolicy(id string, bs []byte) error
 	DeletePolicy(id string) error
+	ListPolicies() (*QueryResult, error)
 }
 
 // Data defines the interface for pushing and querying data in OPA.
@@ -59,7 +62,7 @@ type Data interface {
 	PutData(path string, value interface{}) error
 	PostData(path string, value interface{}) (json.RawMessage, error)
 	DeleteData(path string) error
-	Query(path string, value interface{}) (json.RawMessage, error)
+	Query(path string, value interface{}) (*QueryResult, error)
 }
 
 // New returns a new client object.
@@ -84,11 +87,11 @@ func (c *httpClient) Prefix(path string) Data {
 func (c *httpClient) PatchData(path string, op string, value *interface{}) error {
 	buf, err := c.makePatch(path, op, value)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "PatchData")
 	}
-	resp, err := c.do("PATCH", slashPath("data"), buf)
+	resp, err := c.do("PATCH", slashPath("v1", "data"), buf)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "PatchData")
 	}
 	return c.handleErrors(resp)
 }
@@ -96,12 +99,12 @@ func (c *httpClient) PatchData(path string, op string, value *interface{}) error
 func (c *httpClient) PutData(path string, value interface{}) error {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(value); err != nil {
-		return err
+		return errors.Wrap(err, "PutData")
 	}
-	absPath := slashPath("data", c.prefix, path)
+	absPath := slashPath("v1", "data", c.prefix, path)
 	resp, err := c.do("PUT", absPath, &buf)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "PutData")
 	}
 	return c.handleErrors(resp)
 }
@@ -115,7 +118,7 @@ func (c *httpClient) PostData(path string, value interface{}) (json.RawMessage, 
 	if err := json.NewEncoder(&buf).Encode(input); err != nil {
 		return nil, err
 	}
-	absPath := slashPath("data", c.prefix, path)
+	absPath := slashPath("v1", "data", c.prefix, path)
 	resp, err := c.do("POST", absPath, &buf)
 	if err != nil {
 		return nil, err
@@ -137,61 +140,81 @@ func (c *httpClient) PostData(path string, value interface{}) (json.RawMessage, 
 }
 
 func (c *httpClient) DeleteData(path string) error {
-	absPath := slashPath("data", c.prefix, path)
+	absPath := slashPath("v1", "data", c.prefix, path)
 	resp, err := c.do("DELETE", absPath, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "DeleteData")
 	}
 	return c.handleErrors(resp)
 }
 
-func (c *httpClient) Query(path string, input interface{}) (json.RawMessage, error) {
+type QueryResult struct {
+	Explanation json.RawMessage        `json:"explanation,omitempty"`
+	Result      json.RawMessage        `json:"result"`
+	Error       map[string]interface{} `json:"error"`
+}
+
+func (c *httpClient) Query(path string, input interface{}) (*QueryResult, error) {
 	var buf bytes.Buffer
 	var body struct {
-		Input interface{} `json:"input"`
+		Input interface{} `json:"input,omitempty"`
 	}
 	body.Input = input
-	if err := json.NewEncoder(&buf).Encode(input); err != nil {
-		return nil, err
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		return nil, errors.Wrap(err, "Query:body")
 	}
-	absPath := slashPath("data", c.prefix, path)
-	resp, err := c.do("GET", absPath, &buf)
+	absPath := slashPath("v1", "data", c.prefix, path)
+	method := "GET"
+	if input != nil {
+		method = "POST"
+	}
+	resp, err := c.do(method, absPath, &buf)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Query:do")
 	}
-	var result struct {
-		Result json.RawMessage        `json:"result"`
-		Error  map[string]interface{} `json:"error"`
-	}
+	result := &QueryResult{}
 	if resp.StatusCode != 200 {
-		return nil, c.handleErrors(resp)
+		return nil, errors.Wrap(c.handleErrors(resp), "Query:handleErrors")
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return nil, errors.Wrapf(err, "Query")
 	}
-	if result.Result == nil {
-		return nil, Undefined{}
-	}
-	return result.Result, nil
+	return result, nil
 }
 
 func (c *httpClient) InsertPolicy(id string, bs []byte) error {
 	buf := bytes.NewBuffer(bs)
-	path := slashPath("policies", id)
+	path := slashPath("v1", "policies", id)
 	resp, err := c.do("PUT", path, buf)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "InsertPolicy")
 	}
 	return c.handleErrors(resp)
 }
 
 func (c *httpClient) DeletePolicy(id string) error {
-	path := slashPath("policies", id)
+	path := slashPath("v1", "policies", id)
 	resp, err := c.do("DELETE", path, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "DeletePolicy")
 	}
 	return c.handleErrors(resp)
+}
+
+func (c *httpClient) ListPolicies() (*QueryResult, error) {
+	absPath := slashPath("v1", "policies", c.prefix)
+	resp, err := c.do("GET", absPath, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "ListPolicies:do")
+	}
+	result := &QueryResult{}
+	if resp.StatusCode != 200 {
+		return nil, errors.Wrap(c.handleErrors(resp), "ListPolicies:handleErrors")
+	}
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return nil, errors.Wrapf(err, "ListPolicies")
+	}
+	return result, nil
 }
 
 func (c *httpClient) makePatch(path, op string, value *interface{}) (io.Reader, error) {
@@ -218,11 +241,11 @@ func (c *httpClient) handleErrors(resp *http.Response) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	var err Error
-	if err := json.NewDecoder(resp.Body).Decode(&err); err != nil {
-		return err
+	msg, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrapf(err, "handleErrors")
 	}
-	return &err
+	return &Error{Message: string(msg), Status: resp.StatusCode}
 }
 
 func (c *httpClient) do(verb, path string, body io.Reader) (*http.Response, error) {

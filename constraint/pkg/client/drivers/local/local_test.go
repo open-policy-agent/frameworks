@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -418,7 +419,7 @@ func TestQuery(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(res.Results, responses) {
-			t.Errorf("%+v != %+v", res, responses)
+			t.Errorf("%s != %s", spew.Sprint(res), spew.Sprint(responses))
 		}
 
 	})

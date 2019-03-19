@@ -19,6 +19,10 @@ func (c *testClient) DeletePolicy(id string) error {
 	return errors.New("NOT IMPLEMENTED")
 }
 
+func (c *testClient) ListPolicies() (*QueryResult, error) {
+	return nil, errors.New("NOT IMPLEMENTED")
+}
+
 func (c *testClient) Prefix(path string) Data {
 	return c
 }
@@ -39,8 +43,8 @@ func (c *testClient) DeleteData(path string) error {
 	return errors.New("NOT IMPLEMENTED")
 }
 
-func (c *testClient) Query(path string, value interface{}) (json.RawMessage, error) {
-	return c.queryResponse, nil
+func (c *testClient) Query(path string, value interface{}) (*QueryResult, error) {
+	return &QueryResult{Result: c.queryResponse}, nil
 }
 
 func newTestClient(resp string) *testClient {

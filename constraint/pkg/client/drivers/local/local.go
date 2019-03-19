@@ -17,15 +17,15 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 )
 
-type Arg func(*driver)
+type arg func(*driver)
 
-func Tracing(enabled bool) Arg {
+func Tracing(enabled bool) arg {
 	return func(d *driver) {
 		d.traceEnabled = enabled
 	}
 }
 
-func New(args ...Arg) drivers.Driver {
+func New(args ...arg) drivers.Driver {
 	d := &driver{
 		compiler: ast.NewCompiler(),
 		modules:  make(map[string]*ast.Module),
@@ -189,7 +189,7 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-func (d *driver) eval(ctx context.Context, path string, input interface{}) (rego.ResultSet, string, error) {
+func (d *driver) eval(ctx context.Context, path string, input interface{}) (rego.ResultSet, *string, error) {
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
 	args := []func(*rego.Rego){
@@ -205,19 +205,20 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}) (rego
 		res, err := rego.Eval(ctx)
 		b := &bytes.Buffer{}
 		topdown.PrettyTrace(b, *buf)
-		return res, b.String(), err
+		t := b.String()
+		return res, &t, err
 	}
 	rego := rego.New(args...)
 	res, err := rego.Eval(ctx)
-	return res, "", err
+	return res, nil, err
 }
 
 func (d *driver) Query(ctx context.Context, path string, input interface{}) (*types.Response, error) {
-	// Add a variable binding to the path
 	inp, err := json.MarshalIndent(input, "", "   ")
 	if err != nil {
 		return nil, err
 	}
+	// Add a variable binding to the path
 	path = fmt.Sprintf("data.%s[result]", path)
 	rs, trace, err := d.eval(ctx, path, input)
 	if err != nil {
@@ -235,10 +236,11 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}) (*ty
 		}
 		results = append(results, result)
 	}
+	i := string(inp)
 	return &types.Response{
 		Trace:   trace,
 		Results: results,
-		Input:   string(inp),
+		Input:   &i,
 	}, nil
 }
 
