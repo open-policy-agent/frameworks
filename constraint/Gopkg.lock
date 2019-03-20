@@ -441,7 +441,7 @@
   version = "v1.5.0"
 
 [[projects]]
-  digest = "1:0ca062847337b478c16b7766528641167ae0c182a1da12e732e182a2834c1ff6"
+  digest = "1:37eca0e6103236bc41d65f3d31a3a756f0ed1c96427a6a63746dae208ce1726a"
   name = "github.com/open-policy-agent/opa"
   packages = [
     "ast",
@@ -458,7 +458,6 @@
     "internal/wasm/types",
     "metrics",
     "rego",
-    "server/types",
     "storage",
     "storage/inmem",
     "topdown",
@@ -1105,10 +1104,14 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/davecgh/go-spew/spew",
     "github.com/onsi/gomega",
     "github.com/open-policy-agent/opa/ast",
     "github.com/open-policy-agent/opa/rego",
-    "github.com/open-policy-agent/opa/server/types",
+    "github.com/open-policy-agent/opa/storage",
+    "github.com/open-policy-agent/opa/storage/inmem",
+    "github.com/open-policy-agent/opa/topdown",
+    "github.com/pkg/errors",
     "golang.org/x/net/context",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
