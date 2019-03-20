@@ -305,3 +305,17 @@ cl, err := backend.NewClient(client.Targets(target1, target2, target3))
 
 // cl is now available to be called as-necessary
 ```
+
+### Local and Remote Clients
+
+There are two types of clients. The local client creates an in-process instance of OPA
+to respond to requests. The remote client dials an external OPA instance
+and makes requests via HTTP/HTTPS.
+
+### Debugging
+
+There are two helpful endpoints for debugging:
+
+   * `Client.Dump()` returns all data cached in OPA and every module created in OPA
+   * Drivers can be initialized with a tracing option like so: `local.New(local.Tracing(true))`.
+     These traces can then be viewed by calling `TraceDump()` on the response.
