@@ -21,7 +21,7 @@ func runRegoTests(tt []regoTestCase, t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			path := tc.Path
 			if path == "" {
-				path = "default.test.path"
+				path = "def.test.path"
 			}
 			rego, err := ensureRegoConformance("test", path, tc.Rego)
 			if (err == nil) && tc.ErrorExpected {

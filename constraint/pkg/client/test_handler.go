@@ -13,7 +13,7 @@ var _ TargetHandler = &handler{}
 type handler struct{}
 
 func (h *handler) GetName() string {
-	return "TestTarget"
+	return "test.target"
 }
 
 var libTempl = template.Must(template.New("library").Parse(`

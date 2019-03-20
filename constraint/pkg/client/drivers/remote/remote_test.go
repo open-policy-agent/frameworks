@@ -92,3 +92,52 @@ func TestQuery(t *testing.T) {
 		}
 	})
 }
+
+func TestMakeURLPath(t *testing.T) {
+	tc := []struct {
+		Name          string
+		input         string
+		expected      string
+		errorExpected bool
+	}{
+		{
+			Name:     "Simple Result",
+			input:    "asdf",
+			expected: "asdf",
+		},
+		{
+			Name:     "Just Dots",
+			input:    "asdf.gfgf.dsdf",
+			expected: "asdf/gfgf/dsdf",
+		},
+		{
+			Name:     "Dots and Brackets",
+			input:    "asdf[gfgf].dsdf",
+			expected: "asdf/gfgf/dsdf",
+		},
+		{
+			Name:     "Dots and Brackets And Quotes",
+			input:    `asdf["gfgf"].dsdf`,
+			expected: "asdf/gfgf/dsdf",
+		},
+		{
+			Name:     "Dots and Brackets And Quotes Containing Dots",
+			input:    `asdf["gf.gf"].dsdf`,
+			expected: "asdf/gf.gf/dsdf",
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.Name, func(t *testing.T) {
+			res, err := makeURLPath(tt.input)
+			if err != nil && !tt.errorExpected {
+				t.Errorf("err = %s; want nil", err)
+			}
+			if err == nil && tt.errorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			if res != tt.expected {
+				t.Errorf("makeURLPath(%s) = %s; want %s", tt.input, res, tt.expected)
+			}
+		})
+	}
+}

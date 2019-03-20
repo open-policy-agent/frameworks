@@ -27,7 +27,10 @@ func ensureRegoConformance(kind, path, rego string) (string, error) {
 	if err := checkDataAccess(module); err != nil {
 		return "", err
 	}
-	module.Package.Path = packageRef(path)
+	module.Package.Path, err = packageRef(path)
+	if err != nil {
+		return "", err
+	}
 	return module.String(), nil
 }
 
@@ -40,18 +43,21 @@ func rewritePackage(path, rego string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	module.Package.Path = packageRef(path)
+	module.Package.Path, err = packageRef(path)
+	if err != nil {
+		return "", err
+	}
 	return module.String(), nil
 }
 
 // packageRef constructs a Ref to the provided package path string
-func packageRef(path string) ast.Ref {
-	pathParts := strings.Split(path, ".")
-	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
-	for _, v := range pathParts {
-		packageRef = append(packageRef, ast.StringTerm(v))
+func packageRef(path string) (ast.Ref, error) {
+	pathParts, err := ast.ParseRef(path)
+	if err != nil {
+		return nil, err
 	}
-	return packageRef
+	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
+	return packageRef.Extend(pathParts), nil
 }
 
 func makeInvalidRootFieldErr(val ast.Value, allowed map[string]bool) error {

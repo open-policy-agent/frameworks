@@ -418,6 +418,12 @@ func TestQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		sort.SliceStable(res.Results, func(i, j int) bool {
+			return res.Results[i].Msg < res.Results[j].Msg
+		})
+		sort.SliceStable(responses, func(i, j int) bool {
+			return responses[i].Msg < responses[j].Msg
+		})
 		if !reflect.DeepEqual(res.Results, responses) {
 			t.Errorf("%s != %s", spew.Sprint(res), spew.Sprint(responses))
 		}
