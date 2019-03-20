@@ -18,8 +18,7 @@ type testCase struct {
 
 func TestRegoExecutes(t *testing.T) {
 	tc := []testCase{
-		{Template: Deny},
-		{Template: Audit},
+		{Template: TargetLib},
 	}
 	for _, tt := range tc {
 		t.Run(tt.Template.Name(), func(t *testing.T) {

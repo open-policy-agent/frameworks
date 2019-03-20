@@ -174,17 +174,19 @@ func TestAddData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := c.AddData(context.Background(), nil)
-			if r.HasErrors() && len(tt.ErroredBy) == 0 {
-				t.Errorf("err = %s; want nil", r.Error())
+			r, err := c.AddData(context.Background(), nil)
+			if err != nil && len(tt.ErroredBy) == 0 {
+				t.Errorf("err = %s; want nil", err)
 			}
 			expectedErr := make(map[string]bool)
 			actualErr := make(map[string]bool)
 			for _, v := range tt.ErroredBy {
 				expectedErr[v] = true
 			}
-			for k, _ := range r.Errors {
-				actualErr[k] = true
+			if e, ok := err.(ErrorMap); ok {
+				for k, _ := range e {
+					actualErr[k] = true
+				}
 			}
 			if !reflect.DeepEqual(actualErr, expectedErr) {
 				t.Errorf("errSet = %v; wanted %v", actualErr, expectedErr)
@@ -253,17 +255,19 @@ func TestRemoveData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := c.RemoveData(context.Background(), nil)
-			if r.HasErrors() && len(tt.ErroredBy) == 0 {
-				t.Errorf("err = %s; want nil", r.Error())
+			r, err := c.RemoveData(context.Background(), nil)
+			if err != nil && len(tt.ErroredBy) == 0 {
+				t.Errorf("err = %s; want nil", err)
 			}
 			expectedErr := make(map[string]bool)
 			actualErr := make(map[string]bool)
 			for _, v := range tt.ErroredBy {
 				expectedErr[v] = true
 			}
-			for k, _ := range r.Errors {
-				actualErr[k] = true
+			if e, ok := err.(ErrorMap); ok {
+				for k, _ := range e {
+					actualErr[k] = true
+				}
 			}
 			if !reflect.DeepEqual(actualErr, expectedErr) {
 				t.Errorf("errSet = %v; wanted %v", actualErr, expectedErr)
@@ -283,7 +287,7 @@ func TestRemoveData(t *testing.T) {
 }
 
 func TestAddTemplate(t *testing.T) {
-	badRegoTempl := createTemplate(name("fake"), crdNames("Fake", "fakes"), targets("h1"))
+	badRegoTempl := createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1"))
 	r := badRegoTempl.Spec.Targets["h1"]
 	r.Rego = "asd{"
 	badRegoTempl.Spec.Targets["h1"] = r
@@ -296,19 +300,19 @@ func TestAddTemplate(t *testing.T) {
 		{
 			Name:          "Good Template",
 			Handler:       &badHandler{Name: "h1", HasLib: true},
-			Template:      createTemplate(name("fake"), crdNames("Fake", "fakes"), targets("h1")),
+			Template:      createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1")),
 			ErrorExpected: false,
 		},
 		{
 			Name:          "Unknown Target",
 			Handler:       &badHandler{Name: "h1", HasLib: true},
-			Template:      createTemplate(name("fake"), crdNames("Fake", "fakes"), targets("h2")),
+			Template:      createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h2")),
 			ErrorExpected: true,
 		},
 		{
 			Name:          "Bad CRD",
 			Handler:       &badHandler{Name: "h1", HasLib: true},
-			Template:      createTemplate(name("fake"), targets("h1")),
+			Template:      createTemplate(name("fakes"), targets("h1")),
 			ErrorExpected: true,
 		},
 		{
@@ -335,14 +339,14 @@ func TestAddTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			crd, r := c.AddTemplate(context.Background(), tt.Template)
-			if r.Error() != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", r.Error())
+			crd, r, err := c.AddTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
 			}
-			if r.Error() == nil && tt.ErrorExpected {
+			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
-			if crd == nil && r.Error() == nil {
+			if crd == nil && err == nil {
 				t.Error("crd is nil when err is nil")
 			}
 			expectedCount := 0
@@ -402,11 +406,11 @@ func TestRemoveTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := c.RemoveTemplate(context.Background(), tt.Template)
-			if r.Error() != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", r.Error())
+			r, err := c.RemoveTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
 			}
-			if r.Error() == nil && tt.ErrorExpected {
+			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
 			expectedCount := 0
@@ -466,17 +470,17 @@ func TestAddConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !tt.OmitTemplate {
-				tmpl := createTemplate(name("fake"), crdNames("Foo", "foos"), targets("h1"))
-				_, resp := c.AddTemplate(context.Background(), tmpl)
-				if resp.Error() != nil {
-					t.Fatal(resp.Error())
+				tmpl := createTemplate(name("foos"), crdNames("Foo", "foos"), targets("h1"))
+				_, _, err := c.AddTemplate(context.Background(), tmpl)
+				if err != nil {
+					t.Fatal(err)
 				}
 			}
-			r := c.AddConstraint(context.Background(), tt.Constraint)
-			if r.Error() != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", r.Error())
+			r, err := c.AddConstraint(context.Background(), tt.Constraint)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
 			}
-			if r.Error() == nil && tt.ErrorExpected {
+			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
 			expectedCount := 0
@@ -536,17 +540,17 @@ func TestRemoveConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !tt.OmitTemplate {
-				tmpl := createTemplate(name("fake"), crdNames("Foo", "foos"), targets("h1"))
-				_, resp := c.AddTemplate(context.Background(), tmpl)
-				if resp.Error() != nil {
-					t.Fatal(resp.Error())
+				tmpl := createTemplate(name("foos"), crdNames("Foo", "foos"), targets("h1"))
+				_, _, err := c.AddTemplate(context.Background(), tmpl)
+				if err != nil {
+					t.Fatal(err)
 				}
 			}
-			r := c.RemoveConstraint(context.Background(), tt.Constraint)
-			if r.Error() != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", r.Error())
+			r, err := c.RemoveConstraint(context.Background(), tt.Constraint)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
 			}
-			if r.Error() == nil && tt.ErrorExpected {
+			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
 			expectedCount := 0

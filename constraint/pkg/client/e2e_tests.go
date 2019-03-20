@@ -20,7 +20,7 @@ var ctx = context.Background()
 
 func newConstraintTemplate(name, rego string) *v1alpha1.ConstraintTemplate {
 	return &v1alpha1.ConstraintTemplate{
-		ObjectMeta: metav1.ObjectMeta{Name: name},
+		ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(name) + "s"},
 		Spec: v1alpha1.ConstraintTemplateSpec{
 			CRD: v1alpha1.CRD{
 				Spec: v1alpha1.CRDSpec{
@@ -38,13 +38,13 @@ func newConstraintTemplate(name, rego string) *v1alpha1.ConstraintTemplate {
 				},
 			},
 			Targets: map[string]v1alpha1.Target{
-				"TestTarget": v1alpha1.Target{Rego: rego},
+				"test.target": v1alpha1.Target{Rego: rego},
 			},
 		},
 	}
 }
 
-func e(s string, r types.Responses) error {
+func e(s string, r *types.Responses) error {
 	return fmt.Errorf("%s\n%s", s, r.TraceDump())
 }
 
@@ -63,30 +63,30 @@ func newConstraint(kind, name string, params map[string]string) *unstructured.Un
 var tests = map[string]func(Client) error{
 
 	"Add Template": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
-		return errors.Wrap(tr.Error(), "AddTemplate")
+		return errors.Wrap(err, "AddTemplate")
 	},
 
 	"Deny All": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
-		rsps, tr := c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "Review")
+		rsps, err := c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
+		if err != nil {
+			return errors.Wrap(err, "Review")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 1 {
@@ -102,30 +102,30 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit x2": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddData")
+		if _, err := c.AddData(ctx, obj); err != nil {
+			return errors.Wrap(err, "AddData")
 		}
 		obj2 := &targetData{Name: "Max", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj2); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddDataX2")
+		if _, err := c.AddData(ctx, obj2); err != nil {
+			return errors.Wrap(err, "AddDataX2")
 		}
-		rsps, tr := c.Audit(ctx)
-		if tr != nil {
-			return errors.Wrap(tr.Error(), "Audit")
+		rsps, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "Audit")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 2 {
@@ -143,26 +143,26 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj); tr != nil {
-			return errors.Wrap(tr.Error(), "AddData")
+		if _, err := c.AddData(ctx, obj); err != nil {
+			return errors.Wrap(err, "AddData")
 		}
-		rsps, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "Audit")
+		rsps, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "Audit")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 1 {
@@ -181,30 +181,30 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Data": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddData")
+		if _, err := c.AddData(ctx, obj); err != nil {
+			return errors.Wrap(err, "AddData")
 		}
 		obj2 := &targetData{Name: "Max", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj2); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddDataX2")
+		if _, err := c.AddData(ctx, obj2); err != nil {
+			return errors.Wrap(err, "AddDataX2")
 		}
-		rsps, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "Audit")
+		rsps, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "Audit")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 2 {
@@ -219,14 +219,14 @@ deny[{"msg": "DENIED", "details": {}}] {
 			}
 		}
 
-		if tr := c.RemoveData(ctx, obj2); tr.Error() != nil {
-			return errors.Wrapf(tr.Error(), "RemoveData")
+		if _, err := c.RemoveData(ctx, obj2); err != nil {
+			return errors.Wrapf(err, "RemoveData")
 		}
-		rsps2, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrapf(tr.Error(), "AuditX2")
+		rsps2, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "AuditX2")
 		}
-		if len(rsps2) == 0 {
+		if len(rsps2.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps2.Results()) != 1 {
@@ -245,26 +245,26 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Constraint": func(c Client) error {
-		_, tr := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddData")
+		if _, err := c.AddData(ctx, obj); err != nil {
+			return errors.Wrap(err, "AddData")
 		}
-		rsps, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "Audit")
+		rsps, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "Audit")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 1 {
@@ -280,12 +280,12 @@ deny[{"msg": "DENIED", "details": {}}] {
 			return e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps)
 		}
 
-		if tr := c.RemoveConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "RemoveConstraint")
+		if _, err := c.RemoveConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "RemoveConstraint")
 		}
-		rsps2, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AuditX2")
+		rsps2, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "AuditX2")
 		}
 		if len(rsps2.Results()) != 0 {
 			return e("Responses returned", rsps2)
@@ -298,23 +298,23 @@ deny[{"msg": "DENIED", "details": {}}] {
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`)
-		_, tr := c.AddTemplate(ctx, tmpl)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddTemplate")
+		_, _, err := c.AddTemplate(ctx, tmpl)
+		if err != nil {
+			return errors.Wrap(err, "AddTemplate")
 		}
 		cstr := newConstraint("Foo", "ph", nil)
-		if tr := c.AddConstraint(ctx, cstr); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddConstraint")
+		if _, err := c.AddConstraint(ctx, cstr); err != nil {
+			return errors.Wrap(err, "AddConstraint")
 		}
 		obj := &targetData{Name: "Sara", ForConstraint: "Foo"}
-		if tr := c.AddData(ctx, obj); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AddData")
+		if _, err := c.AddData(ctx, obj); err != nil {
+			return errors.Wrap(err, "AddData")
 		}
-		rsps, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "Audit")
+		rsps, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "Audit")
 		}
-		if len(rsps) == 0 {
+		if len(rsps.ByTarget) == 0 {
 			return errors.New("No responses returned")
 		}
 		if len(rsps.Results()) != 1 {
@@ -330,12 +330,12 @@ deny[{"msg": "DENIED", "details": {}}] {
 			return e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps)
 		}
 
-		if tr := c.RemoveTemplate(ctx, tmpl); tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "RemoveTemplate")
+		if _, err := c.RemoveTemplate(ctx, tmpl); err != nil {
+			return errors.Wrap(err, "RemoveTemplate")
 		}
-		rsps2, tr := c.Audit(ctx)
-		if tr.Error() != nil {
-			return errors.Wrap(tr.Error(), "AuditX2")
+		rsps2, err := c.Audit(ctx)
+		if err != nil {
+			return errors.Wrap(err, "AuditX2")
 		}
 		if len(rsps2.Results()) != 0 {
 			return e("Responses returned", rsps2)

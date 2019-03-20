@@ -50,19 +50,39 @@ func (r *Response) TraceDump() string {
 	return b.String()
 }
 
-type Responses map[string]*Response
+func NewResponses() *Responses {
+	return &Responses{
+		ByTarget: make(map[string]*Response),
+		Handled:  make(map[string]bool),
+	}
+}
+
+type Responses struct {
+	ByTarget map[string]*Response
+	Handled  map[string]bool
+}
 
 func (r *Responses) Results() []*Result {
 	var res []*Result
-	for _, resp := range *r {
+	for _, resp := range r.ByTarget {
 		res = append(res, resp.Results...)
 	}
 	return res
 }
 
+func (r *Responses) HandledCount() int {
+	c := 0
+	for _, h := range r.Handled {
+		if h {
+			c += 1
+		}
+	}
+	return c
+}
+
 func (r *Responses) TraceDump() string {
 	b := &strings.Builder{}
-	for _, resp := range *r {
+	for _, resp := range r.ByTarget {
 		fmt.Fprintln(b, resp.TraceDump())
 		fmt.Fprintln(b, "")
 	}

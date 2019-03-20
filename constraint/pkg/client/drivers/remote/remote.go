@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -106,8 +108,56 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return err == nil, err
 }
 
+// makeURLPath takes a path of the form data.foo["bar.baz"].yes and converts it to an URI path
+// such as /data/foo/bar.baz/yes
+func makeURLPath(path string) (string, error) {
+	var pieces []string
+	quoted := false
+	openBracket := false
+	builder := &strings.Builder{}
+	for _, chr := range path {
+		ch := string(chr)
+		if !quoted {
+			if ch == "." {
+				pieces = append(pieces, builder.String())
+				builder.Reset()
+				continue
+			}
+			if ch == "[" {
+				if !openBracket {
+					openBracket = true
+					pieces = append(pieces, builder.String())
+					builder.Reset()
+					continue
+				} else {
+					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+				}
+			}
+			if ch == "]" {
+				if openBracket {
+					openBracket = false
+					continue
+				} else {
+					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+				}
+			}
+		}
+		if ch == `"` {
+			quoted = !quoted
+			continue
+		}
+		fmt.Fprint(builder, ch)
+	}
+	pieces = append(pieces, builder.String())
+
+	return strings.Join(pieces, "/"), nil
+}
+
 func (d *driver) Query(ctx context.Context, path string, input interface{}) (*ctypes.Response, error) {
-	path = strings.Replace(path, ".", "/", -1)
+	path, err := makeURLPath(path)
+	if err != nil {
+		return nil, err
+	}
 	response, err := d.opa.Query(d.addTrace(path), input)
 	if err != nil {
 		return nil, err
@@ -165,7 +215,11 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 		ids, ok3 := id.(string)
 		raws, ok4 := raw.(string)
 		if ok && ok2 && ok3 && ok4 {
-			policies[ids] = raws
+			p, err := url.PathUnescape(ids)
+			if err != nil {
+				return "", err
+			}
+			policies[p] = raws
 		}
 	}
 	resp["modules"] = policies
