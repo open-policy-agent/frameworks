@@ -74,6 +74,10 @@ func (h *badHandler) HandleViolation(result *types.Result) error {
 	return nil
 }
 
+func (h *badHandler) ValidateConstraint(u *unstructured.Unstructured) error {
+	return nil
+}
+
 func TestInvalidTargetName(t *testing.T) {
 	tc := []struct {
 		Name          string

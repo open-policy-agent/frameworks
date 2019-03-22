@@ -115,6 +115,10 @@ type TargetHandler interface {
 
 	// HandleViolation allows for post-processing of the result object, which can be mutated directly
 	HandleViolation(result *types.Result) error
+
+	// ValidateConstraint returns if the constraint is misconfigured in any way. This allows for
+	// non-trivial validation of things like match schema
+	ValidateConstraint(*unstructured.Unstructured) error
 }
 
 var _ Client = &client{}
@@ -412,7 +416,16 @@ func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock 
 	if err != nil {
 		return err
 	}
-	return c.backend.crd.validateCR(constraint, entry.CRD)
+	if err = c.backend.crd.validateCR(constraint, entry.CRD); err != nil {
+		return err
+	}
+
+	for _, target := range entry.Targets {
+		if err := c.targets[target].ValidateConstraint(constraint); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to

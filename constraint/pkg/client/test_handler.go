@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -68,6 +69,10 @@ func (h *handler) MatchSchema() apiextensionsv1beta1.JSONSchemaProps {
 			"label": apiextensionsv1beta1.JSONSchemaProps{Type: "string"},
 		},
 	}
+}
+
+func (h *handler) ValidateConstraint(u *unstructured.Unstructured) error {
+	return nil
 }
 
 type targetData struct {
