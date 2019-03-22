@@ -24,7 +24,8 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, *types.Responses, error)
+	CreateCRD(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 	RemoveTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 
 	AddConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)
@@ -194,19 +195,16 @@ func createTemplatePath(target, name string) string {
 	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
 }
 
-// AddTemplate adds the template source code to OPA and registers the CRD with the client for
-// schema validation on calls to AddConstraint. It also returns a copy of the CRD describing
-// the constraint.
-func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, *types.Responses, error) {
-	resp := types.NewResponses()
+// CreateCRD creates a CRD from template
+func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
 	if err := validateTargets(templ); err != nil {
-		return nil, resp, err
+		return nil, err
 	}
 	if templ.ObjectMeta.Name == "" {
-		return nil, resp, errors.New("Template has no name")
+		return nil, errors.New("Template has no name")
 	}
 	if templ.ObjectMeta.Name != templ.Spec.CRD.Spec.Names.Plural {
-		return nil, resp, fmt.Errorf("Template's name %s is not equal to the CRD's plural name: %s", templ.ObjectMeta.Name, templ.Spec.CRD.Spec.Names.Plural)
+		return nil, fmt.Errorf("Template's name %s is not equal to the CRD's plural name: %s", templ.ObjectMeta.Name, templ.Spec.CRD.Spec.Names.Plural)
 	}
 
 	var src string
@@ -214,7 +212,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 	for k, v := range templ.Spec.Targets {
 		t, ok := c.targets[k]
 		if !ok {
-			return nil, resp, fmt.Errorf("Target %s not recognized", k)
+			return nil, fmt.Errorf("Target %s not recognized", k)
 		}
 		target = t
 		src = v.Rego
@@ -223,27 +221,55 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 	schema := createSchema(templ, target)
 	crd := c.backend.crd.createCRD(templ, schema)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
-		return nil, resp, err
+		return nil, err
+	}
+
+	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
+	_, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
+	if err != nil {
+		return nil, err
+	}
+
+	return crd, nil
+}
+
+// AddTemplate adds the template source code to OPA and registers the CRD with the client for
+// schema validation on calls to AddConstraint. It also returns a copy of the CRD describing
+// the constraint.
+func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*types.Responses, error) {
+	resp := types.NewResponses()
+	crd, err := c.CreateCRD(ctx, templ)
+	if err != nil {
+		return resp, err
+	}
+
+	var src string
+	var target TargetHandler
+	for k, v := range templ.Spec.Targets {
+		t, ok := c.targets[k]
+		if !ok {
+			return resp, fmt.Errorf("Target %s not recognized", k)
+		}
+		target = t
+		src = v.Rego
 	}
 
 	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
 	conformingSrc, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
 	if err != nil {
-		return nil, resp, err
+		return resp, err
 	}
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
 	if err := c.backend.driver.PutModule(ctx, path, conformingSrc); err != nil {
-		return nil, resp, err
+		return resp, err
 	}
 
 	c.constraints[crd.Spec.Names.Kind] = &constraintEntry{CRD: crd, Targets: []string{target.GetName()}}
-	crdCopy := &apiextensionsv1beta1.CustomResourceDefinition{}
-	crd.DeepCopyInto(crdCopy)
 	resp.Handled[target.GetName()] = true
 
-	return crdCopy, resp, nil
+	return resp, nil
 }
 
 // RemoveTemplate removes the template source code from OPA and removes the CRD from the validation

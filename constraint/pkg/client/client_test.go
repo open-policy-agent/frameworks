@@ -339,15 +339,12 @@ func TestAddTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			crd, r, err := c.AddTemplate(context.Background(), tt.Template)
+			r, err := c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
 				t.Errorf("err = %v; want nil", err)
 			}
 			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
-			}
-			if crd == nil && err == nil {
-				t.Error("crd is nil when err is nil")
 			}
 			expectedCount := 0
 			expectedHandled := make(map[string]bool)
@@ -471,7 +468,7 @@ func TestAddConstraint(t *testing.T) {
 			}
 			if !tt.OmitTemplate {
 				tmpl := createTemplate(name("foos"), crdNames("Foo", "foos"), targets("h1"))
-				_, _, err := c.AddTemplate(context.Background(), tmpl)
+				_, err := c.AddTemplate(context.Background(), tmpl)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -541,7 +538,7 @@ func TestRemoveConstraint(t *testing.T) {
 			}
 			if !tt.OmitTemplate {
 				tmpl := createTemplate(name("foos"), crdNames("Foo", "foos"), targets("h1"))
-				_, _, err := c.AddTemplate(context.Background(), tmpl)
+				_, err := c.AddTemplate(context.Background(), tmpl)
 				if err != nil {
 					t.Fatal(err)
 				}
