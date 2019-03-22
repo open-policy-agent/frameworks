@@ -240,7 +240,8 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, *types.Responses, error)
+	CreateCRD(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 	RemoveTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 
 	AddConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)
