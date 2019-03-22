@@ -63,7 +63,7 @@ func newConstraint(kind, name string, params map[string]string) *unstructured.Un
 var tests = map[string]func(Client) error{
 
 	"Add Template": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
@@ -71,7 +71,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 deny[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`))
@@ -102,7 +102,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit x2": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
@@ -143,7 +143,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Deny All Audit": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
@@ -181,7 +181,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Data": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
@@ -245,7 +245,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	},
 
 	"Remove Constraint": func(c Client) error {
-		_, _, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
+		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`))
@@ -298,7 +298,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 	deny[{"msg": "DENIED", "details": {}}] {
 		"always" == "always"
 	}`)
-		_, _, err := c.AddTemplate(ctx, tmpl)
+		_, err := c.AddTemplate(ctx, tmpl)
 		if err != nil {
 			return errors.Wrap(err, "AddTemplate")
 		}
