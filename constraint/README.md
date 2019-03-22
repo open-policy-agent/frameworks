@@ -175,6 +175,10 @@ type TargetHandler interface {
 	
 	// HandleViolation allows for post-processing of the result object, which can be mutated directly
 	HandleViolation(result *types.Result) error
+	
+	// ValidateConstraint returns if the constraint is misconfigured in any way. This allows for
+	// non-trivial validation of things like match schema
+	ValidateConstraint(*unstructured.Unstructured) error
 }
 ```
 
