@@ -476,7 +476,7 @@ func (c *client) init() error {
 			return err
 		}
 		if err := c.backend.driver.PutModule(context.Background(), path, src); err != nil {
-			return err
+			return fmt.Errorf("Error %s from compiled source:\n%s", err, src)
 		}
 	}
 
