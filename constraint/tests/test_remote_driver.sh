@@ -11,4 +11,4 @@ clean() {
 
 trap clean EXIT
 
-go test
+go test ./tests

@@ -4,6 +4,15 @@ all: test
 test: generate fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
+# Docker internal test
+docker_internal_test:
+	make test
+	./tests/test_remote_driver.sh
+
+# Hook to run docker tests
+hermetic_test:
+	docker build . -t constraint-test && docker run -t constraint-test
+
 # Install CRDs into a cluster
 install: manifests
 	kubectl apply -f config/crds
