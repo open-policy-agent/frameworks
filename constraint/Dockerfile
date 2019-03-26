@@ -22,4 +22,4 @@ RUN chmod 755 opa
 WORKDIR /go/src/github.com/open-policy-agent/frameworks/constraint
 COPY .    .
 
-ENTRYPOINT ["make", "docker_internal_test"]
+ENTRYPOINT ["make", "docker-internal-test"]
