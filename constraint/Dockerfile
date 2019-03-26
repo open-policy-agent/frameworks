@@ -3,7 +3,6 @@ FROM golang:1.10.3 as builder
 
 RUN apt-get update && apt-get install -y apt-utils
 RUN apt-get install -y make
-RUN find / -type f -name make
 
 # Install kubebuilder
 WORKDIR /scratch
