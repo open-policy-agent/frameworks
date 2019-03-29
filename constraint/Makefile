@@ -1,16 +1,16 @@
 all: test
 
 # Run tests
-test: generate fmt vet manifests
+native-test: generate fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
 # Docker internal test
 docker-internal-test:
-	make test
+	make native-test
 	./tests/test_remote_driver.sh
 
 # Hook to run docker tests
-hermetic-test:
+test:
 	docker build . -t constraint-test && docker run -t constraint-test
 
 # Install CRDs into a cluster
