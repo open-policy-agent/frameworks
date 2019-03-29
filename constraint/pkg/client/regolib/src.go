@@ -12,7 +12,7 @@ deny[response] {
 		"review": review,
 		"constraint": constraint
 	}
-	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp
+	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp with data.inventory as data.external["{{.Target}}"]
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
@@ -29,7 +29,7 @@ audit[response] {
 		"review": review,
 		"constraint": constraint,
 	}
-	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp
+	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp with data.inventory as data.external["{{.Target}}"]
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
