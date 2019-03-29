@@ -47,11 +47,6 @@ inventory[inv] {
 }
 
 inventory[{}] {
-	not data.external
-}
-
-inventory[{}] {
-	data.external
 	not data.external["{{.Target}}"]
 }
 
