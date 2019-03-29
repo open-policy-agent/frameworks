@@ -123,7 +123,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 }
 
 func parsePath(path string) ([]string, error) {
-	p, ok := storage.ParsePath(path)
+	p, ok := storage.ParsePathEscaped(path)
 	if !ok {
 		return nil, fmt.Errorf("Bad data path: %s", path)
 	}
