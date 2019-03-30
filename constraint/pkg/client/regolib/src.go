@@ -12,7 +12,8 @@ deny[response] {
 		"review": review,
 		"constraint": constraint
 	}
-	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp
+	inventory[inv]
+	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp with data.inventory as inv
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
@@ -29,7 +30,8 @@ audit[response] {
 		"review": review,
 		"constraint": constraint,
 	}
-	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp
+	inventory[inv]
+	data.templates["{{.Target}}"][constraint.kind].deny[r] with input as inp with data.inventory as inv
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
@@ -38,6 +40,15 @@ audit[response] {
 	}
 }
 
+# get_default(data, "external", {}) seems to cause this error:
+# "rego_type_error: undefined function data.hooks.<target>.get_default"
+inventory[inv] {
+	inv = data.external["{{.Target}}"]
+}
+
+inventory[{}] {
+	not data.external["{{.Target}}"]
+}
 
 # get_default returns the value of an object's field or the provided default value.
 # It avoids creating an undefined state when trying to access an object attribute that does
