@@ -59,7 +59,7 @@ spec:
               type: array
               items: string
   targets:
-    admission.k8s.gatekeeper.sh:
+    - target: admission.k8s.gatekeeper.sh
       rego: |
 deny[{"msg": msg, "details": {"missing_labels": missing}}] {
    provided := {label | input.request.object.metadata.labels[label]}
@@ -73,7 +73,8 @@ deny[{"msg": msg, "details": {"missing_labels": missing}}] {
 The most important pieces of the above YAML are:
 
    * `validation`, which provides the schema for the `parameters` field for the constraint
-   * `targets`, which specifies what "target" (defined later) the constraint applies to. Note that currently constraints can only apply to one target.
+   * `targets`, which specifies what "target" (defined later) the constraint applies to. Note
+      that currently constraints can only apply to one target.
    * `rego`, which defines the logic that enforces the constraint.
  
  #### Rego Semantics for Constraints
