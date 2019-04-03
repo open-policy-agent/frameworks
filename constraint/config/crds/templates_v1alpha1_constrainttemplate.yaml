@@ -39,7 +39,14 @@ spec:
                   type: object
               type: object
             targets:
-              type: object
+              items:
+                properties:
+                  rego:
+                    type: string
+                  target:
+                    type: string
+                type: object
+              type: array
           type: object
         status:
           properties:

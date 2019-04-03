@@ -25,8 +25,8 @@ import (
 
 // ConstraintTemplateSpec defines the desired state of ConstraintTemplate
 type ConstraintTemplateSpec struct {
-	CRD     CRD               `json:"crd,omitempty"`
-	Targets map[string]Target `json:"targets,omitempty"`
+	CRD     CRD      `json:"crd,omitempty"`
+	Targets []Target `json:"targets,omitempty"`
 }
 
 type CRD struct {
@@ -43,7 +43,8 @@ type Validation struct {
 }
 
 type Target struct {
-	Rego string `json:"rego,omitempty"`
+	Target string `json:"target,omitempty"`
+	Rego   string `json:"rego,omitempty"`
 }
 
 // ConstraintTemplateStatus defines the observed state of ConstraintTemplate

@@ -213,7 +213,8 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 
 	var src string
 	var target TargetHandler
-	for k, v := range templ.Spec.Targets {
+	for _, v := range templ.Spec.Targets {
+		k := v.Target
 		t, ok := c.targets[k]
 		if !ok {
 			return nil, fmt.Errorf("Target %s not recognized", k)
@@ -249,7 +250,8 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 
 	var src string
 	var target TargetHandler
-	for k, v := range templ.Spec.Targets {
+	for _, v := range templ.Spec.Targets {
+		k := v.Target
 		t, ok := c.targets[k]
 		if !ok {
 			return resp, fmt.Errorf("Target %s not recognized", k)
@@ -285,7 +287,8 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintT
 	}
 
 	var target TargetHandler
-	for k := range templ.Spec.Targets {
+	for _, v := range templ.Spec.Targets {
+		k := v.Target
 		t, ok := c.targets[k]
 		if !ok {
 			return resp, fmt.Errorf("Target %s not recognized", k)

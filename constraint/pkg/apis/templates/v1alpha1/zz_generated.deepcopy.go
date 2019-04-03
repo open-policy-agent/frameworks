@@ -128,10 +128,8 @@ func (in *ConstraintTemplateSpec) DeepCopyInto(out *ConstraintTemplateSpec) {
 	in.CRD.DeepCopyInto(&out.CRD)
 	if in.Targets != nil {
 		in, out := &in.Targets, &out.Targets
-		*out = make(map[string]Target, len(*in))
-		for key, val := range *in {
-			(*out)[key] = val
-		}
+		*out = make([]Target, len(*in))
+		copy(*out, *in)
 	}
 	return
 }

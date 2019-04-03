@@ -292,9 +292,7 @@ func TestRemoveData(t *testing.T) {
 
 func TestAddTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1"))
-	r := badRegoTempl.Spec.Targets["h1"]
-	r.Rego = "asd{"
-	badRegoTempl.Spec.Targets["h1"] = r
+	badRegoTempl.Spec.Targets[0].Rego = "asd{"
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -368,9 +366,7 @@ func TestAddTemplate(t *testing.T) {
 
 func TestRemoveTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake", "fakes"), targets("h1"))
-	r := badRegoTempl.Spec.Targets["h1"]
-	r.Rego = "asd{"
-	badRegoTempl.Spec.Targets["h1"] = r
+	badRegoTempl.Spec.Targets[0].Rego = "asd{"
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler

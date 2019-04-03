@@ -37,8 +37,8 @@ func newConstraintTemplate(name, rego string) *v1alpha1.ConstraintTemplate {
 					},
 				},
 			},
-			Targets: map[string]v1alpha1.Target{
-				"test.target": v1alpha1.Target{Rego: rego},
+			Targets: []v1alpha1.Target{
+				v1alpha1.Target{Target: "test.target", Rego: rego},
 			},
 		},
 	}
