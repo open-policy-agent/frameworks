@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"path"
 	"regexp"
 	"strings"
@@ -539,7 +540,7 @@ TargetLoop:
 			continue
 		}
 		input := map[string]interface{}{"review": review}
-		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].deny`, name), input)
+		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].deny`, name), input, drivers.Tracing(cfg.enableTracing))
 		if err != nil {
 			errMap[name] = err
 			continue
@@ -569,7 +570,7 @@ func (c *client) Audit(ctx context.Context, opts ...QueryOpt) (*types.Responses,
 TargetLoop:
 	for name, target := range c.targets {
 		// Short-circuiting question applies here as well
-		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil)
+		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil, drivers.Tracing(cfg.enableTracing))
 		if err != nil {
 			errMap[name] = err
 			continue
