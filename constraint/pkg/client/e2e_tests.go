@@ -473,7 +473,7 @@ deny[{"msg": "DENIED", "details": {}}] {
 		}
 		for _, r := range rsps.ByTarget {
 			if r.Trace != nil {
-				return e("Trace dump nil", rsps)
+				return e("Trace dump not nil", rsps)
 			}
 		}
 		return nil
