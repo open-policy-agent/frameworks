@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"path"
 	"regexp"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
