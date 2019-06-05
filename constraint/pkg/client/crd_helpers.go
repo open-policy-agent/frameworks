@@ -20,7 +20,7 @@ func validateTargets(templ *v1alpha1.ConstraintTemplate) error {
 	if len(templ.Spec.Targets) > 1 {
 		return errors.New("Multi-target templates are not currently supported")
 	} else if len(templ.Spec.Targets) == 0 {
-		return errors.New("ConstraintTemplate must specify one target")
+		return errors.New("No targets specified. ConstraintTemplate must specify one target")
 	}
 	return nil
 }
