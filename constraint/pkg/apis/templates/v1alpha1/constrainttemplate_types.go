@@ -67,7 +67,6 @@ type ConstraintTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Error  string                   `json:"status,regoErrors"`
 	Spec   ConstraintTemplateSpec   `json:"spec,omitempty"`
 	Status ConstraintTemplateStatus `json:"status,omitempty"`
 }
