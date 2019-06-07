@@ -16,7 +16,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/open-policy-agent/opa/ast"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -50,9 +49,9 @@ type Target struct {
 
 // CreateCRDError represents a single error caught during parsing, compiling, etc.
 type CreateCRDError struct {
-	Code     string       	`json:"code"`
-	Message  string       	`json:"message"`
-	Location *ast.Location	`json:"location,omitempty"`
+	Code     string  `json:"code"`
+	Message  string `json:"message"`
+	Location string	`json:"location,omitempty"`
 }
 
 // ConstraintTemplateStatus defines the observed state of ConstraintTemplate
