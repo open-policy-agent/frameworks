@@ -48,7 +48,7 @@ type Target struct {
 	Rego   string `json:"rego,omitempty"`
 }
 
-// Error represents a single error caught during parsing, compiling, etc.
+// CreateCRDError represents a single error caught during parsing, compiling, etc.
 type CreateCRDError struct {
 	Code     string       	`json:"code"`
 	Message  string       	`json:"message"`
