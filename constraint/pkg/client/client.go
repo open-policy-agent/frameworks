@@ -46,12 +46,10 @@ type Client interface {
 	Dump(context.Context) (string, error)
 }
 
-type UnrecognizedConstraintError struct {
-	Kind string
-}
+type UnrecognizedConstraintError string
 
 func (e UnrecognizedConstraintError) Error() string {
-	return fmt.Sprintf("Constraint kind %s is not recognized", e.Kind)
+	return fmt.Sprintf("Constraint kind %s is not recognized", e)
 }
 
 type ErrorMap map[string]error
@@ -354,7 +352,7 @@ func (c *client) getConstraintEntry(constraint *unstructured.Unstructured, lock 
 	}
 	entry, ok := c.constraints[kind]
 	if !ok {
-		return nil, UnrecognizedConstraintError{Kind: kind}
+		return nil, UnrecognizedConstraintError(kind)
 	}
 	return entry, nil
 }
