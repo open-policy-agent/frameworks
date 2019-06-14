@@ -49,7 +49,7 @@ type Client interface {
 type UnrecognizedConstraintError string
 
 func (e UnrecognizedConstraintError) Error() string {
-	return fmt.Sprintf("Constraint kind %s is not recognized", e)
+	return fmt.Sprintf("Constraint kind %s is not recognized", string(e))
 }
 
 type ErrorMap map[string]error
