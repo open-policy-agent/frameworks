@@ -559,7 +559,7 @@ func TestRemoveConstraint(t *testing.T) {
 				t.Error("err = nil; want non-nil")
 			}
 			if tt.ErrorExpected && tt.ExpectedErrorType != "" && reflect.TypeOf(err).String() != tt.ExpectedErrorType {
-				t.Errorf("err type %s; want %s", reflect.TypeOf(err).String(), tt.ExpectedErrorType)
+				t.Errorf("err type = %s; want %s", reflect.TypeOf(err).String(), tt.ExpectedErrorType)
 			}
 			expectedCount := 0
 			expectedHandled := make(map[string]bool)
