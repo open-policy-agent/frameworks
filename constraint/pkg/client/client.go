@@ -46,18 +46,16 @@ type Client interface {
 	Dump(context.Context) (string, error)
 }
 
-// New returns an error that formats as the given text.
-func NewUnrecognizedConstraintError(text string) error {
-	return &UnrecognizedConstraintError{text}
-}
-
-// errorString is a trivial implementation of error.
 type UnrecognizedConstraintError struct {
 	s string
 }
 
 func (e *UnrecognizedConstraintError) Error() string {
 	return fmt.Sprintf("Constraint kind %s is not recognized", e.s)
+}
+
+func NewUnrecognizedConstraintError(text string) error {
+	return &UnrecognizedConstraintError{text}
 }
 
 type ErrorMap map[string]error
