@@ -1172,8 +1172,13 @@ func NewSet(t ...*Term) Set {
 }
 
 func newset(n int) *set {
+	var keys []*Term
+	if n > 0 {
+		keys = make([]*Term, 0, n)
+	}
 	return &set{
 		elems: make(map[int]*Term, n),
+		keys:  keys,
 	}
 }
 
@@ -1460,8 +1465,13 @@ type object struct {
 }
 
 func newobject(n int) *object {
+	var keys []*Term
+	if n > 0 {
+		keys = make([]*Term, 0, n)
+	}
 	return &object{
 		elems:  make(map[int]*objectElem, n),
+		keys:   keys,
 		ground: true,
 	}
 }
@@ -1550,7 +1560,7 @@ func (obj *object) Get(k *Term) *Term {
 func (obj *object) Hash() int {
 	var hash int
 	obj.Foreach(func(k, v *Term) {
-		hash += v.Value.Hash()
+		hash += k.Value.Hash()
 		hash += v.Value.Hash()
 	})
 	return hash

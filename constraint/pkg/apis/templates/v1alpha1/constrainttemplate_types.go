@@ -49,9 +49,9 @@ type Target struct {
 
 // CreateCRDError represents a single error caught during parsing, compiling, etc.
 type CreateCRDError struct {
-	Code     string  `json:"code"`
+	Code     string `json:"code"`
 	Message  string `json:"message"`
-	Location string	`json:"location,omitempty"`
+	Location string `json:"location,omitempty"`
 }
 
 // ByPodStatus defines the observed state of ConstraintTemplate as seen by

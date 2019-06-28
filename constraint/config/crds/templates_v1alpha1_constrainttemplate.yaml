@@ -52,8 +52,20 @@ spec:
           properties:
             created:
               type: boolean
-            error:
-              type: string
+            errors:
+              items:
+                properties:
+                  code:
+                    type: string
+                  location:
+                    type: string
+                  message:
+                    type: string
+                required:
+                - code
+                - message
+                type: object
+              type: array
           type: object
   version: v1alpha1
 status:

@@ -483,6 +483,7 @@ func (c *client) init() error {
 		}
 		lib := libBuf.String()
 		req := ruleArities{
+			"autoreject_review":                2,
 			"matching_reviews_and_constraints": 2,
 			"matching_constraints":             1,
 		}

@@ -20,6 +20,12 @@ func (h *handler) GetName() string {
 var libTempl = template.Must(template.New("library").Parse(`
 package foo
 
+autoreject_review[[violation, constraint]] {
+	violation := {"msg": "test", "details": {},}
+	constraint = {{.ConstraintsRoot}}[input.review.ForConstraint][_]
+	violation == {}
+}
+
 matching_constraints[constraint] {
 	constraint = {{.ConstraintsRoot}}[input.review.ForConstraint][_]
 }
@@ -28,6 +34,7 @@ matching_reviews_and_constraints[[review, constraint]] {
 	matching_constraints[constraint] with input as {"review": review}
 	review = {{.DataRoot}}[_]
 }
+
 `))
 
 func (h *handler) Library() *template.Template {
