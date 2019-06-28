@@ -23,7 +23,7 @@ package foo
 autoreject_review[[violation, constraint]] {
 	violation := {"msg": "test", "details": {},}
 	constraint = {{.ConstraintsRoot}}[input.review.ForConstraint][_]
-	violation == {}
+	violation =={}
 }
 
 matching_constraints[constraint] {
