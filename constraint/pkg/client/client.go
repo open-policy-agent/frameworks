@@ -223,6 +223,9 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 	if templ.ObjectMeta.Name != templ.Spec.CRD.Spec.Names.Plural {
 		return nil, fmt.Errorf("Template's name %s is not equal to the CRD's plural name: %s", templ.ObjectMeta.Name, templ.Spec.CRD.Spec.Names.Plural)
 	}
+	if templ.ObjectMeta.Name != strings.ToLower(templ.Spec.CRD.Spec.Names.Kind) {
+		return nil, fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
+	}
 
 	var src string
 	var target TargetHandler
