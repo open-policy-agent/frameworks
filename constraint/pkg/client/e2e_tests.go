@@ -20,13 +20,13 @@ var ctx = context.Background()
 
 func newConstraintTemplate(name, rego string) *v1alpha1.ConstraintTemplate {
 	return &v1alpha1.ConstraintTemplate{
-		ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(name) + "s"},
+		ObjectMeta: metav1.ObjectMeta{Name: strings.ToLower(name)},
 		Spec: v1alpha1.ConstraintTemplateSpec{
 			CRD: v1alpha1.CRD{
 				Spec: v1alpha1.CRDSpec{
 					Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
 						Kind:   name,
-						Plural: strings.ToLower(name) + "s",
+						Plural: strings.ToLower(name),
 					},
 					Validation: &v1alpha1.Validation{
 						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
