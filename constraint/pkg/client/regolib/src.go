@@ -4,12 +4,12 @@ const (
 	targetLibSrc = `
 package hooks["{{.Target}}"]
 
-deny[response] {
-	data.hooks["{{.Target}}"].library.autoreject_review[[violation, constraint]]
+violation[response] {
+	data.hooks["{{.Target}}"].library.autoreject_review[[rejection, constraint]]
 	review := get_default(input, "review", {})
 	response = {
-		"msg": get_default(violation, "msg", ""),
-		"metadata": {"details": get_default(violation, "details", {})},
+		"msg": get_default(rejection, "msg", ""),
+		"metadata": {"details": get_default(rejection, "details", {})},
 		"constraint": constraint,
 		"review": review,
 	}

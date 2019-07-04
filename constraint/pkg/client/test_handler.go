@@ -20,10 +20,10 @@ func (h *handler) GetName() string {
 var libTempl = template.Must(template.New("library").Parse(`
 package foo
 
-autoreject_review[[violation, constraint]] {
-	violation := {"msg": "test", "details": {},}
-	constraint = {{.ConstraintsRoot}}[input.review.ForConstraint][_]
-	violation =={}
+autoreject_review[[rejection, constraint]] {
+	rejection := {"msg": "test", "details": {},}
+	constraint = {}
+	rejection == {}
 }
 
 matching_constraints[constraint] {
