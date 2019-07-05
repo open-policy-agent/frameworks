@@ -1,0 +1,23 @@
+apiVersion: templates.gatekeeper.sh/v1alpha1
+kind: MutationTemplate
+metadata:
+  name: test-mute
+spec:
+  crd:
+    spec:
+      names:
+        kind: MutationThing
+        listKind: MutationThingList
+        plural: MutationThings
+        singular: MutationThing
+      validation:
+        openAPIV3Schema:
+          properties:
+            blockList:
+              type: array
+              items: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+        package MutationThings
+        sprintf("E",[])
