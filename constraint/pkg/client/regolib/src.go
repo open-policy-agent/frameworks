@@ -5,12 +5,12 @@ const (
 package hooks["{{.Target}}"]
 
 violation[response] {
-	data.hooks["{{.Target}}"].library.autoreject_review[[rejection, constraint]]
+	data.hooks["{{.Target}}"].library.autoreject_review[rejection]
 	review := get_default(input, "review", {})
 	response = {
 		"msg": get_default(rejection, "msg", ""),
 		"metadata": {"details": get_default(rejection, "details", {})},
-		"constraint": constraint,
+		"constraint": get_default(rejection, "constraint", {}),
 		"review": review,
 	}
 }
