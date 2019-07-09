@@ -294,6 +294,23 @@ func TestRemoveData(t *testing.T) {
 func TestAddTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1"))
 	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badArityTempl := createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1"))
+	badArityTempl.Spec.Targets[0].Rego = `
+package foo
+
+violation {
+	true
+}
+`
+	missingRuleTempl := createTemplate(name("fakes"), crdNames("Fake", "fakes"), targets("h1"))
+	missingRuleTempl.Spec.Targets[0].Rego = `
+package foo
+
+some_rule[r] {
+ r = 5
+}
+`
+
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -328,6 +345,18 @@ func TestAddTemplate(t *testing.T) {
 			Name:          "Bad Rego",
 			Handler:       &badHandler{Name: "h1", HasLib: true},
 			Template:      badRegoTempl,
+			ErrorExpected: true,
+		},
+		{
+			Name:          "Bad Arity",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      badArityTempl,
+			ErrorExpected: true,
+		},
+		{
+			Name:          "Missing Rule",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      missingRuleTempl,
 			ErrorExpected: true,
 		},
 	}

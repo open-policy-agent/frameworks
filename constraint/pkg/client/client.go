@@ -277,6 +277,14 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 	}
 
 	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
+
+	req := ruleArities{
+		"violation": 1,
+	}
+	if err := requireRules(path, src, req); err != nil {
+		return resp, fmt.Errorf("Invalid rego: %s", err)
+	}
+
 	conformingSrc, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
 	if err != nil {
 		return resp, err
