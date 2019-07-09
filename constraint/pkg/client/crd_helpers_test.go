@@ -42,7 +42,7 @@ func schema(pm propMap) tmplArg {
 func targets(ts ...string) tmplArg {
 	targets := make([]v1alpha1.Target, len(ts))
 	for i, t := range ts {
-		targets[i] = v1alpha1.Target{Target: t, Rego: "package hello v{1 == 1}"}
+		targets[i] = v1alpha1.Target{Target: t, Rego: `package hello violation[{"msg": msg}] {msg = "hello"}`}
 	}
 
 	return func(tmpl *v1alpha1.ConstraintTemplate) {
