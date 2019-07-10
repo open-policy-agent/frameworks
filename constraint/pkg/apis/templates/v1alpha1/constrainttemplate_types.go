@@ -29,6 +29,11 @@ type ConstraintTemplateSpec struct {
 	Targets []Target `json:"targets,omitempty"`
 }
 
+type MutationTemplateSpec struct {
+	CRD     CRD      `json:"crd,omitempty"`
+	Targets []Target `json:"targets,omitempty"`
+}
+
 type CRD struct {
 	Spec CRDSpec `json:"spec,omitempty"`
 }
@@ -93,6 +98,39 @@ type ConstraintTemplateList struct {
 	Items           []ConstraintTemplate `json:"items"`
 }
 
+
+// MutationTemplateStatus defines the observed state of MutationTemplate
+type MutationTemplateStatus struct {
+	Created bool   `json:"created,omitempty"`
+	ByPod []*ByPodStatus `json:"byPod,omitempty"`
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+}
+
+// +genclient
+// +genclient:nonNamespaced
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MutationTemplate is the Schema for the constrainttemplates API
+// +k8s:openapi-gen=true
+type MutationTemplate struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   MutationTemplateSpec   `json:"spec,omitempty"`
+	Status MutationTemplateStatus `json:"status,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MutationTemplateList contains a list of MutationTemplate
+type MutationTemplateList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []MutationTemplate `json:"items"`
+}
+
 func init() {
 	SchemeBuilder.Register(&ConstraintTemplate{}, &ConstraintTemplateList{})
+	SchemeBuilder.Register(&MutationTemplate{}, &MutationTemplateList{})
 }
