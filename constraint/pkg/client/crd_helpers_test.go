@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -14,17 +14,17 @@ import (
 
 // helpers for creating a ConstraintTemplate for test
 
-type tmplArg func(*v1alpha1.ConstraintTemplate)
+type tmplArg func(*templates.ConstraintTemplate)
 
 func name(name string) tmplArg {
-	return func(tmpl *v1alpha1.ConstraintTemplate) {
+	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.ObjectMeta.Name = name
 	}
 }
 
 func crdNames(kind string) tmplArg {
-	return func(tmpl *v1alpha1.ConstraintTemplate) {
-		tmpl.Spec.CRD.Spec.Names = v1alpha1.Names{
+	return func(tmpl *templates.ConstraintTemplate) {
+		tmpl.Spec.CRD.Spec.Names = templates.Names{
 			Kind: kind,
 		}
 	}
@@ -32,25 +32,25 @@ func crdNames(kind string) tmplArg {
 
 func schema(pm propMap) tmplArg {
 	p := prop(pm)
-	return func(tmpl *v1alpha1.ConstraintTemplate) {
-		tmpl.Spec.CRD.Spec.Validation = &v1alpha1.Validation{}
+	return func(tmpl *templates.ConstraintTemplate) {
+		tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
 		tmpl.Spec.CRD.Spec.Validation.OpenAPIV3Schema = &p
 	}
 }
 
 func targets(ts ...string) tmplArg {
-	targets := make([]v1alpha1.Target, len(ts))
+	targets := make([]templates.Target, len(ts))
 	for i, t := range ts {
-		targets[i] = v1alpha1.Target{Target: t, Rego: `package hello violation[{"msg": msg}] {msg = "hello"}`}
+		targets[i] = templates.Target{Target: t, Rego: `package hello violation[{"msg": msg}] {msg = "hello"}`}
 	}
 
-	return func(tmpl *v1alpha1.ConstraintTemplate) {
+	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Spec.Targets = targets
 	}
 }
 
-func createTemplate(args ...tmplArg) *v1alpha1.ConstraintTemplate {
-	tmpl := &v1alpha1.ConstraintTemplate{}
+func createTemplate(args ...tmplArg) *templates.ConstraintTemplate {
+	tmpl := &templates.ConstraintTemplate{}
 	for _, arg := range args {
 		arg(tmpl)
 	}
@@ -118,7 +118,7 @@ func gvk(group, version, kind string) customResourceArg {
 }
 
 func kind(kind string) customResourceArg {
-	return gvk(constraintGroup, "v1alpha1", kind)
+	return gvk(constraintGroup, "v1beta1", kind)
 }
 
 func params(s string) customResourceArg {
@@ -159,7 +159,7 @@ func createCR(args ...customResourceArg) *unstructured.Unstructured {
 
 type crdTestCase struct {
 	Name           string
-	Template       *v1alpha1.ConstraintTemplate
+	Template       *templates.ConstraintTemplate
 	Handler        MatchSchemaProvider
 	CR             *unstructured.Unstructured
 	ExpectedSchema *apiextensionsv1beta1.JSONSchemaProps

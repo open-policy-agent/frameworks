@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1beta1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
@@ -15,8 +17,13 @@ import (
 	apivalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
+var supportedVersions = map[string]bool{
+	v1alpha1.SchemeGroupVersion.Version: true,
+	v1beta1.SchemeGroupVersion.Version:  true,
+}
+
 // validateTargets ensures that the targets field has the appropriate values
-func validateTargets(templ *v1alpha1.ConstraintTemplate) error {
+func validateTargets(templ *templates.ConstraintTemplate) error {
 	if len(templ.Spec.Targets) > 1 {
 		return errors.New("Multi-target templates are not currently supported")
 	} else if templ.Spec.Targets == nil {
@@ -29,7 +36,7 @@ func validateTargets(templ *v1alpha1.ConstraintTemplate) error {
 
 // createSchema combines the schema of the match target and the ConstraintTemplate parameters
 // to form the schema of the actual constraint resource
-func createSchema(templ *v1alpha1.ConstraintTemplate, target MatchSchemaProvider) *apiextensionsv1beta1.JSONSchemaProps {
+func createSchema(templ *templates.ConstraintTemplate, target MatchSchemaProvider) *apiextensionsv1beta1.JSONSchemaProps {
 	props := map[string]apiextensionsv1beta1.JSONSchemaProps{
 		"match": target.MatchSchema(),
 	}
@@ -60,7 +67,7 @@ func newCRDHelper() *crdHelper {
 
 // createCRD takes a template and a schema and converts it to a CRD
 func (h *crdHelper) createCRD(
-	templ *v1alpha1.ConstraintTemplate,
+	templ *templates.ConstraintTemplate,
 	schema *apiextensionsv1beta1.JSONSchemaProps) *apiextensionsv1beta1.CustomResourceDefinition {
 	crd := &apiextensionsv1beta1.CustomResourceDefinition{
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
@@ -75,7 +82,19 @@ func (h *crdHelper) createCRD(
 				OpenAPIV3Schema: schema,
 			},
 			Scope:   "Cluster",
-			Version: v1alpha1.SchemeGroupVersion.Version,
+			Version: v1beta1.SchemeGroupVersion.Version,
+			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    v1beta1.SchemeGroupVersion.Version,
+					Storage: true,
+					Served:  true,
+				},
+				{
+					Name:    v1alpha1.SchemeGroupVersion.Version,
+					Storage: false,
+					Served:  true,
+				},
+			},
 		},
 	}
 	h.scheme.Default(crd)
@@ -118,8 +137,8 @@ func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensions
 	if cr.GroupVersionKind().Group != constraintGroup {
 		return fmt.Errorf("Wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
 	}
-	if cr.GroupVersionKind().Version != crd.Spec.Version {
-		return fmt.Errorf("Wrong version for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Version, crd.Spec.Version)
+	if !supportedVersions[cr.GroupVersionKind().Version] {
+		return fmt.Errorf("Wrong version for constraint %s. Have %s, supported: %v", cr.GetName(), cr.GroupVersionKind().Version, supportedVersions)
 	}
 	return nil
 }

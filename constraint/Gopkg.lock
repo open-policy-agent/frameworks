@@ -984,7 +984,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5b9abf55561501223ba793d8be3884e220441fc5f36bb2da5a45c1b58927d9fe"
+  digest = "1:5ea5791e694c4ba8be90bd095bb34c29ba4db126563b90f349695b269d941669"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -995,13 +995,16 @@
     "cmd/client-gen/generators/util",
     "cmd/client-gen/path",
     "cmd/client-gen/types",
+    "cmd/conversion-gen",
+    "cmd/conversion-gen/args",
+    "cmd/conversion-gen/generators",
     "cmd/deepcopy-gen",
     "cmd/deepcopy-gen/args",
     "pkg/namer",
     "pkg/util",
   ]
   pruneopts = "UT"
-  revision = "e4c2b1329cf785363b23612eebf93bb4c2affdb4"
+  revision = "93d7507fc8ffb4c860e4dd6f9a51a5e1985aebcd"
 
 [[projects]]
   branch = "master"
@@ -1126,6 +1129,7 @@
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/rest",
     "k8s.io/code-generator/cmd/client-gen",
+    "k8s.io/code-generator/cmd/conversion-gen",
     "k8s.io/code-generator/cmd/deepcopy-gen",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/envtest",

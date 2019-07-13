@@ -11,9 +11,9 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,9 +25,9 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	CreateCRD(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
-	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
-	RemoveTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
+	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	AddTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
+	RemoveTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 
 	AddConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)
 	RemoveConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)
@@ -213,7 +213,7 @@ func createTemplatePath(target, name string) string {
 }
 
 // CreateCRD creates a CRD from template
-func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
+func (c *client) CreateCRD(ctx context.Context, templ *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
 	if err := validateTargets(templ); err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
 // schema validation on calls to AddConstraint. It also returns a copy of the CRD describing
 // the constraint.
-func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*types.Responses, error) {
+func (c *client) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 	crd, err := c.CreateCRD(ctx, templ)
 	if err != nil {
@@ -301,7 +301,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 
 // RemoveTemplate removes the template source code from OPA and removes the CRD from the validation
 // registry.
-func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*types.Responses, error) {
+func (c *client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 	if err := validateTargets(templ); err != nil {
 		return resp, err
