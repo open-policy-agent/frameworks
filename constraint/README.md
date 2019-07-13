@@ -10,7 +10,7 @@ I want to make sure that every object has a `billing` label, I might write the
 following constraint YAML:
 
 ```yaml
-apiVersion: constraints.gatekeeper.sh/v1alpha1
+apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: FooSystemRequiredLabel
 metadata:
   name: require-billing-label
@@ -39,7 +39,7 @@ intent. For example, to define the `FooSystemRequiredLabel` constraint kind
 implemented above, I might write the following template YAML:
 
 ```yaml
-apiVersion: gatekeeper.sh/v1alpha1
+apiVersion: gatekeeper.sh/v1beta1
 kind: ConstraintTemplate
 metadata:
   name: foosystemrequiredlabels
@@ -48,9 +48,6 @@ spec:
     spec:
       names:
         kind: FooSystemRequiredLabel
-        listKind: FooSystemRequiredLabelsList
-        plural: foosystemrequiredlabels
-        singular: foosystemrequiredlabel
       validation:
         # Schema for the `parameters` field
         openAPIV3Schema:
@@ -246,9 +243,9 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	CreateCRD(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
-	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
-	RemoveTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
+	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	AddTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
+	RemoveTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 
 	AddConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)
 	RemoveConstraint(context.Context, *unstructured.Unstructured) (*types.Responses, error)

@@ -15,7 +15,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -25,7 +25,7 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error)
 	AddTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 	RemoveTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 
@@ -97,7 +97,7 @@ func Targets(ts ...TargetHandler) ClientOpt {
 
 type MatchSchemaProvider interface {
 	// MatchSchema returns the JSON Schema for the `match` field of a constraint
-	MatchSchema() apiextensionsv1beta1.JSONSchemaProps
+	MatchSchema() apiextensions.JSONSchemaProps
 }
 
 type TargetHandler interface {
@@ -137,7 +137,7 @@ type TargetHandler interface {
 var _ Client = &client{}
 
 type constraintEntry struct {
-	CRD     *apiextensionsv1beta1.CustomResourceDefinition
+	CRD     *apiextensions.CustomResourceDefinition
 	Targets []string
 }
 
@@ -213,7 +213,7 @@ func createTemplatePath(target, name string) string {
 }
 
 // CreateCRD creates a CRD from template
-func (c *client) CreateCRD(ctx context.Context, templ *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
+func (c *client) CreateCRD(ctx context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if err := validateTargets(templ); err != nil {
 		return nil, err
 	}
@@ -236,9 +236,15 @@ func (c *client) CreateCRD(ctx context.Context, templ *templates.ConstraintTempl
 		src = v.Rego
 	}
 
-	schema := createSchema(templ, target)
-	crd := c.backend.crd.createCRD(templ, schema)
-	if err := c.backend.crd.validateCRD(crd); err != nil {
+	schema, err := c.backend.crd.createSchema(templ, target)
+	if err != nil {
+		return nil, err
+	}
+	crd, err := c.backend.crd.createCRD(templ, schema)
+	if err != nil {
+		return nil, err
+	}
+	if err = c.backend.crd.validateCRD(crd); err != nil {
 		return nil, err
 	}
 
@@ -251,7 +257,7 @@ func (c *client) CreateCRD(ctx context.Context, templ *templates.ConstraintTempl
 		return nil, fmt.Errorf("Invalid rego: %s", err)
 	}
 
-	_, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
+	_, err = ensureRegoConformance(crd.Spec.Names.Kind, path, src)
 	if err != nil {
 		return nil, err
 	}
@@ -317,8 +323,14 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		target = t
 	}
 
-	schema := createSchema(templ, target)
-	crd := c.backend.crd.createCRD(templ, schema)
+	schema, err := c.backend.crd.createSchema(templ, target)
+	if err != nil {
+		return resp, err
+	}
+	crd, err := c.backend.crd.createCRD(templ, schema)
+	if err != nil {
+		return resp, err
+	}
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return resp, err
 	}
@@ -327,7 +339,7 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
-	_, err := c.backend.driver.DeleteModule(ctx, path)
+	_, err = c.backend.driver.DeleteModule(ctx, path)
 	if err != nil {
 		return resp, err
 	}

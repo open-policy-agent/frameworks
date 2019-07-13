@@ -11,7 +11,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/pkg/errors"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,9 +29,9 @@ func newConstraintTemplate(name, rego string) *templates.ConstraintTemplate {
 						Kind: name,
 					},
 					Validation: &templates.Validation{
-						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-								"expected": apiextensionsv1beta1.JSONSchemaProps{Type: "string"},
+						OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+							Properties: map[string]apiextensions.JSONSchemaProps{
+								"expected": apiextensions.JSONSchemaProps{Type: "string"},
 							},
 						},
 					},

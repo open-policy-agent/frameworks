@@ -10,7 +10,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -53,8 +53,8 @@ matching_constraints[c] {c = data.c}
 matching_reviews_and_constraints[[r,c]] {r = data.r; c = data.c}`))
 }
 
-func (h *badHandler) MatchSchema() apiextensionsv1beta1.JSONSchemaProps {
-	return apiextensionsv1beta1.JSONSchemaProps{}
+func (h *badHandler) MatchSchema() apiextensions.JSONSchemaProps {
+	return apiextensions.JSONSchemaProps{}
 }
 
 func (h *badHandler) ProcessData(obj interface{}) (bool, string, interface{}, error) {

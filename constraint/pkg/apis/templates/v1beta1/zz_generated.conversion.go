@@ -22,6 +22,7 @@ import (
 	unsafe "unsafe"
 
 	templates "github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -197,7 +198,15 @@ func autoConvert_v1beta1_CRDSpec_To_templates_CRDSpec(in *CRDSpec, out *template
 	if err := Convert_v1beta1_Names_To_templates_Names(&in.Names, &out.Names, s); err != nil {
 		return err
 	}
-	out.Validation = (*templates.Validation)(unsafe.Pointer(in.Validation))
+	if in.Validation != nil {
+		in, out := &in.Validation, &out.Validation
+		*out = new(templates.Validation)
+		if err := Convert_v1beta1_Validation_To_templates_Validation(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.Validation = nil
+	}
 	return nil
 }
 
@@ -210,7 +219,15 @@ func autoConvert_templates_CRDSpec_To_v1beta1_CRDSpec(in *templates.CRDSpec, out
 	if err := Convert_templates_Names_To_v1beta1_Names(&in.Names, &out.Names, s); err != nil {
 		return err
 	}
-	out.Validation = (*Validation)(unsafe.Pointer(in.Validation))
+	if in.Validation != nil {
+		in, out := &in.Validation, &out.Validation
+		*out = new(Validation)
+		if err := Convert_templates_Validation_To_v1beta1_Validation(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.Validation = nil
+	}
 	return nil
 }
 
@@ -253,7 +270,17 @@ func Convert_templates_ConstraintTemplate_To_v1beta1_ConstraintTemplate(in *temp
 
 func autoConvert_v1beta1_ConstraintTemplateList_To_templates_ConstraintTemplateList(in *ConstraintTemplateList, out *templates.ConstraintTemplateList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	out.Items = *(*[]templates.ConstraintTemplate)(unsafe.Pointer(&in.Items))
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]templates.ConstraintTemplate, len(*in))
+		for i := range *in {
+			if err := Convert_v1beta1_ConstraintTemplate_To_templates_ConstraintTemplate(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
 	return nil
 }
 
@@ -264,7 +291,17 @@ func Convert_v1beta1_ConstraintTemplateList_To_templates_ConstraintTemplateList(
 
 func autoConvert_templates_ConstraintTemplateList_To_v1beta1_ConstraintTemplateList(in *templates.ConstraintTemplateList, out *ConstraintTemplateList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
-	out.Items = *(*[]ConstraintTemplate)(unsafe.Pointer(&in.Items))
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]ConstraintTemplate, len(*in))
+		for i := range *in {
+			if err := Convert_templates_ConstraintTemplate_To_v1beta1_ConstraintTemplate(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
 	return nil
 }
 
@@ -388,7 +425,16 @@ func Convert_templates_Target_To_v1beta1_Target(in *templates.Target, out *Targe
 }
 
 func autoConvert_v1beta1_Validation_To_templates_Validation(in *Validation, out *templates.Validation, s conversion.Scope) error {
-	out.OpenAPIV3Schema = (*apiextensionsv1beta1.JSONSchemaProps)(unsafe.Pointer(in.OpenAPIV3Schema))
+	if in.OpenAPIV3Schema != nil {
+		in, out := &in.OpenAPIV3Schema, &out.OpenAPIV3Schema
+		*out = new(apiextensions.JSONSchemaProps)
+		// TODO: Inefficient conversion - can we improve it?
+		if err := s.Convert(*in, *out, 0); err != nil {
+			return err
+		}
+	} else {
+		out.OpenAPIV3Schema = nil
+	}
 	return nil
 }
 
@@ -398,7 +444,16 @@ func Convert_v1beta1_Validation_To_templates_Validation(in *Validation, out *tem
 }
 
 func autoConvert_templates_Validation_To_v1beta1_Validation(in *templates.Validation, out *Validation, s conversion.Scope) error {
-	out.OpenAPIV3Schema = (*apiextensionsv1beta1.JSONSchemaProps)(unsafe.Pointer(in.OpenAPIV3Schema))
+	if in.OpenAPIV3Schema != nil {
+		in, out := &in.OpenAPIV3Schema, &out.OpenAPIV3Schema
+		*out = new(apiextensionsv1beta1.JSONSchemaProps)
+		// TODO: Inefficient conversion - can we improve it?
+		if err := s.Convert(*in, *out, 0); err != nil {
+			return err
+		}
+	} else {
+		out.OpenAPIV3Schema = nil
+	}
 	return nil
 }
 

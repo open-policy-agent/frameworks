@@ -36,21 +36,25 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 
 // createSchema combines the schema of the match target and the ConstraintTemplate parameters
 // to form the schema of the actual constraint resource
-func createSchema(templ *templates.ConstraintTemplate, target MatchSchemaProvider) *apiextensionsv1beta1.JSONSchemaProps {
-	props := map[string]apiextensionsv1beta1.JSONSchemaProps{
+func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target MatchSchemaProvider) (*apiextensions.JSONSchemaProps, error) {
+	props := map[string]apiextensions.JSONSchemaProps{
 		"match": target.MatchSchema(),
 	}
 	if templ.Spec.CRD.Spec.Validation != nil && templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema != nil {
-		props["parameters"] = *templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema
+		internalSchema := &apiextensions.JSONSchemaProps{}
+		if err := h.scheme.Convert(templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema, internalSchema, nil); err != nil {
+			return nil, err
+		}
+		props["parameters"] = *internalSchema
 	}
-	schema := &apiextensionsv1beta1.JSONSchemaProps{
-		Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-			"spec": apiextensionsv1beta1.JSONSchemaProps{
+	schema := &apiextensions.JSONSchemaProps{
+		Properties: map[string]apiextensions.JSONSchemaProps{
+			"spec": apiextensions.JSONSchemaProps{
 				Properties: props,
 			},
 		},
 	}
-	return schema
+	return schema, nil
 }
 
 // crdHelper builds the scheme for handling CRDs. It is necessary to build crdHelper at runtime as
@@ -68,22 +72,22 @@ func newCRDHelper() *crdHelper {
 // createCRD takes a template and a schema and converts it to a CRD
 func (h *crdHelper) createCRD(
 	templ *templates.ConstraintTemplate,
-	schema *apiextensionsv1beta1.JSONSchemaProps) *apiextensionsv1beta1.CustomResourceDefinition {
-	crd := &apiextensionsv1beta1.CustomResourceDefinition{
-		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+	schema *apiextensions.JSONSchemaProps) (*apiextensions.CustomResourceDefinition, error) {
+	crd := &apiextensions.CustomResourceDefinition{
+		Spec: apiextensions.CustomResourceDefinitionSpec{
 			Group: constraintGroup,
-			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+			Names: apiextensions.CustomResourceDefinitionNames{
 				Kind:     templ.Spec.CRD.Spec.Names.Kind,
 				ListKind: templ.Spec.CRD.Spec.Names.Kind + "List",
 				Plural:   strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
 				Singular: strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
 			},
-			Validation: &apiextensionsv1beta1.CustomResourceValidation{
+			Validation: &apiextensions.CustomResourceValidation{
 				OpenAPIV3Schema: schema,
 			},
 			Scope:   "Cluster",
 			Version: v1beta1.SchemeGroupVersion.Version,
-			Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
+			Versions: []apiextensions.CustomResourceDefinitionVersion{
 				{
 					Name:    v1beta1.SchemeGroupVersion.Version,
 					Storage: true,
@@ -97,18 +101,23 @@ func (h *crdHelper) createCRD(
 			},
 		},
 	}
-	h.scheme.Default(crd)
-	crd.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraintGroup)
-	return crd
+	// Defaulting functions only exist for v1beta1
+	v1b1 := &apiextensionsv1beta1.CustomResourceDefinition{}
+	if err := h.scheme.Convert(crd, v1b1, nil); err != nil {
+		return nil, err
+	}
+	h.scheme.Default(v1b1)
+	crd2 := &apiextensions.CustomResourceDefinition{}
+	if err := h.scheme.Convert(v1b1, crd2, nil); err != nil {
+		return nil, err
+	}
+	crd2.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraintGroup)
+	return crd2, nil
 }
 
 // validateCRD calls the CRD package's validation on an internal representation of the CRD
-func (h *crdHelper) validateCRD(crd *apiextensionsv1beta1.CustomResourceDefinition) error {
-	internalCRD := &apiextensions.CustomResourceDefinition{}
-	if err := h.scheme.Convert(crd, internalCRD, nil); err != nil {
-		return err
-	}
-	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(internalCRD)
+func (h *crdHelper) validateCRD(crd *apiextensions.CustomResourceDefinition) error {
+	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(crd)
 	if len(errors) > 0 {
 		return errors.ToAggregate()
 	}
@@ -116,12 +125,8 @@ func (h *crdHelper) validateCRD(crd *apiextensionsv1beta1.CustomResourceDefiniti
 }
 
 // validateCR validates the provided custom resource against its CustomResourceDefinition
-func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensionsv1beta1.CustomResourceDefinition) error {
-	internalCRD := &apiextensions.CustomResourceDefinition{}
-	if err := h.scheme.Convert(crd, internalCRD, nil); err != nil {
-		return err
-	}
-	validator, _, err := validation.NewSchemaValidator(internalCRD.Spec.Validation)
+func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResourceDefinition) error {
+	validator, _, err := validation.NewSchemaValidator(crd.Spec.Validation)
 	if err != nil {
 		return err
 	}
