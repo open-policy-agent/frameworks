@@ -149,7 +149,7 @@ type TargetHandler interface {
 	GetName() string
 	
 	// MatchSchema returns the JSON Schema for the `match` field of a constraint
-	MatchSchema() apiextensionsv1beta1.JSONSchemaProps
+	MatchSchema() apiextensions.JSONSchemaProps
 	
 	// Library returns the pieces of Rego code required to stitch together constraint evaluation  // for the target. Current required libraries are `matching_constraints` and
 	// `matching_reviews_and_constraints` 
@@ -243,7 +243,7 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	CreateCRD(context.Context, *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error)
 	AddTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 	RemoveTemplate(context.Context, *templates.ConstraintTemplate) (*types.Responses, error)
 
