@@ -63,7 +63,7 @@ spec:
       rego: |
 violation[{"msg": msg, "details": {"missing_labels": missing}}] {
    provided := {label | input.request.object.metadata.labels[label]}
-   required := {label | label := input.constraint.spec.parameters.labels[_]}
+   required := {label | label := input.parameters.labels[_]}
    missing := required - provided
    count(missing) > 0
    msg := sprintf("you must provide labels: %v", [missing])
@@ -206,11 +206,12 @@ text template that forms a Rego module with at least two rules:
 
    * `matching_constraints[constraint]`
       * Returns all `constraint` objects that satisfy the `match` criteria for
-        a given `input`. This `constraint` will be assigned to `input.constraint`.
+        a given `input`. This `perameters` of this `constraint` will be assigned
+        to `input.parameters`.
    * `matching_reviews_and_constraints[[review, constraint]]`
       * Returns a `review` that corresponds to all cached data for the target. It
         also returns a `constraint` for every constraint relevant to a review.
-        Values will be made available to constraint rules as `input.constraint` and
+        Values will be made available to constraint rules as `input.parameters` and
         `input.review`.
    
 Note that the `Library()` module will be sandboxed much like how constraint rules
