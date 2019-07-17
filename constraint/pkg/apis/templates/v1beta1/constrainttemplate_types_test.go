@@ -66,7 +66,7 @@ func TestTypeConversion(t *testing.T) {
 	versioned := &ConstraintTemplate{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConstraintTemplate",
-			APIVersion: "templates.gatekeeper.sh/v1alpha1",
+			APIVersion: "templates.gatekeeper.sh/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "MustHaveMoreCats",
