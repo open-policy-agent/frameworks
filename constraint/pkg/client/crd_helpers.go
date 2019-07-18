@@ -16,25 +16,25 @@ import (
 )
 
 // validateTargets ensures that the targets field has the appropriate values
-func validateTargets(templ *v1alpha1.ConstraintTemplate) error {
-	if len(templ.Spec.Targets) > 1 {
+func validateTargets(targets []v1alpha1.Target) error {
+	if len(targets) > 1 {
 		return errors.New("Multi-target templates are not currently supported")
-	} else if templ.Spec.Targets == nil {
-		return errors.New(`Field "targets" not specified in ConstraintTemplate spec`)
-	} else if len(templ.Spec.Targets) == 0 {
-		return errors.New("No targets specified. ConstraintTemplate must specify one target")
+	} else if targets == nil {
+		return errors.New(`Field "targets" not specified in Template spec`)
+	} else if len(targets) == 0 {
+		return errors.New("No targets specified. Template must specify one target")
 	}
 	return nil
 }
 
 // createSchema combines the schema of the match target and the ConstraintTemplate parameters
 // to form the schema of the actual constraint resource
-func createSchema(templ *v1alpha1.ConstraintTemplate, target MatchSchemaProvider) *apiextensionsv1beta1.JSONSchemaProps {
+func createSchema(validation v1alpha1.CRDSpec, target MatchSchemaProvider) *apiextensionsv1beta1.JSONSchemaProps {
 	props := map[string]apiextensionsv1beta1.JSONSchemaProps{
 		"match": target.MatchSchema(),
 	}
-	if templ.Spec.CRD.Spec.Validation != nil && templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema != nil {
-		props["parameters"] = *templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema
+	if validation.Validation != nil && validation.Validation.OpenAPIV3Schema != nil {
+		props["parameters"] = *validation.Validation.OpenAPIV3Schema
 	}
 	schema := &apiextensionsv1beta1.JSONSchemaProps{
 		Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
@@ -60,16 +60,16 @@ func newCRDHelper() *crdHelper {
 
 // createCRD takes a template and a schema and converts it to a CRD
 func (h *crdHelper) createCRD(
-	templ *v1alpha1.ConstraintTemplate,
+	kind string,
 	schema *apiextensionsv1beta1.JSONSchemaProps) *apiextensionsv1beta1.CustomResourceDefinition {
 	crd := &apiextensionsv1beta1.CustomResourceDefinition{
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
 			Group: constraintGroup,
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-				Kind:     templ.Spec.CRD.Spec.Names.Kind,
-				ListKind: templ.Spec.CRD.Spec.Names.Kind + "List",
-				Plural:   strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
-				Singular: strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
+				Kind:     kind,
+				ListKind: kind + "List",
+				Plural:   strings.ToLower(kind),
+				Singular: strings.ToLower(kind),
 			},
 			Validation: &apiextensionsv1beta1.CustomResourceValidation{
 				OpenAPIV3Schema: schema,

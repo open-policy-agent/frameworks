@@ -186,7 +186,7 @@ func TestValidateTemplate(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			err := validateTargets(tc.Template)
+			err := validateTargets(tc.Template.Spec.Targets)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
@@ -240,9 +240,9 @@ func TestCreateSchema(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := createSchema(tc.Template, tc.Handler)
+			schema := createSchema(tc.Template.Spec.CRD.Spec, tc.Handler)
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
-				t.Errorf("createSchema(%#v) = \n%#v; \nwant %#v", tc.Template, *schema, *tc.ExpectedSchema)
+				t.Errorf("createSchema(%#v) = \n%#v; \nwant %#v", tc.Template.Spec.CRD.Spec, *schema, *tc.ExpectedSchema)
 			}
 		})
 	}
@@ -299,8 +299,8 @@ func TestCRDCreationAndValidation(t *testing.T) {
 	h := newCRDHelper()
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := createSchema(tc.Template, tc.Handler)
-			crd := h.createCRD(tc.Template, schema)
+			schema := createSchema(tc.Template.Spec.CRD.Spec, tc.Handler)
+			crd := h.createCRD(tc.Template.Spec.CRD.Spec.Names.Kind, schema)
 			err := h.validateCRD(crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
@@ -434,8 +434,8 @@ func TestCRValidation(t *testing.T) {
 	h := newCRDHelper()
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := createSchema(tc.Template, tc.Handler)
-			crd := h.createCRD(tc.Template, schema)
+			schema := createSchema(tc.Template.Spec.CRD.Spec, tc.Handler)
+			crd := h.createCRD(tc.Template.Spec.CRD.Spec.Names.Kind, schema)
 			if err := h.validateCRD(crd); err != nil {
 				t.Errorf("Bad test setup: Bad CRD: %s", err)
 			}

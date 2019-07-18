@@ -25,7 +25,8 @@ type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
-	CreateCRD(context.Context, *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
+	CreateMutationCRD(ctx context.Context, templ *v1alpha1.MutationTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error)
 	AddTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 	RemoveTemplate(context.Context, *v1alpha1.ConstraintTemplate) (*types.Responses, error)
 
@@ -214,19 +215,43 @@ func createTemplatePath(target, name string) string {
 
 // CreateCRD creates a CRD from template
 func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
-	if err := validateTargets(templ); err != nil {
+	nm := templ.ObjectMeta.Name
+	specCRD := &templ.Spec.CRD
+	targets := templ.Spec.Targets
+	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
 		return nil, err
 	}
-	if templ.ObjectMeta.Name == "" {
-		return nil, errors.New("Template has no name")
-	}
-	if templ.ObjectMeta.Name != strings.ToLower(templ.Spec.CRD.Spec.Names.Kind) {
-		return nil, fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
-	}
+	return c.createGenericCRD(nm, specCRD, targets)
+}
 
+func (c *client) CreateMutationCRD(ctx context.Context, templ *v1alpha1.MutationTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
+	nm := templ.ObjectMeta.Name
+	specCRD := &templ.Spec.CRD
+	targets := templ.Spec.Targets
+	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
+		return nil, err
+	}
+	return c.createGenericCRD(nm, specCRD, targets)
+}
+
+func (c *client) validateGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) error {
+	crdSpecKind := specCRD.Spec.Names.Kind
+	if err := validateTargets(targets); err != nil {
+		return err
+	}
+	if objMetaName == "" {
+		return errors.New("Template has no name")
+	}
+	if objMetaName != strings.ToLower(crdSpecKind){
+		return fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", objMetaName, strings.ToLower(crdSpecKind))
+	}
+	return nil
+}
+
+func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) (*apiextensionsv1beta1.CustomResourceDefinition, error){
 	var src string
 	var target TargetHandler
-	for _, v := range templ.Spec.Targets {
+	for _, v := range targets {
 		k := v.Target
 		t, ok := c.targets[k]
 		if !ok {
@@ -236,13 +261,16 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 		src = v.Rego
 	}
 
-	schema := createSchema(templ, target)
-	crd := c.backend.crd.createCRD(templ, schema)
+	CRDSpec := specCRD.Spec
+	crdSpecKind := specCRD.Spec.Names.Kind
+
+	schema := createSchema(CRDSpec, target)
+	crd := c.backend.crd.createCRD(crdSpecKind, schema)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return nil, err
 	}
 
-	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
+	path := createTemplatePath(target.GetName(), crdSpecKind)
 
 	req := ruleArities{
 		"violation": 1,
@@ -251,7 +279,7 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 		return nil, fmt.Errorf("Invalid rego: %s", err)
 	}
 
-	_, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
+	_, err := ensureRegoConformance(crdSpecKind, path, src)
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +297,8 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		return resp, err
 	}
 
+	crdSpecKind := crd.Spec.Names.Kind
+
 	var src string
 	var target TargetHandler
 	for _, v := range templ.Spec.Targets {
@@ -281,8 +311,8 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		src = v.Rego
 	}
 
-	path := createTemplatePath(target.GetName(), crd.Spec.Names.Kind)
-	conformingSrc, err := ensureRegoConformance(crd.Spec.Names.Kind, path, src)
+	path := createTemplatePath(target.GetName(), crdSpecKind)
+	conformingSrc, err := ensureRegoConformance(crdSpecKind, path, src)
 	if err != nil {
 		return resp, err
 	}
@@ -293,7 +323,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		return resp, err
 	}
 
-	c.constraints[crd.Spec.Names.Kind] = &constraintEntry{CRD: crd, Targets: []string{target.GetName()}}
+	c.constraints[crdSpecKind] = &constraintEntry{CRD: crd, Targets: []string{target.GetName()}}
 	resp.Handled[target.GetName()] = true
 
 	return resp, nil
@@ -303,7 +333,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 // registry.
 func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
-	if err := validateTargets(templ); err != nil {
+	if err := validateTargets(templ.Spec.Targets); err != nil {
 		return resp, err
 	}
 
@@ -317,13 +347,16 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintT
 		target = t
 	}
 
-	schema := createSchema(templ, target)
-	crd := c.backend.crd.createCRD(templ, schema)
+	crdSpec := templ.Spec.CRD.Spec
+	crdSpecKind := templ.Spec.CRD.Spec.Names.Kind
+
+	schema := createSchema(crdSpec, target)
+	crd := c.backend.crd.createCRD(crdSpecKind, schema)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return resp, err
 	}
 
-	path := createTemplatePath(target.GetName(), templ.Spec.CRD.Spec.Names.Kind)
+	path := createTemplatePath(target.GetName(), crdSpecKind)
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
