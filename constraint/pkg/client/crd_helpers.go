@@ -61,10 +61,10 @@ func newCRDHelper() *crdHelper {
 // createCRD takes a template and a schema and converts it to a CRD
 func (h *crdHelper) createCRD(
 	kind string,
-	schema *apiextensionsv1beta1.JSONSchemaProps) *apiextensionsv1beta1.CustomResourceDefinition {
+	schema *apiextensionsv1beta1.JSONSchemaProps, group k8sGroup) *apiextensionsv1beta1.CustomResourceDefinition {
 	crd := &apiextensionsv1beta1.CustomResourceDefinition{
 		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-			Group: constraintGroup,
+			Group: string(group),
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
 				Kind:     kind,
 				ListKind: kind + "List",
@@ -79,7 +79,7 @@ func (h *crdHelper) createCRD(
 		},
 	}
 	h.scheme.Default(crd)
-	crd.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraintGroup)
+	crd.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, group)
 	return crd
 }
 
@@ -97,7 +97,7 @@ func (h *crdHelper) validateCRD(crd *apiextensionsv1beta1.CustomResourceDefiniti
 }
 
 // validateCR validates the provided custom resource against its CustomResourceDefinition
-func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensionsv1beta1.CustomResourceDefinition) error {
+func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensionsv1beta1.CustomResourceDefinition, group k8sGroup) error {
 	internalCRD := &apiextensions.CustomResourceDefinition{}
 	if err := h.scheme.Convert(crd, internalCRD, nil); err != nil {
 		return err
@@ -115,8 +115,8 @@ func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensions
 	if cr.GetKind() != crd.Spec.Names.Kind {
 		return fmt.Errorf("Wrong kind for constraint %s. Have %s, want %s", cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
 	}
-	if cr.GroupVersionKind().Group != constraintGroup {
-		return fmt.Errorf("Wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
+	if cr.GroupVersionKind().Group != string(group) {
+		return fmt.Errorf("Wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, group)
 	}
 	if cr.GroupVersionKind().Version != crd.Spec.Version {
 		return fmt.Errorf("Wrong version for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Version, crd.Spec.Version)

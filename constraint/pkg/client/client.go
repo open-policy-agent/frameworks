@@ -19,7 +19,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-const constraintGroup = "constraints.gatekeeper.sh"
+type k8sGroup string
+
+const (
+	constraintGroup k8sGroup = "constraints.gatekeeper.sh"
+	mutationGroup k8sGroup = "mutations.gatekeeper.sh"
+)
 
 type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
@@ -221,7 +226,7 @@ func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTempla
 	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
 		return nil, err
 	}
-	return c.createGenericCRD(nm, specCRD, targets)
+	return c.createGenericCRD(nm, specCRD, targets, constraintGroup)
 }
 
 func (c *client) CreateMutationCRD(ctx context.Context, templ *v1alpha1.MutationTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
@@ -231,7 +236,7 @@ func (c *client) CreateMutationCRD(ctx context.Context, templ *v1alpha1.Mutation
 	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
 		return nil, err
 	}
-	return c.createGenericCRD(nm, specCRD, targets)
+	return c.createGenericCRD(nm, specCRD, targets, mutationGroup)
 }
 
 func (c *client) validateGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) error {
@@ -248,7 +253,7 @@ func (c *client) validateGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, t
 	return nil
 }
 
-func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) (*apiextensionsv1beta1.CustomResourceDefinition, error){
+func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target, group k8sGroup) (*apiextensionsv1beta1.CustomResourceDefinition, error){
 	var src string
 	var target TargetHandler
 	for _, v := range targets {
@@ -265,7 +270,7 @@ func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, tar
 	crdSpecKind := specCRD.Spec.Names.Kind
 
 	schema := createSchema(CRDSpec, target)
-	crd := c.backend.crd.createCRD(crdSpecKind, schema)
+	crd := c.backend.crd.createCRD(crdSpecKind, schema, group)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return nil, err
 	}
@@ -351,7 +356,7 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintT
 	crdSpecKind := templ.Spec.CRD.Spec.Names.Kind
 
 	schema := createSchema(crdSpec, target)
-	crd := c.backend.crd.createCRD(crdSpecKind, schema)
+	crd := c.backend.crd.createCRD(crdSpecKind, schema, constraintGroup)//TODO(camm): make this work for both groups in future
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return resp, err
 	}
@@ -410,7 +415,7 @@ func (c *client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	defer c.constraintsMux.RUnlock()
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
-	if err := c.validateConstraint(constraint, false); err != nil {
+	if err := c.validateConstraint(constraint, false, constraintGroup); err != nil {
 		return resp, err
 	}
 	entry, err := c.getConstraintEntry(constraint, false)
@@ -468,12 +473,12 @@ func (c *client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 // validateConstraint is an internal function that allows us to toggle whether we use a read lock
 // when validating a constraint
-func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock bool) error {
+func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock bool, group k8sGroup) error {
 	entry, err := c.getConstraintEntry(constraint, lock)
 	if err != nil {
 		return err
 	}
-	if err = c.backend.crd.validateCR(constraint, entry.CRD); err != nil {
+	if err = c.backend.crd.validateCR(constraint, entry.CRD, group); err != nil {
 		return err
 	}
 
@@ -488,7 +493,13 @@ func (c *client) validateConstraint(constraint *unstructured.Unstructured, lock 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
 // the registered CRD for that constraint.
 func (c *client) ValidateConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	return c.validateConstraint(constraint, true)
+	return c.validateConstraint(constraint, true, constraintGroup)
+}
+
+// ValidateMutation returns an error if the constraint is not recognized or does not conform to
+// the registered CRD for that constraint.
+func (c *client) ValidateMutation(ctx context.Context, constraint *unstructured.Unstructured) error {
+	return c.validateConstraint(constraint, true, mutationGroup)
 }
 
 // init initializes the OPA backend for the client
