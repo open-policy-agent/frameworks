@@ -357,13 +357,10 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 	if gvk.Group == "" {
 		return "", fmt.Errorf("Empty group for the constrant named %s", constraint.GetName())
 	}
-	if gvk.Version == "" {
-		return "", fmt.Errorf("Empty version for the constraint named %s", constraint.GetName())
-	}
 	if gvk.Kind == "" {
 		return "", fmt.Errorf("Empty kind for the constraint named %s", constraint.GetName())
 	}
-	return "/" + path.Join("constraints", target, "cluster", gvk.Group, gvk.Version, gvk.Kind, constraint.GetName()), nil
+	return "/" + path.Join("constraints", target, "cluster", gvk.Group, gvk.Kind, constraint.GetName()), nil
 }
 
 // getConstraintEntry returns the constraint entry for a given constraint
@@ -493,7 +490,7 @@ func (c *client) init() error {
 		}
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"].v1alpha1`, t.GetName(), constraintGroup),
+			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraintGroup),
 			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, t.GetName()),
 		}); err != nil {
 			return err
