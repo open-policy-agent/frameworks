@@ -23,7 +23,7 @@ type k8sGroup string
 
 const (
 	constraintGroup k8sGroup = "constraints.gatekeeper.sh"
-	mutationGroup k8sGroup = "mutations.gatekeeper.sh"
+	mutationGroup   k8sGroup = "mutations.gatekeeper.sh"
 )
 
 type Client interface {
@@ -220,40 +220,40 @@ func createTemplatePath(target, name string) string {
 
 // CreateCRD creates a CRD from template
 func (c *client) CreateCRD(ctx context.Context, templ *v1alpha1.ConstraintTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
-	nm := templ.ObjectMeta.Name
+	name := templ.ObjectMeta.Name
 	specCRD := &templ.Spec.CRD
 	targets := templ.Spec.Targets
-	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
+	if err := c.validateGenericCRD(name, specCRD, targets); err != nil {
 		return nil, err
 	}
-	return c.createGenericCRD(nm, specCRD, targets, constraintGroup)
+	return c.createGenericCRD(specCRD, targets, constraintGroup)
 }
 
 func (c *client) CreateMutationCRD(ctx context.Context, templ *v1alpha1.MutationTemplate) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
-	nm := templ.ObjectMeta.Name
+	name := templ.ObjectMeta.Name
 	specCRD := &templ.Spec.CRD
 	targets := templ.Spec.Targets
-	if err := c.validateGenericCRD(nm, specCRD, targets); err != nil {
+	if err := c.validateGenericCRD(name, specCRD, targets); err != nil {
 		return nil, err
 	}
-	return c.createGenericCRD(nm, specCRD, targets, mutationGroup)
+	return c.createGenericCRD(specCRD, targets, mutationGroup)
 }
 
-func (c *client) validateGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) error {
-	crdSpecKind := specCRD.Spec.Names.Kind
+func (c *client) validateGenericCRD(name string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target) error {
+	kind := specCRD.Spec.Names.Kind
 	if err := validateTargets(targets); err != nil {
 		return err
 	}
-	if objMetaName == "" {
+	if name == "" {
 		return errors.New("Template has no name")
 	}
-	if objMetaName != strings.ToLower(crdSpecKind){
-		return fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", objMetaName, strings.ToLower(crdSpecKind))
+	if name != strings.ToLower(kind) {
+		return fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", name, strings.ToLower(kind))
 	}
 	return nil
 }
 
-func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, targets []v1alpha1.Target, group k8sGroup) (*apiextensionsv1beta1.CustomResourceDefinition, error){
+func (c *client) createGenericCRD(specCRD *v1alpha1.CRD, targets []v1alpha1.Target, group k8sGroup) (*apiextensionsv1beta1.CustomResourceDefinition, error) {
 	var src string
 	var target TargetHandler
 	for _, v := range targets {
@@ -267,15 +267,15 @@ func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, tar
 	}
 
 	CRDSpec := specCRD.Spec
-	crdSpecKind := specCRD.Spec.Names.Kind
+	kind := specCRD.Spec.Names.Kind
 
 	schema := createSchema(CRDSpec, target)
-	crd := c.backend.crd.createCRD(crdSpecKind, schema, group)
+	crd := c.backend.crd.createCRD(kind, schema, group)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return nil, err
 	}
 
-	path := createTemplatePath(target.GetName(), crdSpecKind)
+	path := createTemplatePath(target.GetName(), kind)
 
 	req := ruleArities{
 		"violation": 1,
@@ -284,7 +284,7 @@ func (c *client) createGenericCRD(objMetaName string, specCRD *v1alpha1.CRD, tar
 		return nil, fmt.Errorf("Invalid rego: %s", err)
 	}
 
-	_, err := ensureRegoConformance(crdSpecKind, path, src)
+	_, err := ensureRegoConformance(kind, path, src)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		return resp, err
 	}
 
-	crdSpecKind := crd.Spec.Names.Kind
+	kind := crd.Spec.Names.Kind
 
 	var src string
 	var target TargetHandler
@@ -316,8 +316,8 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		src = v.Rego
 	}
 
-	path := createTemplatePath(target.GetName(), crdSpecKind)
-	conformingSrc, err := ensureRegoConformance(crdSpecKind, path, src)
+	path := createTemplatePath(target.GetName(), kind)
+	conformingSrc, err := ensureRegoConformance(kind, path, src)
 	if err != nil {
 		return resp, err
 	}
@@ -328,7 +328,7 @@ func (c *client) AddTemplate(ctx context.Context, templ *v1alpha1.ConstraintTemp
 		return resp, err
 	}
 
-	c.constraints[crdSpecKind] = &constraintEntry{CRD: crd, Targets: []string{target.GetName()}}
+	c.constraints[kind] = &constraintEntry{CRD: crd, Targets: []string{target.GetName()}}
 	resp.Handled[target.GetName()] = true
 
 	return resp, nil
@@ -353,15 +353,15 @@ func (c *client) RemoveTemplate(ctx context.Context, templ *v1alpha1.ConstraintT
 	}
 
 	crdSpec := templ.Spec.CRD.Spec
-	crdSpecKind := templ.Spec.CRD.Spec.Names.Kind
+	kind := templ.Spec.CRD.Spec.Names.Kind
 
 	schema := createSchema(crdSpec, target)
-	crd := c.backend.crd.createCRD(crdSpecKind, schema, constraintGroup)//TODO(camm): make this work for both groups in future
+	crd := c.backend.crd.createCRD(kind, schema, constraintGroup)
 	if err := c.backend.crd.validateCRD(crd); err != nil {
 		return resp, err
 	}
 
-	path := createTemplatePath(target.GetName(), crdSpecKind)
+	path := createTemplatePath(target.GetName(), kind)
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
