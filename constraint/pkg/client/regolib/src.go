@@ -7,11 +7,15 @@ package hooks["{{.Target}}"]
 violation[response] {
 	data.hooks["{{.Target}}"].library.autoreject_review[rejection]
 	review := get_default(input, "review", {})
+	constraint := get_default(rejection, "constraint", {})
+	spec := get_default(constraint, "spec", {})
+	enforcementaction := get_default(spec, "enforcementaction", "deny")
 	response = {
 		"msg": get_default(rejection, "msg", ""),
 		"metadata": {"details": get_default(rejection, "details", {})},
-		"constraint": get_default(rejection, "constraint", {}),
+		"constraint": constraint,
 		"review": review,
+		"enforcementaction": enforcementaction,
 	}
 }
 
@@ -25,11 +29,14 @@ violation[response] {
 	}
 	inventory[inv]
 	data.templates["{{.Target}}"][constraint.kind].violation[r] with input as inp with data.inventory as inv
+	spec := get_default(constraint, "spec", {})
+	enforcementaction := get_default(spec, "enforcementaction", "deny")
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
 		"constraint": constraint,
 		"review": review,
+		"enforcementaction": enforcementaction,
 	}
 }
 
@@ -43,11 +50,14 @@ audit[response] {
 	}
 	inventory[inv]
 	data.templates["{{.Target}}"][constraint.kind].violation[r] with input as inp with data.inventory as inv
+	spec := get_default(constraint, "spec", {})
+	enforcementaction := get_default(spec, "enforcementaction", "deny")
 	response = {
 		"msg": r.msg,
 		"metadata": {"details": get_default(r, "details", {})},
 		"constraint": constraint,
 		"review": review,
+		"enforcementaction": enforcementaction,
 	}
 }
 

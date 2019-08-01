@@ -47,6 +47,7 @@ func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target Mat
 		}
 		props["parameters"] = *internalSchema
 	}
+	props["enforcementaction"] = apiextensions.JSONSchemaProps{Type: "string"}
 	schema := &apiextensions.JSONSchemaProps{
 		Properties: map[string]apiextensions.JSONSchemaProps{
 			"spec": apiextensions.JSONSchemaProps{

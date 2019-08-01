@@ -103,6 +103,7 @@ func tProp(t string) apiextensions.JSONSchemaProps {
 }
 
 func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
+	pm["enforcementaction"] = apiextensions.JSONSchemaProps{Type: "string"}
 	p := prop(propMap{"spec": prop(pm)})
 	return &p
 }
