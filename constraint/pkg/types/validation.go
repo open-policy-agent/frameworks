@@ -24,7 +24,7 @@ type Result struct {
 	Resource interface{}
 
 	// The enforcement action of the constraint
-	EnforcementAction string `json:"enforcementaction,omitempty"`
+	EnforcementAction string `json:"enforcementAction,omitempty"`
 }
 
 type Response struct {
