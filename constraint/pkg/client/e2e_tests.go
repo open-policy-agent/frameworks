@@ -101,8 +101,8 @@ violation[{"msg": "DENIED", "details": {}}] {
 		if rsps.Results()[0].Msg != "DENIED" {
 			return e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps)
 		}
-		if rsps.Results()[0].EnforcementAction != "DENY" {
-			return e(fmt.Sprintf("res.EnforcementAction = %s; wanted default value DENY", rsps.Results()[0].EnforcementAction), rsps)
+		if rsps.Results()[0].EnforcementAction != "deny" {
+			return e(fmt.Sprintf("res.EnforcementAction = %s; wanted default value deny", rsps.Results()[0].EnforcementAction), rsps)
 		}
 		return nil
 	},
@@ -115,7 +115,7 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 		if err != nil {
 			return errors.Wrap(err, "AddTemplate")
 		}
-		testEnforcementAction := "DRYRUN"
+		testEnforcementAction := "dryrun"
 		cstr := newConstraint("Foo", "ph", nil, &testEnforcementAction)
 		if _, err := c.AddConstraint(ctx, cstr); err != nil {
 			return errors.Wrap(err, "AddConstraint")
@@ -134,7 +134,7 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 			return e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps)
 		}
 		if rsps.Results()[0].EnforcementAction != testEnforcementAction {
-			return e(fmt.Sprintf("res.EnforcementAction = %s; wanted default value DRYRUN", rsps.Results()[0].EnforcementAction), rsps)
+			return e(fmt.Sprintf("res.EnforcementAction = %s; wanted default value dryrun", rsps.Results()[0].EnforcementAction), rsps)
 		}
 		return nil
 	},

@@ -454,7 +454,7 @@ func TestCRValidation(t *testing.T) {
 				crdNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
-			CR:            createCR(crName("mycr"), kind("Horse"), enforcementAction("DRYRUN")),
+			CR:            createCR(crName("mycr"), kind("Horse"), enforcementAction("dryrun")),
 			ErrorExpected: false,
 		},
 	}
