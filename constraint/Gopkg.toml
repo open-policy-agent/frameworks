@@ -47,19 +47,27 @@ required = [
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.12.3"
+  version = "kubernetes-1.13.1"
+
+# k8s.io/apiextensions-apiserver depends on k8s.io/apiserver 1.13.1,
+# but at that version the repo was using godeps to depend on 1.13.1 for
+# this repo.
+[[override]]
+  name = "k8s.io/apiserver"
+  version = "kubernetes-1.13.1"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.12.3"
+  version = "kubernetes-1.13.1"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.12.3"
+  version = "kubernetes-1.13.1"
 
+# controller runtime depends on specific versions of k8s.io/xxx
 [[constraint]]
   name = "sigs.k8s.io/controller-runtime"
-  version = "0.1.9"
+  version = "0.1.10"
 
 [prune]
   go-tests = true
