@@ -18,6 +18,9 @@ var (
 func newRegoConformer(allowedDataFields []string) *regoConformer {
 	allowed := make(map[string]bool)
 	for _, v := range allowedDataFields {
+		if !validDataFields[v] {
+			continue
+		}
 		allowed[v] = true
 	}
 	return &regoConformer{allowedDataFields: allowed}
@@ -117,7 +120,7 @@ func (rc *regoConformer) checkDataAccess(module *ast.Module) Errors {
 				errs = append(errs, makeInvalidRootFieldErr(v, rc.allowedDataFields))
 				return false
 			} else {
-				if !rc.allowedDataFields[string(val)] || !validDataFields[string(val)] {
+				if !rc.allowedDataFields[string(val)] {
 					errs = append(errs, makeInvalidRootFieldErr(v, rc.allowedDataFields))
 					return false
 				}
