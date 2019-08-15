@@ -681,3 +681,66 @@ violation[{"msg": "msg"}] {
 		})
 	}
 }
+
+func TestAllowedDataFieldsIntersection(t *testing.T) {
+	tc := []struct {
+		Name     string
+		Allowed  []string
+		Expected []string
+	}{
+		{
+			Name:     "Nothing Used",
+			Allowed:  []string{},
+			Expected: []string{},
+		},
+		{
+			Name:     "Inventory Used",
+			Allowed:  []string{"inventory"},
+			Expected: []string{"inventory"},
+		},
+		{
+			Name:     "No Overlap",
+			Allowed:  []string{"no_overlap"},
+			Expected: []string{},
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.Name, func(t *testing.T) {
+			d := local.New()
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatalf("Could not create backend: %s", err)
+			}
+			c, err := b.NewClient(Targets(&badHandler{Name: "h1", HasLib: true}), AllowedDataFields(tt.Allowed...))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c2 := c.(*client)
+			expected := make(map[string]bool)
+			for _, v := range tt.Expected {
+				expected[v] = true
+			}
+			if !reflect.DeepEqual(c2.rConformer.allowedDataFields, expected) {
+				t.Errorf("c2.rConformer.allowedDataFields = %v; want %v", c2.rConformer.allowedDataFields, expected)
+			}
+		})
+	}
+}
+
+func TestAllowedDataFieldsNotSpecified(t *testing.T) {
+	t.Run("No Restrictions", func(t *testing.T) {
+		d := local.New()
+		b, err := NewBackend(Driver(d))
+		if err != nil {
+			t.Fatalf("Could not create backend: %s", err)
+		}
+		c, err := b.NewClient(Targets(&badHandler{Name: "h1", HasLib: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		c2 := c.(*client)
+		if !reflect.DeepEqual(c2.rConformer.allowedDataFields, validDataFields) {
+			t.Errorf("c2.rConformer.allowedDataFields = %v; want %v", c2.rConformer.allowedDataFields, validDataFields)
+		}
+	})
+}
