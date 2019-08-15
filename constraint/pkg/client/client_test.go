@@ -622,6 +622,7 @@ violation[{"msg": "msg"}] {
 		Handler       TargetHandler
 		Template      *templates.ConstraintTemplate
 		ErrorExpected bool
+		InvAllowed    bool
 	}{
 		{
 			Name:          "Inventory Not Used",
@@ -635,6 +636,13 @@ violation[{"msg": "msg"}] {
 			Template:      inventoryTempl,
 			ErrorExpected: true,
 		},
+		{
+			Name:          "Inventory Used But Allowed",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      inventoryTempl,
+			ErrorExpected: false,
+			InvAllowed:    true,
+		},
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
@@ -643,7 +651,11 @@ violation[{"msg": "msg"}] {
 			if err != nil {
 				t.Fatalf("Could not create backend: %s", err)
 			}
-			c, err := b.NewClient(Targets(tt.Handler), AllowedDataFields())
+			f := AllowedDataFields()
+			if tt.InvAllowed {
+				f = AllowedDataFields("inventory")
+			}
+			c, err := b.NewClient(Targets(tt.Handler), f)
 			if err != nil {
 				t.Fatal(err)
 			}

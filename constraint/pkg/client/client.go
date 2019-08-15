@@ -100,11 +100,7 @@ func Targets(ts ...TargetHandler) ClientOpt {
 // the system can be enabled.
 func AllowedDataFields(fields ...string) ClientOpt {
 	return func(c *client) error {
-		var errs Errors
 		c.allowedDataFields = fields
-		if len(errs) > 0 {
-			return errs
-		}
 		return nil
 	}
 }
