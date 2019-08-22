@@ -83,6 +83,9 @@ func packageRef(path string) (ast.Ref, error) {
 }
 
 func makeInvalidRootFieldErr(val ast.Value, allowed map[string]bool) error {
+	if len(allowed) == 0 {
+		return fmt.Errorf("Template is attempting to access `data.%s`. Access to the data document is disabled", val.String())
+	}
 	var validFields []string
 	for field := range allowed {
 		validFields = append(validFields, field)
