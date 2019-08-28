@@ -15,6 +15,8 @@ type Sources struct {
 	TestData []*TestData
 }
 
+// sourceFile is an interface to normalize members of Sources to de-duplicate code involved in
+// operating on all data in Sources.
 type sourceFile interface {
 	Reparent(old, new string) error
 	Path() string

@@ -152,7 +152,29 @@ check(name) {
 `,
 			},
 		},
-
+		{
+			name: "base uses data.lib[_]",
+			baseSrcs: map[string]string{
+				"my_template.rego": CT{
+					Package: "templates.stuff.MyTemplateV1",
+					Imports: []string{"data.lib.alpha"},
+					DenyBody: `
+	x := data.lib[_]
+`,
+				}.String(),
+			},
+			libSrcs: map[string]string{
+				"lib/alpha.rego": Lib{
+					Package: "lib.alpha",
+					Body: `
+check(object) {
+  object == "foo"
+}
+`,
+				}.String(),
+			},
+			wantError: true,
+		},
 		{
 			name: "base references input",
 			baseSrcs: map[string]string{

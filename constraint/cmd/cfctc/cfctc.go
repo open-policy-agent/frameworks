@@ -16,7 +16,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "cfctc",
-	Short: "cfctc is the constraint framework constraint template compiler",
+	Short: "cfctc is the constraint framework package path rewriter",
 	Long: `
 Example usage for transforming the forseti-security/policy-library constraints:
 git clone git@github.com:forseti-security/policy-library.git
@@ -66,14 +66,13 @@ func compileSrcs(
 		return errors.Errorf("must specify --ct or --lib or both")
 	}
 	if (oldRoot == "") != (newRoot == "") {
-		return errors.Errorf("--input and --output must be empty or non emtpy together")
+		return errors.Errorf("--input and --output must be empty or non empty together")
 	}
 
 	regoRewriter, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(newPkgPrefix),
 		[]string{
 			"data.lib",
-			"data.validator.gcp.lib",
 		},
 		[]string{
 			"data.inventory",

@@ -19,7 +19,7 @@ func (errs Errors) Error() string {
 }
 
 // Format implements fmt.Formatter to make this play nice with handling stack traces produced from
-// the github.com/pkg/errors
+// github.com/pkg/errors
 func (errs Errors) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':

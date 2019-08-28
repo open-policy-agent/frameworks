@@ -13,23 +13,23 @@ import (
 	"github.com/pkg/errors"
 )
 
-// RegoRewriter rewrites rego code by updating library package paths by prepending a prefix.
+// RegoRewriter rewrites rego code by updating library package paths by prepending a prefix
+// and updating references to library code accordingly.
 type RegoRewriter struct {
-	bases            []*Module
-	libs             []*Module
-	testData         []*TestData
+	// bases are the files that will not have their package path updated, but refs to any libs will be
+	// updated accordingly.  These correspond to rego that is specified in constraint templates.
+	bases []*Module
+	// libs are the library files that will have their package paths updated and have refs updated
+	// as well.
+	libs []*Module
+	// testData are files that are found in the 'test' directory and should not be
+	testData []*TestData
+	// packageTransform is the transform that modifies the package path and refs.
 	packageTransform PackageTransformer
-	libRefs          []ast.Ref
-	externRefs       []ast.Ref
-}
-
-type TestData struct {
-	FilePath
-	content []byte
-}
-
-func (t *TestData) Content() ([]byte, error) {
-	return t.content, nil
+	// libRefs are the allowed package path prefixes for libs, for example "data.lib".
+	libRefs []ast.Ref
+	// externRefs are the allowed external references for bases/libs, for example "data.inventory"
+	externRefs []ast.Ref
 }
 
 // New returns a new RegoRewriter
@@ -66,7 +66,7 @@ func (r *RegoRewriter) add(path, src string, slice *[]*Module) error {
 }
 
 // AddBase adds a base source which will not have it's package path rewritten.  These correspond
-// to the rego that will be populated into a ConstraintTemplate with the 'deny' rule.
+// to the rego that will be populated into a ConstraintTemplate with the 'violation' rule.
 func (r *RegoRewriter) AddBase(path, src string) error {
 	return r.add(path, src, &r.bases)
 }
@@ -118,7 +118,7 @@ func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 // addPathFromFs adds a module from the local filesystem.
 // Loading from the filesystem is based on how "opa test" operates in terms of scoping.
 // 1. the 'test' directory must exist as a member of one of the paths passed to 'opa test'.
-// 2. the '.rego' source can exist anywhere in the subtree of the
+// 2. the '.rego' source can exist anywhere in the subtree of the specified path
 // 3. any '.rego' loaded by "opa test" can reference any "test" data member that is loaded by
 //    opa test, for example, if "opa test foo/ bar/" is specified, a test in foo/ can see test data
 //    from bar/test/.
@@ -160,7 +160,7 @@ func (r *RegoRewriter) addPathFromFs(path string, slice *[]*Module) error {
 }
 
 // AddBaseFromFs adds a base source which will not have it's package path rewritten.  These correspond
-// to the rego that will be populated into a ConstraintTemplate with the 'deny' rule.
+// to the rego that will be populated into a ConstraintTemplate with the 'violation' rule.
 func (r *RegoRewriter) AddBaseFromFs(path string) error {
 	return r.addPathFromFs(path, &r.bases)
 }
@@ -184,7 +184,8 @@ func (r *RegoRewriter) forAllModules(f func(*Module) error) error {
 	return nil
 }
 
-// checkImports checks the imports for all the files.
+// checkImports checks that the imports for all sources are referencing a known lib or a declared
+// extern.
 func (r *RegoRewriter) checkImports() error {
 	return r.forAllModules(func(m *Module) error {
 		if m.IsTestFile() {

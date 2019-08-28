@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// FilePath
+// FilePath is the
 type FilePath struct {
 	path string
 }

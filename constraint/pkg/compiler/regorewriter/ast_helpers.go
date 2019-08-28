@@ -22,7 +22,7 @@ func isDataRef(ref ast.Ref) bool {
 }
 
 // isTestDataRef returns true if the ref corresponds to data that would be obtained from
-//
+// the data.test reference
 func isTestDataRef(ref ast.Ref) bool {
 	return isSubRef(testDataRef, ref)
 }
