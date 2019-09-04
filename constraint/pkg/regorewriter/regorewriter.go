@@ -26,10 +26,10 @@ type RegoRewriter struct {
 	testData []*TestData
 	// packageTransform is the transform that modifies the package path and refs.
 	packageTransform PackageTransformer
-	// libRefs are the allowed package path prefixes for libs, for example "data.lib".
-	libRefs []ast.Ref
-	// externRefs are the allowed external references for bases/libs, for example "data.inventory"
-	externRefs []ast.Ref
+	// allowedLibPrefixes are the allowed package path prefixes for libs, for example "data.lib".
+	allowedLibPrefixes []ast.Ref
+	// allowedExterns are the allowed external references for bases/libs, for example "data.inventory"
+	allowedExterns []ast.Ref
 }
 
 // New returns a new RegoRewriter
@@ -48,9 +48,9 @@ func New(pt PackageTransformer, libs []string, externs []string) (*RegoRewriter,
 	}
 
 	return &RegoRewriter{
-		packageTransform: pt,
-		libRefs:          libRefs,
-		externRefs:       externRefs,
+		packageTransform:   pt,
+		allowedLibPrefixes: libRefs,
+		allowedExterns:     externRefs,
 	}, nil
 }
 
@@ -192,6 +192,7 @@ func (r *RegoRewriter) checkImports() error {
 			glog.Infof("skipping import check for %s", m.FilePath)
 			return nil
 		}
+
 		glog.Infof("checking %s", m.FilePath)
 		for _, i := range m.Module.Imports {
 			if err := r.checkImport(i); err != nil {
@@ -214,11 +215,16 @@ func (r *RegoRewriter) checkLibPackages() error {
 }
 
 func (r *RegoRewriter) allowedLibPackage(ref ast.Ref) bool {
-	for _, libRef := range r.libRefs {
+	if dataLibRefPrefix.Equal(ref) {
+		return false
+	}
+
+	for _, libRef := range r.allowedLibPrefixes {
 		if ref.HasPrefix(libRef) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -229,17 +235,16 @@ func (r *RegoRewriter) checkRef(ref ast.Ref) error {
 		return nil
 	}
 
-	glog.Infof("  Data ref %s", ref)
-	// check for ref inspecting something in lib or in allowed
-	for _, module := range r.libs {
-		if isSubRef(module.Module.Package.Path, ref) {
-			glog.Infof("Found lib ref %s for %s", module.Module.Package.Path, ref)
+	for _, extern := range r.allowedExterns {
+		if isSubRef(extern, ref) {
+			glog.Infof("Found extern ref %s for %s", extern, ref)
 			return nil
 		}
 	}
-	for _, extern := range r.externRefs {
-		if isSubRef(extern, ref) {
-			glog.Infof("Found extern ref %s for %s", extern, ref)
+
+	for _, lib := range r.allowedLibPrefixes {
+		if isSubRef(lib, ref) {
+			glog.Infof("Found lib ref %s for %s", lib, ref)
 			return nil
 		}
 	}
@@ -251,12 +256,17 @@ func (r *RegoRewriter) checkRef(ref ast.Ref) error {
 func (r *RegoRewriter) checkImport(i *ast.Import) error {
 	want := i.Path.String()
 	glog.Infof("checking import %s", want)
-	for _, lib := range r.libs {
-		if lib.Module.Package.Path.String() == want {
-			return nil
-		}
+
+	importRef := i.Path.Value.(ast.Ref)
+	if isSubRef(importRefPrefix, importRef) {
+		return errors.Errorf("bad import")
 	}
-	return errors.Errorf("could not find lib for %v", i.String())
+
+	if !isSubRef(dataLibRefPrefix, importRef) {
+		return errors.Errorf("bad import")
+	}
+
+	return nil
 }
 
 // checkDataReferences
@@ -300,7 +310,7 @@ func (r *RegoRewriter) refNeedsRewrite(ref ast.Ref) bool {
 	if !isDataRef(ref) || isTestDataRef(ref) {
 		return false
 	}
-	for _, extRef := range r.externRefs {
+	for _, extRef := range r.allowedExterns {
 		if isSubRef(extRef, ref) {
 			return false
 		}

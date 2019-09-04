@@ -15,12 +15,16 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "cfctc",
-	Short: "cfctc is the constraint framework package path rewriter",
+	Use:   "rewrite-compatibility",
+	Short: "rewrite-compatibility is the constraint framework package path rewriter compatibility tool",
 	Long: `
+The rewrite-compatibility exists to dump out the rego source as it would exist after a rewrite in
+the constraint framework.  The idea is to allow user visibility into what's going on as well as
+facilitate developer debugging when making changes to the rewriter.
+
 Example usage for transforming the forseti-security/policy-library constraints:
 git clone git@github.com:forseti-security/policy-library.git
-go run ./cmd/cfctc/cfctc.go \
+go run ./cmd/rewrite-compatibility/main.go \
   --ct policy-library/validator \
   --lib policy-library/lib \
   --input ./policy-library \
@@ -31,7 +35,7 @@ opa test -v rewrite/lib/ rewrite/validator/
 meld policy-library/lib/ rewrite/lib/
 meld policy-library/validator/ rewrite/validator/
 `,
-	Run: rootCmdFn,
+	RunE: rootCmdFn,
 }
 
 var (
@@ -113,12 +117,8 @@ func compileSrcs(
 	return nil
 }
 
-func rootCmdFn(cmd *cobra.Command, args []string) {
-	err := compileSrcs(cts, libs, pkgPrefix, oldRoot, newRoot)
-	if err != nil {
-		fmt.Printf("%+v\n", err)
-		os.Exit(1)
-	}
+func rootCmdFn(cmd *cobra.Command, args []string) error {
+	return compileSrcs(cts, libs, pkgPrefix, oldRoot, newRoot)
 }
 
 func main() {

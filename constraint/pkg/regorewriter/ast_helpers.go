@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	dataVarTerm = ast.VarTerm("data")
-	testDataRef = ast.MustParseRef("data.test")
+	dataVarTerm      = ast.VarTerm("data")
+	dataRefPrefix    = ast.MustParseRef("data.test")
+	dataLibRefPrefix = ast.MustParseRef("data.lib")
+	importRefPrefix  = ast.MustParseRef("input")
 )
 
 // isDataRef returns true if the ast.Ref is referring to the "data" document.
@@ -24,7 +26,7 @@ func isDataRef(ref ast.Ref) bool {
 // isTestDataRef returns true if the ref corresponds to data that would be obtained from
 // the data.test reference
 func isTestDataRef(ref ast.Ref) bool {
-	return isSubRef(testDataRef, ref)
+	return isSubRef(dataRefPrefix, ref)
 }
 
 // isSubRef returns true if sub is contained within base.
