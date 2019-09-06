@@ -143,6 +143,9 @@ type ruleArities map[string]int
 
 // requireRules makes sure the listed rules are specified with the required arity
 func requireRules(name, rego string, reqs ruleArities) error {
+	if rego == "" {
+		return errors.New("Rego source code is empty")
+	}
 	module, err := ast.ParseModule(name, rego)
 	if err != nil {
 		return err
