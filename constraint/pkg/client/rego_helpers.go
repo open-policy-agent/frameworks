@@ -157,7 +157,7 @@ func requireRules(name, rego string, reqs ruleArities) error {
 		return err
 	}
 	if module == nil {
-		return "", errors.New("Module could not be parsed")
+		return errors.New("Module could not be parsed")
 	}
 
 	arities := make(ruleArities, len(module.Rules))
