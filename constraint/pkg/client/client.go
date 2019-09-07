@@ -74,7 +74,7 @@ func Targets(ts ...TargetHandler) ClientOpt {
 // can access. If unset, all fields can be accessed. Only fields recognized by
 // the system can be enabled.
 func AllowedDataFields(fields ...string) ClientOpt {
-	return func(c *client) error {
+	return func(c *Client) error {
 		c.allowedDataFields = fields
 		return nil
 	}

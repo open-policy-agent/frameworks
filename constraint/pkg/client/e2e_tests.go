@@ -107,7 +107,7 @@ violation[{"msg": "DENIED", "details": {}}] {
 		return nil
 	},
 
-	"Dryrun All": func(c Client) error {
+	"Dryrun All": func(c *Client) error {
 		_, err := c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 violation[{"msg": "DRYRUN", "details": {}}] {
 	"always" == "always"
