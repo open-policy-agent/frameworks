@@ -10,7 +10,7 @@ var (
 	dataVarTerm      = ast.VarTerm("data")
 	dataRefPrefix    = ast.MustParseRef("data.test")
 	dataLibRefPrefix = ast.MustParseRef("data.lib")
-	importRefPrefix  = ast.MustParseRef("input")
+	inputRefPrefix   = ast.MustParseRef("input")
 )
 
 // isDataRef returns true if the ast.Ref is referring to the "data" document.
