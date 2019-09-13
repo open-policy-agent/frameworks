@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/compiler/regorewriter"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 )
 
 var rootCmd = &cobra.Command{
