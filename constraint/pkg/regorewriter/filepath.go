@@ -7,15 +7,18 @@ import (
 	"github.com/pkg/errors"
 )
 
-// FilePath is the
+// FilePath represents a path on the filesystem and handles reparenting the file relative to a
+// path prefix.
 type FilePath struct {
 	path string
 }
 
+// Path returns the current path value.
 func (f *FilePath) Path() string {
 	return f.path
 }
 
+// Reparent adjusts the parent from a current path prefix to a new path prefix.
 func (f *FilePath) Reparent(old, new string) error {
 	if filepath.IsAbs(f.path) != filepath.IsAbs(old) ||
 		filepath.IsAbs(old) != filepath.IsAbs(new) {

@@ -25,6 +25,7 @@ func (m *Module) Write() error {
 	return ioutil.WriteFile(m.Path(), b, 640)
 }
 
+// Content returns the module as a byte slice of rego source code.
 func (m *Module) Content() ([]byte, error) {
 	return format.Ast(m.Module)
 }

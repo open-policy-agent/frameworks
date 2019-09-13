@@ -10,16 +10,24 @@ import (
 
 // Sources represents all modules that have been fed into the
 type Sources struct {
-	Bases    []*Module
-	Libs     []*Module
+	// EntryPoints are the sources which contain the constraint template violation rule.
+	EntryPoints []*Module
+	// Libs are libraries imported by the entry point.
+	Libs []*Module
+	// TestData is any json/yaml that was loaded from the filesystem (FS operation only) and will
+	// be copied to the destination unmodified for testing that the re-written sources pass unit tests.
 	TestData []*TestData
 }
 
 // sourceFile is an interface to normalize members of Sources to de-duplicate code involved in
 // operating on all data in Sources.
 type sourceFile interface {
+	// Reparent changes the root path for the source, for example, if a source is at /x/srcs/foo.rego
+	// Reparent("/x", "/y") will update the path to /y/srcs/foo.rego.
 	Reparent(old, new string) error
+	// Path returns the current path of the source
 	Path() string
+	// Content returns the source as a byte slice
 	Content() ([]byte, error)
 }
 
@@ -31,7 +39,7 @@ func (s *Sources) allSources() []sourceFile {
 			m = append(m, module)
 		}
 	}
-	appendMods(s.Bases)
+	appendMods(s.EntryPoints)
 	appendMods(s.Libs)
 	for _, d := range s.TestData {
 		m = append(m, d)
@@ -39,9 +47,9 @@ func (s *Sources) allSources() []sourceFile {
 	return m
 }
 
-// forAll runs
+// forAll runs the provided function on all sources.
 func (s *Sources) forAll(fn func(s sourceFile) error) error {
-	for _, module := range s.Bases {
+	for _, module := range s.EntryPoints {
 		if err := fn(module); err != nil {
 			return err
 		}

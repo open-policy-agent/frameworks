@@ -16,9 +16,10 @@ import (
 // RegoRewriter rewrites rego code by updating library package paths by prepending a prefix
 // and updating references to library code accordingly.
 type RegoRewriter struct {
-	// bases are the files that will not have their package path updated, but refs to any libs will be
-	// updated accordingly.  These correspond to rego that is specified in constraint templates.
-	bases []*Module
+	// entryPoints are the files that contain a violation rule which serves as the entry point for a
+	// constraint template.  These sources will not have their package path updated, but refs to any
+	// libs will be updated accordingly.
+	entryPoints []*Module
 	// libs are the library files that will have their package paths updated and have refs updated
 	// as well.
 	libs []*Module
@@ -28,7 +29,7 @@ type RegoRewriter struct {
 	packageTransform PackageTransformer
 	// allowedLibPrefixes are the allowed package path prefixes for libs, for example "data.lib".
 	allowedLibPrefixes []ast.Ref
-	// allowedExterns are the allowed external references for bases/libs, for example "data.inventory"
+	// allowedExterns are the allowed external references for entryPoints/libs, for example "data.inventory"
 	allowedExterns []ast.Ref
 }
 
@@ -68,7 +69,7 @@ func (r *RegoRewriter) add(path, src string, slice *[]*Module) error {
 // AddBase adds a base source which will not have it's package path rewritten.  These correspond
 // to the rego that will be populated into a ConstraintTemplate with the 'violation' rule.
 func (r *RegoRewriter) AddBase(path, src string) error {
-	return r.add(path, src, &r.bases)
+	return r.add(path, src, &r.entryPoints)
 }
 
 // AddLib adds a library source which will have the package path updated.
@@ -102,6 +103,7 @@ func (r *RegoRewriter) addTestDir(testDirPath string) error {
 	return nil
 }
 
+// addFileFromFs reads a file from the filesystem, parses it then appends it to slice.
 func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 	glog.Infof("adding file %s", path)
 	if !strings.HasSuffix(path, ".rego") {
@@ -162,7 +164,7 @@ func (r *RegoRewriter) addPathFromFs(path string, slice *[]*Module) error {
 // AddBaseFromFs adds a base source which will not have it's package path rewritten.  These correspond
 // to the rego that will be populated into a ConstraintTemplate with the 'violation' rule.
 func (r *RegoRewriter) AddBaseFromFs(path string) error {
-	return r.addPathFromFs(path, &r.bases)
+	return r.addPathFromFs(path, &r.entryPoints)
 }
 
 // AddLibFromFs adds a library source which will have the package path updated.
@@ -170,13 +172,14 @@ func (r *RegoRewriter) AddLibFromFs(path string) error {
 	return r.addPathFromFs(path, &r.libs)
 }
 
+// forAllModules runs f on all rego modules (both entrypoints and libraries)
 func (r *RegoRewriter) forAllModules(f func(*Module) error) error {
 	for _, m := range r.libs {
 		if err := f(m); err != nil {
 			return err
 		}
 	}
-	for _, m := range r.bases {
+	for _, m := range r.entryPoints {
 		if err := f(m); err != nil {
 			return err
 		}
@@ -214,12 +217,13 @@ func (r *RegoRewriter) checkLibPackages() error {
 	return nil
 }
 
+// allowedLibPackage returns true if the lib package is an allowed package name which is
+// defined as a subref of any allowed lib prefix (note that it cannot be exactly the lib prefix).
 func (r *RegoRewriter) allowedLibPackage(ref ast.Ref) bool {
-	if dataLibRefPrefix.Equal(ref) {
-		return false
-	}
-
 	for _, libRef := range r.allowedLibPrefixes {
+		if libRef.Equal(ref) {
+			return false
+		}
 		if ref.HasPrefix(libRef) {
 			return true
 		}
@@ -253,23 +257,27 @@ func (r *RegoRewriter) checkRef(ref ast.Ref) error {
 	return errors.Errorf("disallowed ref %s", ref)
 }
 
+// checkImport checks the import statement to ensure that it's a subref of an allowed lib prefix.
 func (r *RegoRewriter) checkImport(i *ast.Import) error {
 	want := i.Path.String()
 	glog.Infof("checking import %s", want)
 
 	importRef := i.Path.Value.(ast.Ref)
-	if isSubRef(importRefPrefix, importRef) {
+	if isSubRef(inputRefPrefix, importRef) {
 		return errors.Errorf("bad import")
 	}
 
-	if !isSubRef(dataLibRefPrefix, importRef) {
-		return errors.Errorf("bad import")
+	for _, libPrefix := range r.allowedLibPrefixes {
+		if isSubRef(libPrefix, importRef) {
+			return nil
+		}
 	}
 
-	return nil
+	return errors.Errorf("bad import")
 }
 
-// checkDataReferences
+// checkDataReferences checks that all data references are directed to allowed lib prefixes or
+// externs.
 func (r *RegoRewriter) checkDataReferences() error {
 	// walk AST, look for data references
 	return r.forAllModules(func(m *Module) error {
@@ -295,6 +303,7 @@ func (r *RegoRewriter) checkDataReferences() error {
 	})
 }
 
+// checkSources runs all checks on the rego sources.
 func (r *RegoRewriter) checkSources() error {
 	if err := r.checkLibPackages(); err != nil {
 		return err
@@ -351,7 +360,7 @@ func (r *RegoRewriter) Rewrite() (*Sources, error) {
 		l.Module.Package.Path = r.rewriteDataRef(l.Module.Package.Path)
 	}
 
-	// libs, bases - update import and other refs
+	// libs, entryPoints - update import and other refs
 	err := r.forAllModules(func(mod *Module) error {
 		for _, i := range mod.Module.Imports {
 			glog.Infof("import: %s %#v", i.Path, i.Path)
@@ -388,5 +397,5 @@ func (r *RegoRewriter) Rewrite() (*Sources, error) {
 		return nil, err
 	}
 
-	return &Sources{Bases: r.bases, Libs: r.libs, TestData: r.testData}, nil
+	return &Sources{EntryPoints: r.entryPoints, Libs: r.libs, TestData: r.testData}, nil
 }
