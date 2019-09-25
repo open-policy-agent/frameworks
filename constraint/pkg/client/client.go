@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
@@ -78,45 +77,6 @@ func AllowedDataFields(fields ...string) ClientOpt {
 		c.allowedDataFields = fields
 		return nil
 	}
-}
-
-type MatchSchemaProvider interface {
-	// MatchSchema returns the JSON Schema for the `match` field of a constraint
-	MatchSchema() apiextensions.JSONSchemaProps
-}
-
-type TargetHandler interface {
-	MatchSchemaProvider
-
-	GetName() string
-
-	// Library returns the pieces of Rego code required to stitch together constraint evaluation
-	// for the target. Current required libraries are `matching_constraints` and
-	// `matching_reviews_and_constraints`
-	//
-	// Libraries are currently templates that have the following parameters:
-	//   ConstraintsRoot: The root path under which all constraints for the target are stored
-	//   DataRoot: The root path under which all data for the target is stored
-	Library() *template.Template
-
-	// ProcessData takes a potential data object and returns:
-	//   true if the target handles the data type
-	//   the path under which the data should be stored in OPA
-	//   the data in an object that can be cast into JSON, suitable for storage in OPA
-	ProcessData(interface{}) (bool, string, interface{}, error)
-
-	// HandleReview takes a potential review request and builds the `review` field of the input
-	// object. it returns:
-	//		true if the target handles the data type
-	//		the data for the `review` field
-	HandleReview(interface{}) (bool, interface{}, error)
-
-	// HandleViolation allows for post-processing of the result object, which can be mutated directly
-	HandleViolation(result *types.Result) error
-
-	// ValidateConstraint returns if the constraint is misconfigured in any way. This allows for
-	// non-trivial validation of things like match schema
-	ValidateConstraint(*unstructured.Unstructured) error
 }
 
 type constraintEntry struct {
