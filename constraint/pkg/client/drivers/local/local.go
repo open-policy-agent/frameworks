@@ -83,6 +83,9 @@ func copyModules(modules map[string]*ast.Module, filter string) map[string]*ast.
 }
 
 func (d *driver) checkModuleName(name string) error {
+	if name == "" {
+		return errors.Errorf("Module name cannot be empty")
+	}
 	if strings.HasPrefix(name, moduleSetPrefix) {
 		return errors.Errorf("Single modules not allowed to use name prefix %s", moduleSetPrefix)
 	}
@@ -90,8 +93,11 @@ func (d *driver) checkModuleName(name string) error {
 }
 
 func (d *driver) checkModuleSetName(name string) error {
+	if name == "" {
+		return errors.Errorf("Modules name prefix cannot be empty")
+	}
 	if strings.Index(name, moduleSetSep) != -1 {
-		return errors.Errorf("Module sets not allowed to contain the sequence n%s", moduleSetSep)
+		return errors.Errorf("Modules name prefix not allowed to contain the sequence n%s", moduleSetSep)
 	}
 	return nil
 }
