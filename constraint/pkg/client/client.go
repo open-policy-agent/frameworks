@@ -520,6 +520,9 @@ func (c *Client) init() error {
 		}
 		path := fmt.Sprintf("%s.library", hooks)
 		libModule, err := parseModule(path, lib)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse module")
+		}
 		if err := requireRulesModule(libModule, req); err != nil {
 			return fmt.Errorf("Problem with the below Rego for %s target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
 		}
