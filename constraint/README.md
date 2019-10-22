@@ -57,14 +57,26 @@ spec:
               items: string
   targets:
     - target: admission.k8s.gatekeeper.sh
+      libs:
+        - |
+          package lib.helpers
+          
+          make_message(missing) = msg {
+            msg := sprintf("you must provide labels: %v", [missing])
+          }
+          
       rego: |
-violation[{"msg": msg, "details": {"missing_labels": missing}}] {
-   provided := {label | input.request.object.metadata.labels[label]}
-   required := {label | label := input.parameters.labels[_]}
-   missing := required - provided
-   count(missing) > 0
-   msg := sprintf("you must provide labels: %v", [missing])
-}
+        package foosystemrequiredlabels
+        
+        import data.lib.helpers
+      
+        violation[{"msg": msg, "details": {"missing_labels": missing}}] {
+           provided := {label | input.request.object.metadata.labels[label]}
+           required := {label | label := input.parameters.labels[_]}
+           missing := required - provided
+           count(missing) > 0
+           msg := helpers.make_message(missing)
+        }
 ```
 
 The most important pieces of the above YAML are:
@@ -73,6 +85,9 @@ The most important pieces of the above YAML are:
    * `targets`, which specifies what "target" (defined later) the constraint applies to. Note
       that currently constraints can only apply to one target.
    * `rego`, which defines the logic that enforces the constraint.
+   * `libs`, which is a list of all library functions that will be available
+     to the `rego` package. Note that all packages in `libs` must have `lib` as
+     a prefix (e.g. `package lib.<something>`)
  
  #### Rego Semantics for Constraints
  
