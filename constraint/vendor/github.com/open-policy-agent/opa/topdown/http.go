@@ -13,6 +13,8 @@ import (
 	"io/ioutil"
 	"strconv"
 
+	"github.com/open-policy-agent/opa/internal/version"
+
 	"net/http"
 	"os"
 	"strings"
@@ -268,6 +270,10 @@ func executeHTTPRequest(bctx BuiltinContext, obj ast.Object) (ast.Value, error) 
 	if len(customHeaders) != 0 {
 		if ok, err := addHeaders(req, customHeaders); !ok {
 			return nil, err
+		}
+		// Don't overwrite or append to one that was set in the custom headers
+		if _, hasUA := customHeaders["User-Agent"]; !hasUA {
+			req.Header.Add("User-Agent", version.UserAgent)
 		}
 	}
 

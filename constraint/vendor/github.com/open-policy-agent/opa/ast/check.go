@@ -92,6 +92,7 @@ func (tc *typeChecker) CheckTypes(env *TypeEnv, sorted []util.T) (*TypeEnv, Erro
 	for _, s := range sorted {
 		tc.checkRule(env, s.(*Rule))
 	}
+	tc.errs.Sort()
 	return env, tc.errs
 }
 
@@ -123,9 +124,13 @@ func (tc *typeChecker) checkClosures(env *TypeEnv, expr *Expr) Errors {
 	return result
 }
 
-func (tc *typeChecker) checkLanguageBuiltins() *TypeEnv {
-	env := NewTypeEnv()
-	for _, bi := range Builtins {
+func (tc *typeChecker) checkLanguageBuiltins(env *TypeEnv, builtins map[string]*Builtin) *TypeEnv {
+	if env == nil {
+		env = NewTypeEnv()
+	} else {
+		env = env.wrap()
+	}
+	for _, bi := range builtins {
 		env.tree.Put(bi.Ref(), bi.Decl)
 	}
 	return env
@@ -213,6 +218,14 @@ func (tc *typeChecker) checkExprBuiltin(env *TypeEnv, expr *Expr) *Error {
 	args := expr.Operands()
 	pre := getArgTypes(env, args)
 
+	// NOTE(tsandall): undefined functions will have been caught earlier in the
+	// compiler. We check for undefined functions before the safety check so
+	// that references to non-existent functions result in undefined function
+	// errors as opposed to unsafe var errors.
+	//
+	// We cannot run type checking before the safety check because part of the
+	// type checker relies on reordering (in particular for references to local
+	// vars).
 	name := expr.Operator()
 	tpe := env.Get(name)
 
@@ -373,7 +386,8 @@ func unify1(env *TypeEnv, term *Term, tpe types.Type, union bool) bool {
 			return unify1Object(env, v, tpe, union)
 		case types.Any:
 			if types.Compare(tpe, types.A) == 0 {
-				v.Foreach(func(_, value *Term) {
+				v.Foreach(func(key, value *Term) {
+					unify1(env, key, types.A, true)
 					unify1(env, value, types.A, true)
 				})
 				return true
