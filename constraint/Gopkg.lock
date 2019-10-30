@@ -455,22 +455,29 @@
   version = "v1.5.0"
 
 [[projects]]
-  digest = "1:a5215d382645b5fdf7f847a47b89ef9d27e47ef38d5294cf251f6ef925c8b52a"
+  digest = "1:4d42a8d63a4734c10eea22b14dbe24dfd88aeac3cf8b7a46079d5c9043d70a87"
   name = "github.com/open-policy-agent/opa"
   packages = [
     "ast",
+    "bundle",
     "format",
     "internal/compiler/wasm",
     "internal/compiler/wasm/opa",
+    "internal/file",
+    "internal/file/archive",
+    "internal/file/url",
     "internal/ir",
     "internal/leb128",
+    "internal/merge",
     "internal/planner",
+    "internal/version",
     "internal/wasm/constant",
     "internal/wasm/encoding",
     "internal/wasm/instruction",
     "internal/wasm/module",
     "internal/wasm/opcode",
     "internal/wasm/types",
+    "loader",
     "metrics",
     "rego",
     "storage",
@@ -478,12 +485,19 @@
     "topdown",
     "topdown/builtins",
     "topdown/copypropagation",
+    "topdown/internal/jwx/buffer",
+    "topdown/internal/jwx/jwa",
+    "topdown/internal/jwx/jwk",
+    "topdown/internal/jwx/jws",
+    "topdown/internal/jwx/jws/sign",
+    "topdown/internal/jwx/jws/verify",
     "types",
     "util",
+    "version",
   ]
   pruneopts = "UT"
-  revision = "0f39c27e2069be20c4a2ec0c8751b6132a681ac1"
-  version = "v0.10.7"
+  revision = "85a531512b493a6b5a56c54a31ba4ec782f3cd79"
+  version = "v0.15.0"
 
 [[projects]]
   digest = "1:e5d0bd87abc2781d14e274807a470acd180f0499f8bf5bb18606e9ec22ad9de9"

@@ -20,6 +20,7 @@ type (
 		Import   ImportSection
 		Function FunctionSection
 		Table    TableSection
+		Element  ElementSection
 		Global   GlobalSection
 		Export   ExportSection
 		Code     RawCodeSection
@@ -44,6 +45,11 @@ type (
 	// TableSection represents a WASM table section.
 	TableSection struct {
 		Tables []Table
+	}
+
+	// ElementSection represents a WASM element section.
+	ElementSection struct {
+		Segments []ElementSegment
 	}
 
 	// GlobalSection represents a WASM global section.
@@ -108,6 +114,13 @@ type (
 	TableImport struct {
 		Type types.ElementType
 		Lim  Limit
+	}
+
+	// ElementSegment represents a WASM element segment.
+	ElementSegment struct {
+		Index   uint32
+		Offset  Expr
+		Indices []uint32
 	}
 
 	// GlobalImport represents a WASM global variable import statement.
@@ -275,6 +288,28 @@ func (tpe FunctionType) String() string {
 		results[i] = tpe.Results[i].String()
 	}
 	return "(" + strings.Join(params, ", ") + ") -> (" + strings.Join(results, ", ") + ")"
+}
+
+// Equal returns true if tpe equals other.
+func (tpe FunctionType) Equal(other FunctionType) bool {
+
+	if len(tpe.Params) != len(other.Params) || len(tpe.Results) != len(other.Results) {
+		return false
+	}
+
+	for i := range tpe.Params {
+		if tpe.Params[i] != other.Params[i] {
+			return false
+		}
+	}
+
+	for i := range tpe.Results {
+		if tpe.Results[i] != other.Results[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (imp Import) String() string {

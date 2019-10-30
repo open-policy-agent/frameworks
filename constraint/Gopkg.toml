@@ -39,7 +39,7 @@ required = [
 
 [[constraint]]
   name = "github.com/open-policy-agent/opa"
-  version = "0.10.5"
+  version = "0.15.0"
 
 [[constraint]]
   branch = "master"
