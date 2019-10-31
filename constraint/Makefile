@@ -1,5 +1,12 @@
 all: test
 
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
+
 # Run tests
 native-test: generate fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
@@ -20,8 +27,8 @@ install: manifests
 	kubectl apply -f config/crds
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests:
-	go run vendor/sigs.k8s.io/controller-tools/cmd/controller-gen/main.go all
+manifests: .output/buildutil
+	.output/buildutil/controller-gen all
 	kustomize build config -o deploy/crds.yaml
 
 # Run go fmt against code
@@ -33,8 +40,15 @@ vet:
 	go vet ./pkg/...
 
 # Generate code
-generate:
+generate: .output/buildutil
 ifndef GOPATH
 	$(error GOPATH not defined, please define GOPATH. Run "go help gopath" to learn more about GOPATH)
 endif
+	export GOROOT=$(go env root)
 	go generate ./pkg/...
+
+# find or download controller-gen
+# download controller-gen if necessary
+.output/buildutil:
+	mkdir -p .output
+	docker build buildutils -t maketools && docker run -v ${PWD}/.output:/.output maketools
