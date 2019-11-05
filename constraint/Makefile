@@ -52,7 +52,8 @@ endif
 .output/buildutil:
 	mkdir -p .output
 	docker build buildutils -t maketools && docker run -v ${PWD}/.output:/.output maketools
-	echo "buildutils generated:"
-	ls -l .output/buildutil
 	echo $PWD
 	find $PWD
+	echo "buildutils generated:"
+	ls -l .output/buildutil
+
