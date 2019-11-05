@@ -19,7 +19,7 @@ docker-internal-test:
 #	./tests/test_remote_driver.sh
 
 # Hook to run docker tests
-test:
+test: generate
 	docker build . -t constraint-test && docker run -t constraint-test
 
 # Install CRDs into a cluster
