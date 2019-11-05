@@ -54,6 +54,8 @@ endif
 	docker build buildutils -t maketools && docker run -v ${PWD}/.output:/.output maketools
 	echo ${PWD}
 	find ${PWD}
+	ls -l .output
+	ls -l .output/buildutil
 	echo "buildutils generated:"
 	ls -l .output/buildutil
 
