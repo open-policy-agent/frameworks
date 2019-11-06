@@ -45,18 +45,13 @@ ifndef GOPATH
 	$(error GOPATH not defined, please define GOPATH. Run "go help gopath" to learn more about GOPATH)
 endif
 	export GOROOT=$(go env root)
-	go generate ./pkg/...
+	GO111MODULE=off go generate ./pkg/...
 
 # find or download controller-gen
 # download controller-gen if necessary
 .output/buildutil:
 	mkdir -p .output
 	docker build buildutils -t maketools && docker run -v ${PWD}/.output:/.output maketools
-	echo ${PWD}
-	find ${PWD}
-	ls -l ${PWD}/.output
-	ls -l .output
-	ls -l .output/buildutil
 	echo "buildutils generated:"
 	ls -l .output/buildutil
 
