@@ -2,5 +2,4 @@
 all: build-constraint
 
 build-constraint:
-	@cd constraint
-	@make
+	cd constraint && make
