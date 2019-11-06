@@ -2,4 +2,4 @@
 all: build-constraint
 
 build-constraint:
-	cd constraint && make
+	./build/build_constraint.sh
