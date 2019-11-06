@@ -15,7 +15,7 @@ echo 'conversion-gen'
 go get k8s.io/code-generator/cmd/conversion-gen@93d7507fc8ffb4c860e4dd6f9a51a5e1985aebcd
 
 mkdir /.output/buildutil
-chmod 744 /.output/buildutil
+chmod 755 /.output/buildutil
 cp /go/bin/* /.output/buildutil/.
 
 echo 'Contents of /.output/buildutil are:'
