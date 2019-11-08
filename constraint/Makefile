@@ -27,8 +27,8 @@ install: manifests
 	kubectl apply -f config/crds
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: .output/buildutil
-	.output/buildutil/controller-gen all
+manifests: buildutils
+	controller-gen all
 	kustomize build config -o deploy/crds.yaml
 
 # Run go fmt against code
@@ -40,7 +40,7 @@ vet:
 	go vet ./pkg/...
 
 # Generate code
-generate: .output/buildutil
+generate: buildutils
 ifndef GOPATH
 	$(error GOPATH not defined, please define GOPATH. Run "go help gopath" to learn more about GOPATH)
 endif
@@ -49,9 +49,7 @@ endif
 
 # find or download controller-gen
 # download controller-gen if necessary
-.output/buildutil:
-	mkdir -p .output
-	docker build buildutils -t maketools && docker run -v ${PWD}/.output:/.output maketools
-	echo "buildutils generated:"
-	ls -l .output/buildutil
+.PHONY: buildutils
+buildutils:
+	cd buildutils && ./buildutils.sh
 

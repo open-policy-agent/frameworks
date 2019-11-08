@@ -5,4 +5,4 @@ WORKDIR /scratch
 
 COPY . .
 
-ENTRYPOINT ./maketools.sh
+ENTRYPOINT ./buildutils.sh
