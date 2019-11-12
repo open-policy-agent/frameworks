@@ -2,4 +2,4 @@
 all: build-constraint
 
 build-constraint:
-	@make -C constraint
+	./build/build_constraint.sh

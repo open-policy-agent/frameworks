@@ -166,7 +166,8 @@ type TargetHandler interface {
 	// MatchSchema returns the JSON Schema for the `match` field of a constraint
 	MatchSchema() apiextensions.JSONSchemaProps
 	
-	// Library returns the pieces of Rego code required to stitch together constraint evaluation  // for the target. Current required libraries are `matching_constraints` and
+	// Library returns the pieces of Rego code required to stitch together constraint evaluation  
+	// for the target. Current required libraries are `matching_constraints` and
 	// `matching_reviews_and_constraints` 
 	// 
 	// Libraries are currently templates that have the following parameters:
