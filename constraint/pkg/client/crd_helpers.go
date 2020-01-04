@@ -65,10 +65,12 @@ type crdHelper struct {
 	scheme *runtime.Scheme
 }
 
-func newCRDHelper() *crdHelper {
+func newCRDHelper() (*crdHelper, error) {
 	scheme := runtime.NewScheme()
-	apiextensionsv1beta1.AddToScheme(scheme)
-	return &crdHelper{scheme: scheme}
+	if err := apiextensionsv1beta1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	return &crdHelper{scheme: scheme}, nil
 }
 
 // createCRD takes a template and a schema and converts it to a CRD

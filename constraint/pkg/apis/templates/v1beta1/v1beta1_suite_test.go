@@ -49,6 +49,8 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	t.Stop()
+	if err := t.Stop(); err != nil {
+		log.Fatal(err)
+	}
 	os.Exit(code)
 }

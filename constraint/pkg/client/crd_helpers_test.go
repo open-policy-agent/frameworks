@@ -128,7 +128,9 @@ func params(s string) customResourceArg {
 		panic(fmt.Sprintf("bad JSON in test: %s: %s", s, err))
 	}
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, p, "spec", "parameters")
+		if err := unstructured.SetNestedField(u.Object, p, "spec", "parameters"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -138,7 +140,9 @@ func match(s string) customResourceArg {
 		panic(fmt.Sprintf("bad JSON in test: %s: %s", s, err))
 	}
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, m, "spec", "match")
+		if err := unstructured.SetNestedField(u.Object, m, "spec", "match"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -150,7 +154,9 @@ func crName(name string) customResourceArg {
 
 func enforcementAction(s string) customResourceArg {
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, s, "spec", "enforcementAction")
+		if err := unstructured.SetNestedField(u.Object, s, "spec", "enforcementAction"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -246,7 +252,10 @@ func TestCreateSchema(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		h := newCRDHelper()
+		h, err := newCRDHelper()
+		if err != nil {
+			t.Fatalf("Could not create CRD helper: %v", err)
+		}
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)
 			if err != nil {
@@ -307,7 +316,10 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			ErrorExpected: true,
 		},
 	}
-	h := newCRDHelper()
+	h, err := newCRDHelper()
+	if err != nil {
+		t.Fatalf("Could not create CRD helper: %v", err)
+	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)
@@ -458,7 +470,10 @@ func TestCRValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 	}
-	h := newCRDHelper()
+	h, err := newCRDHelper()
+	if err != nil {
+		t.Fatalf("could not create CRD helper: %v", err)
+	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)

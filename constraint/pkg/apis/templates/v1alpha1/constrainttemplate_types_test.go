@@ -61,7 +61,9 @@ func TestStorageConstraintTemplate(t *testing.T) {
 
 func TestTypeConversion(t *testing.T) {
 	scheme := runtime.NewScheme()
-	AddToSchemes.AddToScheme(scheme)
+	if err := AddToSchemes.AddToScheme(scheme); err != nil {
+		t.Fatalf("Could not add to scheme: %v", err)
+	}
 
 	versioned := &ConstraintTemplate{
 		TypeMeta: metav1.TypeMeta{
@@ -114,9 +116,13 @@ func TestTypeConversion(t *testing.T) {
 	versionedCopy.APIVersion = ""
 
 	unversioned := &templates.ConstraintTemplate{}
-	scheme.Convert(versioned, unversioned, nil)
+	if err := scheme.Convert(versioned, unversioned, nil); err != nil {
+		t.Fatalf("Conversion error: %v", err)
+	}
 	recast := &ConstraintTemplate{}
-	scheme.Convert(unversioned, recast, nil)
+	if err := scheme.Convert(unversioned, recast, nil); err != nil {
+		t.Fatalf("Conversion error: %v", err)
+	}
 	if !reflect.DeepEqual(versionedCopy, recast) {
 		t.Error(cmp.Diff(versionedCopy, recast))
 	}

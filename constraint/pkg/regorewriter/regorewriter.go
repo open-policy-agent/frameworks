@@ -89,6 +89,9 @@ func (r *RegoRewriter) AddLib(path, src string) error {
 func (r *RegoRewriter) addTestDir(testDirPath string) error {
 	glog.Infof("Walking test dir %s", testDirPath)
 	walkFn := func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			glog.Infof("walk error on path %s: %v", path, err)
+		}
 		if info.IsDir() {
 			return nil
 		}
@@ -324,7 +327,7 @@ func (r *RegoRewriter) checkSources() error {
 
 // refNeedsRewrite checks if the Ref refers to the 'data' element.
 func (r *RegoRewriter) refNeedsRewrite(ref ast.Ref) bool {
-	if !isDataRef(ref) || isTestDataRef(ref) {
+	if !isDataRef(ref) {
 		return false
 	}
 	for _, extRef := range r.allowedExterns {

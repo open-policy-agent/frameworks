@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 
 cd constraint
-make
+make lint
+make native-test
