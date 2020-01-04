@@ -30,7 +30,7 @@ func crdNames(kind string) tmplArg {
 	}
 }
 
-func schema(pm propMap) tmplArg {
+func crdSchema(pm propMap) tmplArg {
 	p := prop(pm)
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
@@ -222,7 +222,7 @@ func TestCreateSchema(t *testing.T) {
 		},
 		{
 			Name:     "Just Parameters",
-			Template: createTemplate(schema(propMap{"test": prop()})),
+			Template: createTemplate(crdSchema(propMap{"test": prop()})),
 			Handler:  createTestTargetHandler(),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(),
@@ -233,7 +233,7 @@ func TestCreateSchema(t *testing.T) {
 		},
 		{
 			Name:     "Match and Parameters",
-			Template: createTemplate(schema(propMap{"dragon": prop()})),
+			Template: createTemplate(crdSchema(propMap{"dragon": prop()})),
 			Handler:  createTestTargetHandler(matchSchema(propMap{"fire": prop()})),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(propMap{
@@ -275,7 +275,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			Template: createTemplate(
 				name("morehorses"),
 				crdNames("Horse"),
-				schema(propMap{
+				crdSchema(propMap{
 					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
 					"speed": prop(),
 				}),
@@ -288,7 +288,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			Template: createTemplate(
 				name("morehorses"),
 				crdNames("Horse"),
-				schema(propMap{
+				crdSchema(propMap{
 					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
 					"speed": prop(),
 				}),
@@ -346,7 +346,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -361,7 +361,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(
 				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
@@ -419,7 +419,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -434,7 +434,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(
 				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
