@@ -30,7 +30,7 @@ func crdNames(kind string) tmplArg {
 	}
 }
 
-func schema(pm propMap) tmplArg {
+func crdSchema(pm propMap) tmplArg {
 	p := prop(pm)
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
@@ -128,7 +128,9 @@ func params(s string) customResourceArg {
 		panic(fmt.Sprintf("bad JSON in test: %s: %s", s, err))
 	}
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, p, "spec", "parameters")
+		if err := unstructured.SetNestedField(u.Object, p, "spec", "parameters"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -138,7 +140,9 @@ func match(s string) customResourceArg {
 		panic(fmt.Sprintf("bad JSON in test: %s: %s", s, err))
 	}
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, m, "spec", "match")
+		if err := unstructured.SetNestedField(u.Object, m, "spec", "match"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -150,7 +154,9 @@ func crName(name string) customResourceArg {
 
 func enforcementAction(s string) customResourceArg {
 	return func(u *unstructured.Unstructured) {
-		unstructured.SetNestedField(u.Object, s, "spec", "enforcementAction")
+		if err := unstructured.SetNestedField(u.Object, s, "spec", "enforcementAction"); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -222,7 +228,7 @@ func TestCreateSchema(t *testing.T) {
 		},
 		{
 			Name:     "Just Parameters",
-			Template: createTemplate(schema(propMap{"test": prop()})),
+			Template: createTemplate(crdSchema(propMap{"test": prop()})),
 			Handler:  createTestTargetHandler(),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(),
@@ -233,7 +239,7 @@ func TestCreateSchema(t *testing.T) {
 		},
 		{
 			Name:     "Match and Parameters",
-			Template: createTemplate(schema(propMap{"dragon": prop()})),
+			Template: createTemplate(crdSchema(propMap{"dragon": prop()})),
 			Handler:  createTestTargetHandler(matchSchema(propMap{"fire": prop()})),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(propMap{
@@ -246,7 +252,10 @@ func TestCreateSchema(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		h := newCRDHelper()
+		h, err := newCRDHelper()
+		if err != nil {
+			t.Fatalf("Could not create CRD helper: %v", err)
+		}
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)
 			if err != nil {
@@ -275,7 +284,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			Template: createTemplate(
 				name("morehorses"),
 				crdNames("Horse"),
-				schema(propMap{
+				crdSchema(propMap{
 					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
 					"speed": prop(),
 				}),
@@ -288,7 +297,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			Template: createTemplate(
 				name("morehorses"),
 				crdNames("Horse"),
-				schema(propMap{
+				crdSchema(propMap{
 					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
 					"speed": prop(),
 				}),
@@ -307,7 +316,10 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			ErrorExpected: true,
 		},
 	}
-	h := newCRDHelper()
+	h, err := newCRDHelper()
+	if err != nil {
+		t.Fatalf("Could not create CRD helper: %v", err)
+	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)
@@ -346,7 +358,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -361,7 +373,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(
 				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
@@ -419,7 +431,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -434,7 +446,7 @@ func TestCRValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
-				schema(propMap{"fast": tProp("boolean")}),
+				crdSchema(propMap{"fast": tProp("boolean")}),
 			),
 			Handler: createTestTargetHandler(
 				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
@@ -458,7 +470,10 @@ func TestCRValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 	}
-	h := newCRDHelper()
+	h, err := newCRDHelper()
+	if err != nil {
+		t.Fatalf("could not create CRD helper: %v", err)
+	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			schema, err := h.createSchema(tc.Template, tc.Handler)

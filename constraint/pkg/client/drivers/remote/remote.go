@@ -202,6 +202,9 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 		resp.Trace = &tr
 	}
 	inp, err := json.MarshalIndent(input, "", "   ")
+	if err != nil {
+		return nil, err
+	}
 	i := string(inp)
 	resp.Input = &i
 

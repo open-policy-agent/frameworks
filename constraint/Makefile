@@ -7,6 +7,8 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+all: lint test
+
 # Run tests
 native-test: generate fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
@@ -38,6 +40,9 @@ fmt:
 # Run go vet against code
 vet:
 	go vet ./pkg/...
+
+lint:
+	golangci-lint -v run ./... --timeout 5m
 
 # Generate code
 generate: buildutils
