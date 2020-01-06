@@ -23,7 +23,7 @@ func isDataRef(ref ast.Ref) bool {
 
 // isSubRef returns true if sub is contained within base.
 func isSubRef(base, sub ast.Ref) bool {
-	glog.Infof("Subref check %s %s", base, sub)
+	glog.V(vLogDetail).Infof("Subref check %s %s", base, sub)
 	if len(sub) < len(base) {
 		return false
 	}
