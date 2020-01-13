@@ -85,6 +85,10 @@ func (h *crdHelper) createCRD(
 				ListKind: templ.Spec.CRD.Spec.Names.Kind + "List",
 				Plural:   strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
 				Singular: strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
+				Categories: []string{
+					"all",
+					"constraint",
+				},
 			},
 			Validation: &apiextensions.CustomResourceValidation{
 				OpenAPIV3Schema: schema,
