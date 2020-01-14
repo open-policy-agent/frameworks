@@ -77,14 +77,30 @@ func newCRDHelper() (*crdHelper, error) {
 func (h *crdHelper) createCRD(
 	templ *templates.ConstraintTemplate,
 	schema *apiextensions.JSONSchemaProps) (*apiextensions.CustomResourceDefinition, error) {
+	if templ.Spec.CRD.Spec.Names.Plural == "" {
+		templ.Spec.CRD.Spec.Names.Plural = templ.Spec.CRD.Spec.Names.Kind + "s"
+	}
+	if templ.Spec.CRD.Spec.Names.Singular == "" {
+		templ.Spec.CRD.Spec.Names.Singular = templ.Spec.CRD.Spec.Names.Kind
+	}
+	if templ.Spec.CRD.Spec.Names.ShortNames != nil {
+		for k, v := range templ.Spec.CRD.Spec.Names.ShortNames {
+			templ.Spec.CRD.Spec.Names.ShortNames[k] = strings.ToLower(v)
+		}
+	}
 	crd := &apiextensions.CustomResourceDefinition{
 		Spec: apiextensions.CustomResourceDefinitionSpec{
 			Group: constraintGroup,
 			Names: apiextensions.CustomResourceDefinitionNames{
 				Kind:     templ.Spec.CRD.Spec.Names.Kind,
 				ListKind: templ.Spec.CRD.Spec.Names.Kind + "List",
-				Plural:   strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
-				Singular: strings.ToLower(templ.Spec.CRD.Spec.Names.Kind),
+				Plural: strings.ToLower(templ.Spec.CRD.Spec.Names.Plural),
+				Singular: strings.ToLower(templ.Spec.CRD.Spec.Names.Singular),
+				ShortNames: templ.Spec.CRD.Spec.Names.ShortNames,
+				Categories: []string{
+					"all",
+					"constraint",
+				},
 			},
 			Validation: &apiextensions.CustomResourceValidation{
 				OpenAPIV3Schema: schema,
