@@ -77,6 +77,7 @@ func TestTypeConversion(t *testing.T) {
 				Spec: CRDSpec{
 					Names: Names{
 						Kind: "MustHaveMoreCats",
+						ShortNames: []string{"mhmc"},
 					},
 					Validation: &Validation{
 						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
