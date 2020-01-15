@@ -43,6 +43,7 @@ type CRDSpec struct {
 
 type Names struct {
 	Kind string `json:"kind,omitempty"`
+	ShortNames []string `json:"shortNames,omitempty"`
 }
 
 type Validation struct {

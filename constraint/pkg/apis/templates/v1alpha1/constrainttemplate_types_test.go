@@ -72,6 +72,7 @@ func TestTypeConversion(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "MustHaveMoreCats",
+			ShortNames: []string{"mhmc"},
 		},
 		Spec: ConstraintTemplateSpec{
 			CRD: CRD{
