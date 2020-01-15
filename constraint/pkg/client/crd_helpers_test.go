@@ -22,7 +22,7 @@ func name(name string) tmplArg {
 	}
 }
 
-func crdNames("Horse"),
+func crdNames(kind string) tmplArg {
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Spec.CRD.Spec.Names = templates.Names{
 			Kind:       kind,
