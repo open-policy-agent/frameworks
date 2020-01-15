@@ -72,13 +72,13 @@ func TestTypeConversion(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "MustHaveMoreCats",
-			ShortNames: []string{"mhmc"},
 		},
 		Spec: ConstraintTemplateSpec{
 			CRD: CRD{
 				Spec: CRDSpec{
-					Names: Names{
+					Names: Names
 						Kind: "MustHaveMoreCats",
+						ShortNames: []string{"mhmc"},
 					},
 					Validation: &Validation{
 						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
