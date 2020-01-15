@@ -76,7 +76,7 @@ func TestTypeConversion(t *testing.T) {
 		Spec: ConstraintTemplateSpec{
 			CRD: CRD{
 				Spec: CRDSpec{
-					Names: Names
+					Names: Names{
 						Kind: "MustHaveMoreCats",
 						ShortNames: []string{"mhmc"},
 					},
