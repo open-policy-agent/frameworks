@@ -9,6 +9,7 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -398,6 +399,28 @@ some_rule[r] {
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
 			}
+			cached, err := c.GetTemplate(context.Background(), tt.Template)
+			if err == nil && tt.ErrorExpected {
+				t.Error("retrieved template when error was expected")
+			}
+			if err != nil && !tt.ErrorExpected {
+				t.Error("could not retrieve template when error was expected")
+			}
+			if !tt.ErrorExpected {
+				if !cached.SemanticEqual(tt.Template) {
+					t.Error("cached template does not equal stored template")
+				}
+				r2, err := c.RemoveTemplate(context.Background(), tt.Template)
+				if err != nil {
+					t.Error("could not remove template")
+				}
+				if r2.HandledCount() != 1 {
+					t.Error("more targets handled than expected")
+				}
+				if _, err := c.GetTemplate(context.Background(), tt.Template); err == nil {
+					t.Error("template not cleared from cache")
+				}
+			}
 		})
 	}
 }
@@ -529,6 +552,28 @@ func TestAddConstraint(t *testing.T) {
 			}
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
+			}
+			cached, err := c.GetConstraint(context.Background(), tt.Constraint)
+			if err == nil && tt.ErrorExpected {
+				t.Error("retrieved constraint when error was expected")
+			}
+			if err != nil && !tt.ErrorExpected {
+				t.Error("could not retrieve constraint when error was expected")
+			}
+			if !tt.ErrorExpected {
+				if !constraintlib.SemanticEqual(cached, tt.Constraint) {
+					t.Error("cached constraint does not equal stored constraint")
+				}
+				r2, err := c.RemoveConstraint(context.Background(), tt.Constraint)
+				if err != nil {
+					t.Error("could not remove constraint")
+				}
+				if r2.HandledCount() != 1 {
+					t.Error("more targets handled than expected")
+				}
+				if _, err := c.GetConstraint(context.Background(), tt.Constraint); err == nil {
+					t.Error("constraint not cleared from cache")
+				}
 			}
 		})
 	}

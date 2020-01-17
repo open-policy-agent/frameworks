@@ -76,7 +76,7 @@ func TestTypeConversion(t *testing.T) {
 			CRD: CRD{
 				Spec: CRDSpec{
 					Names: Names{
-						Kind: "MustHaveMoreCats",
+						Kind:       "MustHaveMoreCats",
 						ShortNames: []string{"mhmc"},
 					},
 					Validation: &Validation{
