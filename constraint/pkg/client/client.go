@@ -81,7 +81,7 @@ func AllowedDataFields(fields ...string) ClientOpt {
 	}
 }
 
-type constraintEntry struct {
+type templateEntry struct {
 	CRD     *apiextensions.CustomResourceDefinition
 	Targets []string
 }
@@ -90,7 +90,7 @@ type Client struct {
 	backend           *Backend
 	targets           map[string]TargetHandler
 	constraintsMux    sync.RWMutex
-	constraints       map[string]*constraintEntry
+	templates       map[string]*templateEntry
 	allowedDataFields []string
 }
 
@@ -322,7 +322,7 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 		return resp, err
 	}
 
-	c.constraints[c.constraintsMapKey(artifacts)] = &constraintEntry{
+	c.templates[c.templatesMapKey(artifacts)] = &templateEntry{
 		CRD:     artifacts.crd,
 		Targets: []string{artifacts.targetHandler.GetName()},
 	}
@@ -347,14 +347,14 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	delete(c.constraints, c.constraintsMapKey(artifacts))
+	delete(c.templates, c.templatesMapKey(artifacts))
 	resp.Handled[artifacts.targetHandler.GetName()] = true
 	return resp, nil
 }
 
-// constraintsMapKey returns the key for where we will track the constraint template in
-// the constraints map.
-func (c *Client) constraintsMapKey(artifacts *constraintTemplateArtifacts) string {
+// templatesMapKey returns the key for where we will track the constraint template in
+// the templates map.
+func (c *Client) templatesMapKey(artifacts *constraintTemplateArtifacts) string {
 	return artifacts.crd.Spec.Names.Kind
 }
 
@@ -374,7 +374,7 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 }
 
 // getConstraintEntry returns the constraint entry for a given constraint
-func (c *Client) getConstraintEntry(constraint *unstructured.Unstructured, lock bool) (*constraintEntry, error) {
+func (c *Client) getConstraintEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
 		return nil, fmt.Errorf("Constraint %s has no kind", constraint.GetName())
@@ -383,7 +383,7 @@ func (c *Client) getConstraintEntry(constraint *unstructured.Unstructured, lock 
 		c.constraintsMux.RLock()
 		defer c.constraintsMux.RUnlock()
 	}
-	entry, ok := c.constraints[kind]
+	entry, ok := c.templates[kind]
 	if !ok {
 		return nil, NewUnrecognizedConstraintError(kind)
 	}
@@ -547,14 +547,14 @@ func (c *Client) Reset(ctx context.Context) error {
 			return err
 		}
 	}
-	for name, v := range c.constraints {
+	for name, v := range c.templates {
 		for _, t := range v.Targets {
 			if _, err := c.backend.driver.DeleteModule(ctx, fmt.Sprintf(`templates["%s"]["%s"]`, t, name)); err != nil {
 				return err
 			}
 		}
 	}
-	c.constraints = make(map[string]*constraintEntry)
+	c.templates = make(map[string]*templateEntry)
 	return nil
 }
 
