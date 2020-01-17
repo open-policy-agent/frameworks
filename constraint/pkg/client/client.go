@@ -186,6 +186,9 @@ type basicCTArtifacts struct {
 	// targetHandler is the target handler indicated by the CT.  This isn't generated, but is used by
 	// consumers of createTemplateArtifacts
 	targetHandler TargetHandler
+
+	// targetSpec is the target-oriented portion of a CT's Spec field.
+	targetSpec    *templates.Target
 }
 
 func (a basicCTArtifacts) CRD() *apiextensions.CustomResourceDefinition {
@@ -210,7 +213,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
 	}
 
-	_, targetHandler, err := c.validateTargets(templ)
+	targetSpec, targetHandler, err := c.validateTargets(templ)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to validate targets for template %s", templ.Name)
 	}
@@ -233,6 +236,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		template:      templ,
 		crd:           crd,
 		targetHandler: targetHandler,
+		targetSpec:    targetSpec,
 		namePrefix:    entryPointPath,
 	}, nil
 }
@@ -244,17 +248,13 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	if err != nil {
 		return nil, err
 	}
-	targetSpec, targetHandler, err := c.validateTargets(templ)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to validate targets for template %s", templ.Name)
-	}
 
 	var externs []string
 	for _, field := range c.allowedDataFields {
 		externs = append(externs, fmt.Sprintf("data.%s", field))
 	}
 
-	libPrefix := templateLibPrefix(targetHandler.GetName(), artifacts.crd.Spec.Names.Kind)
+	libPrefix := templateLibPrefix(artifacts.targetHandler.GetName(), artifacts.crd.Spec.Names.Kind)
 	rr, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(libPrefix),
 		[]string{"data.lib"},
@@ -263,7 +263,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 		return nil, err
 	}
 
-	entryPoint, err := parseModule(artifacts.namePrefix, targetSpec.Rego)
+	entryPoint, err := parseModule(artifacts.namePrefix, artifacts.targetSpec.Rego)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +283,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	}
 
 	rr.AddEntryPointModule(artifacts.namePrefix, entryPoint)
-	for idx, libSrc := range targetSpec.Libs {
+	for idx, libSrc := range artifacts.targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
 		if err := rr.AddLib(libPath, libSrc); err != nil {
 			return nil, err
