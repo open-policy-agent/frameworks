@@ -11,6 +11,8 @@ spec:
     kind: ConstraintTemplate
     plural: constrainttemplates
   scope: Cluster
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
@@ -94,13 +96,9 @@ spec:
   - name: v1beta1
     served: true
     storage: true
-    subresources:
-      status: {}
   - name: v1alpha1
     served: true
     storage: false
-    subresources:
-      status: {}
 status:
   acceptedNames:
     kind: ""
