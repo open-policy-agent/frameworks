@@ -101,11 +101,19 @@ func (h *crdHelper) createCRD(
 					Name:    v1beta1.SchemeGroupVersion.Version,
 					Storage: true,
 					Served:  true,
+					Subresources: &apiextensions.CustomResourceSubresources{
+						Status: &apiextensions.CustomResourceSubresourceStatus{},
+						Scale:  nil,
+					},
 				},
 				{
 					Name:    v1alpha1.SchemeGroupVersion.Version,
 					Storage: false,
 					Served:  true,
+					Subresources: &apiextensions.CustomResourceSubresources{
+						Status: &apiextensions.CustomResourceSubresourceStatus{},
+						Scale:  nil,
+					},
 				},
 			},
 		},
