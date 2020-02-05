@@ -3,6 +3,8 @@ kind: CustomResourceDefinition
 metadata:
   name: constrainttemplates.templates.gatekeeper.sh
 spec:
+  subresources:
+    status: {}
   versions:
     - name: v1beta1
       served: true
@@ -10,3 +12,4 @@ spec:
     - name: v1alpha1
       served: true
       storage: false
+
