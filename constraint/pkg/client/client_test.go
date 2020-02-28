@@ -490,7 +490,6 @@ func TestRemoveTemplate(t *testing.T) {
 
 func TestTemplateCascadingDelete(t *testing.T) {
 	handler := &badHandler{Name: "h1", HasLib: true}
-	template := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
 
 	d := local.New()
 	b, err := NewBackend(Driver(d))
@@ -501,6 +500,7 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	template := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
 	if _, err = c.AddTemplate(context.Background(), template); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
@@ -514,19 +514,56 @@ func TestTemplateCascadingDelete(t *testing.T) {
 		t.Error("could not add second constraint")
 	}
 
+
+
+	template2 := createTemplate(name("stillpersists"), crdNames("StillPersists"), targets("h1"))
+	if _, err = c.AddTemplate(context.Background(), template2); err != nil {
+		t.Errorf("err = %v; want nil", err)
+	}
+
+	cst3 := newConstraint("StillPersists", "stillpersists", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst3); err != nil {
+		t.Error("could not add third constraint")
+	}
+	cst4 := newConstraint("StillPersists", "stillpersists2", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst4); err != nil {
+		t.Error("could not add fourth constraint")
+	}
+
+	orig, err := c.Dump(context.Background())
+	if err != nil {
+		t.Errorf("could not dump original state: %s", err)
+	}
+
+	origLower := strings.ToLower(orig)
+	origToDelete := strings.Count(origLower, "cascadingdelete")
+	if origToDelete == 0 {
+		t.Errorf("delete candidate not cached: %s", orig)
+	}
+
+	origPreserved := strings.Count(origLower, "stillpersists")
+	if origPreserved == 0 {
+		t.Errorf("preservation candidate not cached: %s", orig)
+	}
+
 	if _, err = c.RemoveTemplate(context.Background(), template); err != nil {
 		t.Error("could not remove template")
 	}
-	if len(c.constraints) != 0 {
-		t.Errorf("constraint cache not cleared: %+v", c.constraints)
+	if len(c.constraints) != 1 {
+		t.Errorf("constraint cache expected to have only 1 entry: %+v", c.constraints)
 	}
 
 	s, err := c.Dump(context.Background())
 	if err != nil {
 		t.Errorf("could not dump OPA cache")
 	}
-	if strings.Contains(strings.ToLower(s), "cascadingdelete") {
+	sLower := strings.ToLower(s)
+	if strings.Contains(sLower, "cascadingdelete") {
 		t.Errorf("Template not removed from cache: %s", s)
+	}
+	finalPreserved := strings.Count(sLower, "stillpersists")
+	if finalPreserved != origPreserved {
+		t.Errorf("finalPreserved = %d, expected %d :: %s", finalPreserved, origPreserved, s)
 	}
 }
 

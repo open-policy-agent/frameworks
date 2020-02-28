@@ -475,6 +475,9 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	if kind == "" {
 		return nil, fmt.Errorf("Constraint %s has no kind", constraint.GetName())
 	}
+	if constraint.GroupVersionKind().Group != constraintGroup {
+		return nil, fmt.Errorf("Constraint %s has the wrong group", constraint.GetName())
+	}
 	if lock {
 		c.constraintsMux.RLock()
 		defer c.constraintsMux.RUnlock()
