@@ -199,10 +199,6 @@ func (a basicCTArtifacts) CRD() *apiextensions.CustomResourceDefinition {
 	return a.crd
 }
 
-func (a basicCTArtifacts) GK() schema.GroupKind {
-	return a.gk
-}
-
 // ctArtifacts are all artifacts created by processing a constraint template
 type ctArtifacts struct {
 	basicCTArtifacts
@@ -367,8 +363,8 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 		CRD:      artifacts.crd,
 		Targets:  []string{artifacts.targetHandler.GetName()},
 	}
-	if _, ok := c.constraints[artifacts.GK()]; !ok {
-		c.constraints[artifacts.GK()] = make(map[string]*unstructured.Unstructured)
+	if _, ok := c.constraints[artifacts.gk]; !ok {
+		c.constraints[artifacts.gk] = make(map[string]*unstructured.Unstructured)
 	}
 	resp.Handled[artifacts.targetHandler.GetName()] = true
 	return resp, nil
@@ -391,14 +387,14 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	for _, cstr := range c.constraints[artifacts.GK()] {
+	for _, cstr := range c.constraints[artifacts.gk] {
 		if r, err := c.removeConstraintNoLock(ctx, cstr); err != nil {
 			return r, err
 		}
 	}
-	delete(c.constraints, artifacts.GK())
+	delete(c.constraints, artifacts.gk)
 	// Also clean up root path to avoid memory leaks
-	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.GK())
+	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
 	if _, err := c.backend.driver.DeleteData(ctx, constraintRoot); err != nil {
 		return resp, err
 	}
