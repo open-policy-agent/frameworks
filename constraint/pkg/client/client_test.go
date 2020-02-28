@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -484,6 +485,48 @@ func TestRemoveTemplate(t *testing.T) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
 			}
 		})
+	}
+}
+
+func TestTemplateCascadingDelete(t *testing.T) {
+	handler := &badHandler{Name: "h1", HasLib: true}
+	template := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
+
+	d := local.New()
+	b, err := NewBackend(Driver(d))
+	if err != nil {
+		t.Fatalf("Could not create backend: %s", err)
+	}
+	c, err := b.NewClient(Targets(handler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = c.AddTemplate(context.Background(), template); err != nil {
+		t.Errorf("err = %v; want nil", err)
+	}
+
+	cst1 := newConstraint("CascadingDelete", "cascadingdelete", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst1); err != nil {
+		t.Error("could not add first constraint")
+	}
+	cst2 := newConstraint("CascadingDelete", "cascadingdelete2", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
+		t.Error("could not add second constraint")
+	}
+
+	if _, err = c.RemoveTemplate(context.Background(), template); err != nil {
+		t.Error("could not remove template")
+	}
+	if len(c.constraints) != 0 {
+		t.Errorf("constraint cache not cleared: %+v", c.constraints)
+	}
+
+	s, err := c.Dump(context.Background())
+	if err != nil {
+		t.Errorf("could not dump OPA cache")
+	}
+	if strings.Contains(strings.ToLower(s), "cascadingdelete") {
+		t.Errorf("Template not removed from cache: %s", s)
 	}
 }
 
