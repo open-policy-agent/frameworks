@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -484,6 +485,85 @@ func TestRemoveTemplate(t *testing.T) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
 			}
 		})
+	}
+}
+
+func TestTemplateCascadingDelete(t *testing.T) {
+	handler := &badHandler{Name: "h1", HasLib: true}
+
+	d := local.New()
+	b, err := NewBackend(Driver(d))
+	if err != nil {
+		t.Fatalf("Could not create backend: %s", err)
+	}
+	c, err := b.NewClient(Targets(handler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
+	if _, err = c.AddTemplate(context.Background(), template); err != nil {
+		t.Errorf("err = %v; want nil", err)
+	}
+
+	cst1 := newConstraint("CascadingDelete", "cascadingdelete", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst1); err != nil {
+		t.Error("could not add first constraint")
+	}
+	cst2 := newConstraint("CascadingDelete", "cascadingdelete2", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
+		t.Error("could not add second constraint")
+	}
+
+
+
+	template2 := createTemplate(name("stillpersists"), crdNames("StillPersists"), targets("h1"))
+	if _, err = c.AddTemplate(context.Background(), template2); err != nil {
+		t.Errorf("err = %v; want nil", err)
+	}
+
+	cst3 := newConstraint("StillPersists", "stillpersists", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst3); err != nil {
+		t.Error("could not add third constraint")
+	}
+	cst4 := newConstraint("StillPersists", "stillpersists2", nil, nil)
+	if _, err = c.AddConstraint(context.Background(), cst4); err != nil {
+		t.Error("could not add fourth constraint")
+	}
+
+	orig, err := c.Dump(context.Background())
+	if err != nil {
+		t.Errorf("could not dump original state: %s", err)
+	}
+
+	origLower := strings.ToLower(orig)
+	origToDelete := strings.Count(origLower, "cascadingdelete")
+	if origToDelete == 0 {
+		t.Errorf("delete candidate not cached: %s", orig)
+	}
+
+	origPreserved := strings.Count(origLower, "stillpersists")
+	if origPreserved == 0 {
+		t.Errorf("preservation candidate not cached: %s", orig)
+	}
+
+	if _, err = c.RemoveTemplate(context.Background(), template); err != nil {
+		t.Error("could not remove template")
+	}
+	if len(c.constraints) != 1 {
+		t.Errorf("constraint cache expected to have only 1 entry: %+v", c.constraints)
+	}
+
+	s, err := c.Dump(context.Background())
+	if err != nil {
+		t.Errorf("could not dump OPA cache")
+	}
+	sLower := strings.ToLower(s)
+	if strings.Contains(sLower, "cascadingdelete") {
+		t.Errorf("Template not removed from cache: %s", s)
+	}
+	finalPreserved := strings.Count(sLower, "stillpersists")
+	if finalPreserved != origPreserved {
+		t.Errorf("finalPreserved = %d, expected %d :: %s", finalPreserved, origPreserved, s)
 	}
 }
 
