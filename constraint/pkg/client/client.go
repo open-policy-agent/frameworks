@@ -187,7 +187,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 	return templateKey(a.template.GetName())
 }
 
-// createRawTemplateArtifactss creates the "free" artifacts for a template, avoiding more
+// createRawTemplateArtifacts creates the "free" artifacts for a template, avoiding more
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.ObjectMeta.Name == "" {
