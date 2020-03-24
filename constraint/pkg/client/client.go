@@ -172,8 +172,8 @@ type keyableArtifact interface {
 
 var _ keyableArtifact = &basicCTArtifacts{}
 
-func templateKeyFromConstraint(t *unstructured.Unstructured) templateKey {
-	return templateKey(strings.ToLower(t.GetKind()))
+func templateKeyFromConstraint(cst *unstructured.Unstructured) templateKey {
+	return templateKey(strings.ToLower(cst.GetKind()))
 }
 
 // rawCTArtifacts have no processing and are only useful for looking things up
