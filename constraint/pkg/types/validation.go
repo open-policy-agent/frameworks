@@ -77,7 +77,7 @@ func (r *Responses) HandledCount() int {
 	c := 0
 	for _, h := range r.Handled {
 		if h {
-			c += 1
+			c++
 		}
 	}
 	return c

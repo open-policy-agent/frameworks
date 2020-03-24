@@ -16,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const badRego = `asd{`
+
 func TestClientE2E(t *testing.T) {
 	d := local.New()
 	p, err := NewProbe(d)
@@ -295,7 +297,7 @@ func TestRemoveData(t *testing.T) {
 
 func TestAddTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	badArityTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
 	badArityTempl.Spec.Targets[0].Rego = `
 package foo
@@ -428,7 +430,7 @@ some_rule[r] {
 
 func TestRemoveTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -494,7 +496,7 @@ func TestRemoveTemplate(t *testing.T) {
 
 func TestRemoveTemplateByNameOnly(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -562,7 +564,7 @@ func TestRemoveTemplateByNameOnly(t *testing.T) {
 
 func TestGetTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -624,7 +626,7 @@ func TestGetTemplate(t *testing.T) {
 
 func TestGetTemplateByNameOnly(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -711,8 +713,6 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
 		t.Error("could not add second constraint")
 	}
-
-
 
 	template2 := createTemplate(name("stillpersists"), crdNames("StillPersists"), targets("h1"))
 	if _, err = c.AddTemplate(context.Background(), template2); err != nil {
@@ -1016,7 +1016,7 @@ violation[{"msg": "msg"}] {
 func TestAllowedDataFieldsIntersection(t *testing.T) {
 	tc := []struct {
 		Name      string
-		Allowed   ClientOpt
+		Allowed   Opt
 		Expected  []string
 		wantError bool
 	}{
@@ -1048,7 +1048,7 @@ func TestAllowedDataFieldsIntersection(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Could not create backend: %s", err)
 			}
-			opts := []ClientOpt{Targets(&badHandler{Name: "h1", HasLib: true})}
+			opts := []Opt{Targets(&badHandler{Name: "h1", HasLib: true})}
 			if tt.Allowed != nil {
 				opts = append(opts, tt.Allowed)
 			}

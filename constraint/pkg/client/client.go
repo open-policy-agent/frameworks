@@ -24,13 +24,13 @@ import (
 
 const constraintGroup = "constraints.gatekeeper.sh"
 
-type ClientOpt func(*Client) error
+type Opt func(*Client) error
 
 // Client options
 
 var targetNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9.]*$`)
 
-func Targets(ts ...TargetHandler) ClientOpt {
+func Targets(ts ...TargetHandler) Opt {
 	return func(c *Client) error {
 		var errs Errors
 		handlers := make(map[string]TargetHandler, len(ts))
@@ -54,7 +54,7 @@ func Targets(ts ...TargetHandler) ClientOpt {
 // AllowedDataFields sets the fields under `data` that Rego in ConstraintTemplates
 // can access. If unset, all fields can be accessed. Only fields recognized by
 // the system can be enabled.
-func AllowedDataFields(fields ...string) ClientOpt {
+func AllowedDataFields(fields ...string) Opt {
 	return func(c *Client) error {
 		c.allowedDataFields = fields
 		return nil
@@ -262,12 +262,12 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
 
 	return &basicCTArtifacts{
-		rawCTArtifacts:      *rawArtifacts,
-		gk:            schema.GroupKind{Group: crd.Spec.Group, Kind: crd.Spec.Names.Kind},
-		crd:           crd,
-		targetHandler: targetHandler,
-		targetSpec:    targetSpec,
-		namePrefix:    entryPointPath,
+		rawCTArtifacts: *rawArtifacts,
+		gk:             schema.GroupKind{Group: crd.Spec.Group, Kind: crd.Spec.Names.Kind},
+		crd:            crd,
+		targetHandler:  targetHandler,
+		targetSpec:     targetSpec,
+		namePrefix:     entryPointPath,
 	}, nil
 }
 

@@ -42,7 +42,7 @@ vet:
 	go vet ./pkg/...
 
 lint:
-	golangci-lint -v run ./... --timeout 5m
+	golangci-lint -v run ./... --timeout 5m --skip-files '(^|/)zz_generated'
 
 # Generate code
 generate: buildutils

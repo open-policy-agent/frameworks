@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type arg func(*inits)
+type Arg func(*inits)
 
 type inits struct {
 	url          string
@@ -22,31 +22,31 @@ type inits struct {
 	traceEnabled bool
 }
 
-func URL(url string) arg {
+func URL(url string) Arg {
 	return func(i *inits) {
 		i.url = url
 	}
 }
 
-func OpaCA(ca *x509.CertPool) arg {
+func OpaCA(ca *x509.CertPool) Arg {
 	return func(i *inits) {
 		i.opaCAs = ca
 	}
 }
 
-func Auth(auth string) arg {
+func Auth(auth string) Arg {
 	return func(i *inits) {
 		i.auth = auth
 	}
 }
 
-func Tracing(enabled bool) arg {
+func Tracing(enabled bool) Arg {
 	return func(i *inits) {
 		i.traceEnabled = enabled
 	}
 }
 
-func New(args ...arg) (drivers.Driver, error) {
+func New(args ...Arg) (drivers.Driver, error) {
 	i := &inits{}
 	for _, arg := range args {
 		arg(i)
@@ -54,7 +54,7 @@ func New(args ...arg) (drivers.Driver, error) {
 	if i.url == "" {
 		return nil, errors.New("OPA URL not set")
 	}
-	return &driver{opa: newHttpClient(i.url, i.opaCAs, i.auth), traceEnabled: i.traceEnabled}, nil
+	return &driver{opa: newHTTPClient(i.url, i.opaCAs, i.auth), traceEnabled: i.traceEnabled}, nil
 }
 
 var _ drivers.Driver = &driver{}
@@ -183,8 +183,8 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 	var results []*ctypes.Result
 	if response.Result != nil {
 		if err := json.Unmarshal(response.Result, &results); err != nil {
-			rawJson := string(response.Result)
-			return nil, errors.Wrapf(err, "DriverQuery: Unmarshal result: %s", rawJson)
+			rawJSON := string(response.Result)
+			return nil, errors.Wrapf(err, "DriverQuery: Unmarshal result: %s", rawJSON)
 		}
 	}
 	resp := &ctypes.Response{Results: results}
