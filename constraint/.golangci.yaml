@@ -1,0 +1,23 @@
+linter-settings:
+  lll:
+    line-length: 200
+
+  misspell:
+    locale: US
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - golint
+    - goconst
+    - goimports #- unused, https://github.com/golangci/golangci-lint/issues/337#issuecomment-536721714
+    - varcheck
+    - deadcode
+    - misspell
+    - typecheck
+    - structcheck
+    - staticcheck
+    - gosimple
