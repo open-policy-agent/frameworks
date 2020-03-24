@@ -417,6 +417,9 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	}
 
 	artifacts, err := c.createBasicTemplateArtifacts(template)
+	if err != nil {
+		return resp, err
+	}
 
 	if _, err := c.backend.driver.DeleteModules(ctx, artifacts.namePrefix); err != nil {
 		return resp, err

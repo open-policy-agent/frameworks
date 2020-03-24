@@ -1,9 +1,0 @@
-linter-settings:
-  lll:
-    line-length: 200
-
-  misspell:
-    locale: US
-
-linters:
-  disable: unused # https://github.com/golangci/golangci-lint/issues/337#issuecomment-536721714

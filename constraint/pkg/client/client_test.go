@@ -465,14 +465,14 @@ func TestRemoveTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := c.AddTemplate(context.Background(), tt.Template)
+			_, err = c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
 				t.Errorf("err = %v; want nil", err)
 			}
 			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
-			r, err = c.RemoveTemplate(context.Background(), tt.Template)
+			r, err := c.RemoveTemplate(context.Background(), tt.Template)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}
@@ -531,7 +531,7 @@ func TestRemoveTemplateByNameOnly(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := c.AddTemplate(context.Background(), tt.Template)
+			_, err = c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
 				t.Errorf("err = %v; want nil", err)
 			}
@@ -540,7 +540,7 @@ func TestRemoveTemplateByNameOnly(t *testing.T) {
 			}
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tt.Template.Name
-			r, err = c.RemoveTemplate(context.Background(), sparseTemplate)
+			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}
