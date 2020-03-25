@@ -86,6 +86,8 @@ func createDataPath(target, subpath string) string {
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
@@ -111,6 +113,8 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 }
 
 // RemoveData removes data from OPA for every target that can handle the data.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
@@ -353,8 +357,8 @@ func (c *Client) CreateCRD(ctx context.Context, templ *templates.ConstraintTempl
 }
 
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
-// schema validation on calls to AddConstraint. It also returns a copy of the CRD describing
-// the constraint.
+// schema validation on calls to AddConstraint. On error, the responses return value
+// will still be populated so that partial results can be analyzed.
 func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
@@ -397,6 +401,8 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 
 // RemoveTemplate removes the template source code from OPA and removes the CRD from the validation
 // registry. Any constraints relying on the template will also be removed.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
@@ -524,7 +530,9 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	return entry, nil
 }
 
-// AddConstraint validates the constraint and, if valid, inserts it into OPA
+// AddConstraint validates the constraint and, if valid, inserts it into OPA.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.constraintsMux.RLock()
 	defer c.constraintsMux.RUnlock()
@@ -569,7 +577,8 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	return resp, errMap
 }
 
-// RemoveConstraint removes a constraint from OPA
+// RemoveConstraint removes a constraint from OPA. On error, the responses
+// return value will still be populated so that partial results can be analyzed.
 func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.constraintsMux.RLock()
 	defer c.constraintsMux.RUnlock()
@@ -713,7 +722,7 @@ func (c *Client) init() error {
 	return nil
 }
 
-// Reset the state of OPA
+// Reset the state of OPA.
 func (c *Client) Reset(ctx context.Context) error {
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
@@ -749,7 +758,9 @@ func Tracing(enabled bool) QueryOpt {
 	}
 }
 
-// Review makes sure the provided object satisfies all stored constraints
+// Review makes sure the provided object satisfies all stored constraints.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) Review(ctx context.Context, obj interface{}, opts ...QueryOpt) (*types.Responses, error) {
 	cfg := &queryCfg{}
 	for _, opt := range opts {
@@ -789,7 +800,9 @@ TargetLoop:
 	return responses, errMap
 }
 
-// Audit makes sure the cached state of the system satisfies all stored constraints
+// Audit makes sure the cached state of the system satisfies all stored constraints.
+// On error, the responses return value will still be populated so that
+// partial results can be analyzed.
 func (c *Client) Audit(ctx context.Context, opts ...QueryOpt) (*types.Responses, error) {
 	cfg := &queryCfg{}
 	for _, opt := range opts {
@@ -820,7 +833,7 @@ TargetLoop:
 	return responses, errMap
 }
 
-// Dump dumps the state of OPA to aid in debugging
+// Dump dumps the state of OPA to aid in debugging.
 func (c *Client) Dump(ctx context.Context) (string, error) {
 	return c.backend.driver.Dump(ctx)
 }

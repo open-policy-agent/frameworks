@@ -66,6 +66,9 @@ type Responses struct {
 }
 
 func (r *Responses) Results() []*Result {
+	if r == nil {
+		return nil
+	}
 	var res []*Result
 	for _, resp := range r.ByTarget {
 		res = append(res, resp.Results...)
@@ -74,6 +77,9 @@ func (r *Responses) Results() []*Result {
 }
 
 func (r *Responses) HandledCount() int {
+	if r == nil {
+		return 0
+	}
 	c := 0
 	for _, h := range r.Handled {
 		if h {
