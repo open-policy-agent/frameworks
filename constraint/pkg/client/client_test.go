@@ -16,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const badRego = `asd{`
+
 func TestClientE2E(t *testing.T) {
 	d := local.New()
 	p, err := NewProbe(d)
@@ -295,7 +297,7 @@ func TestRemoveData(t *testing.T) {
 
 func TestAddTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	badArityTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
 	badArityTempl.Spec.Targets[0].Rego = `
 package foo
@@ -428,7 +430,7 @@ some_rule[r] {
 
 func TestRemoveTemplate(t *testing.T) {
 	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = "asd{"
+	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tc := []struct {
 		Name          string
 		Handler       TargetHandler
@@ -465,12 +467,16 @@ func TestRemoveTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := c.RemoveTemplate(context.Background(), tt.Template)
+			_, err = c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
 				t.Errorf("err = %v; want nil", err)
 			}
 			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
+			}
+			r, err := c.RemoveTemplate(context.Background(), tt.Template)
+			if err != nil {
+				t.Errorf("err = %v; want nil", err)
 			}
 			expectedCount := 0
 			expectedHandled := make(map[string]bool)
@@ -483,6 +489,200 @@ func TestRemoveTemplate(t *testing.T) {
 			}
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
+			}
+		})
+	}
+}
+
+func TestRemoveTemplateByNameOnly(t *testing.T) {
+	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
+	badRegoTempl.Spec.Targets[0].Rego = badRego
+	tc := []struct {
+		Name          string
+		Handler       TargetHandler
+		Template      *templates.ConstraintTemplate
+		ErrorExpected bool
+	}{
+		{
+			Name:          "Good Template",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h1")),
+			ErrorExpected: false,
+		},
+		{
+			Name:          "Unknown Target",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h2")),
+			ErrorExpected: true,
+		},
+		{
+			Name:          "Bad CRD",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), targets("h1")),
+			ErrorExpected: true,
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.Name, func(t *testing.T) {
+			d := local.New()
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatalf("Could not create backend: %s", err)
+			}
+			c, err := b.NewClient(Targets(tt.Handler))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = c.AddTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if err == nil && tt.ErrorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			sparseTemplate := &templates.ConstraintTemplate{}
+			sparseTemplate.Name = tt.Template.Name
+			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
+			if err != nil {
+				t.Errorf("err = %v; want nil", err)
+			}
+			expectedCount := 0
+			expectedHandled := make(map[string]bool)
+			if !tt.ErrorExpected {
+				expectedCount = 1
+				expectedHandled = map[string]bool{"h1": true}
+			}
+			if r.HandledCount() != expectedCount {
+				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)
+			}
+			if !reflect.DeepEqual(r.Handled, expectedHandled) {
+				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
+			}
+		})
+	}
+}
+
+func TestGetTemplate(t *testing.T) {
+	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
+	badRegoTempl.Spec.Targets[0].Rego = badRego
+	tc := []struct {
+		Name          string
+		Handler       TargetHandler
+		Template      *templates.ConstraintTemplate
+		ErrorExpected bool
+	}{
+		{
+			Name:          "Good Template",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h1")),
+			ErrorExpected: false,
+		},
+		{
+			Name:          "Unknown Target",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h2")),
+			ErrorExpected: true,
+		},
+		{
+			Name:          "Bad CRD",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), targets("h1")),
+			ErrorExpected: true,
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.Name, func(t *testing.T) {
+			d := local.New()
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatalf("Could not create backend: %s", err)
+			}
+			c, err := b.NewClient(Targets(tt.Handler))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = c.AddTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if err == nil && tt.ErrorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			tmpl, err := c.GetTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if err == nil && tt.ErrorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			if !tt.ErrorExpected {
+				if !reflect.DeepEqual(tmpl, tt.Template) {
+					t.Error("Stored and retrieved template differ")
+				}
+			}
+		})
+	}
+}
+
+func TestGetTemplateByNameOnly(t *testing.T) {
+	badRegoTempl := createTemplate(name("fake"), crdNames("Fake"), targets("h1"))
+	badRegoTempl.Spec.Targets[0].Rego = badRego
+	tc := []struct {
+		Name          string
+		Handler       TargetHandler
+		Template      *templates.ConstraintTemplate
+		ErrorExpected bool
+	}{
+		{
+			Name:          "Good Template",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h1")),
+			ErrorExpected: false,
+		},
+		{
+			Name:          "Unknown Target",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), crdNames("Fake"), targets("h2")),
+			ErrorExpected: true,
+		},
+		{
+			Name:          "Bad CRD",
+			Handler:       &badHandler{Name: "h1", HasLib: true},
+			Template:      createTemplate(name("fake"), targets("h1")),
+			ErrorExpected: true,
+		},
+	}
+	for _, tt := range tc {
+		t.Run(tt.Name, func(t *testing.T) {
+			d := local.New()
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatalf("Could not create backend: %s", err)
+			}
+			c, err := b.NewClient(Targets(tt.Handler))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = c.AddTemplate(context.Background(), tt.Template)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if err == nil && tt.ErrorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			sparseTemplate := &templates.ConstraintTemplate{}
+			sparseTemplate.Name = tt.Template.Name
+			tmpl, err := c.GetTemplate(context.Background(), sparseTemplate)
+			if err != nil && !tt.ErrorExpected {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if err == nil && tt.ErrorExpected {
+				t.Error("err = nil; want non-nil")
+			}
+			if !tt.ErrorExpected {
+				if !reflect.DeepEqual(tmpl, tt.Template) {
+					t.Error("Stored and retrieved template differ")
+				}
 			}
 		})
 	}
@@ -513,8 +713,6 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
 		t.Error("could not add second constraint")
 	}
-
-
 
 	template2 := createTemplate(name("stillpersists"), crdNames("StillPersists"), targets("h1"))
 	if _, err = c.AddTemplate(context.Background(), template2); err != nil {
@@ -818,7 +1016,7 @@ violation[{"msg": "msg"}] {
 func TestAllowedDataFieldsIntersection(t *testing.T) {
 	tc := []struct {
 		Name      string
-		Allowed   ClientOpt
+		Allowed   Opt
 		Expected  []string
 		wantError bool
 	}{
@@ -850,7 +1048,7 @@ func TestAllowedDataFieldsIntersection(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Could not create backend: %s", err)
 			}
-			opts := []ClientOpt{Targets(&badHandler{Name: "h1", HasLib: true})}
+			opts := []Opt{Targets(&badHandler{Name: "h1", HasLib: true})}
 			if tt.Allowed != nil {
 				opts = append(opts, tt.Allowed)
 			}

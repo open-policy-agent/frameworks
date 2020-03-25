@@ -66,7 +66,7 @@ type Data interface {
 }
 
 // New returns a new client object.
-func newHttpClient(url string, opaCAs *x509.CertPool, auth string) client {
+func newHTTPClient(url string, opaCAs *x509.CertPool, auth string) client {
 	return &httpClient{
 		strings.TrimRight(url, "/"), "", opaCAs, auth}
 }

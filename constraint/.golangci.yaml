@@ -6,4 +6,18 @@ linter-settings:
     locale: US
 
 linters:
-  disable: unused # https://github.com/golangci/golangci-lint/issues/337#issuecomment-536721714
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - golint
+    - goconst
+    - goimports #- unused, https://github.com/golangci/golangci-lint/issues/337#issuecomment-536721714
+    - varcheck
+    - deadcode
+    - misspell
+    - typecheck
+    - structcheck
+    - staticcheck
+    - gosimple
