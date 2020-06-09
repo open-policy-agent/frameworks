@@ -104,7 +104,17 @@ func tProp(t string) apiextensions.JSONSchemaProps {
 
 func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
 	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string"}
-	p := prop(propMap{"spec": prop(pm)})
+	p := prop(
+		propMap{
+			"metadata": prop(propMap{
+				"name": apiextensions.JSONSchemaProps{
+					Type:      "string",
+					MaxLength: func(i int64) *int64 { return &i }(63),
+				},
+			}),
+			"spec": prop(pm),
+		},
+	)
 	return &p
 }
 
