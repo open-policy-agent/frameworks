@@ -339,6 +339,8 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			crd, err := h.createCRD(tc.Template, schema)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
+			} else if val, ok := crd.ObjectMeta.Labels["gatekeeper.sh/constraint"]; !ok || val != "yes" {
+				t.Errorf("Wanted label gatekeeper.sh/constraint as yes. but obtained %s", val)
 			}
 			err = h.validateCRD(crd)
 			if (err == nil) && tc.ErrorExpected {
