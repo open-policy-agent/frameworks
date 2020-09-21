@@ -341,7 +341,11 @@ func TestCRDCreationAndValidation(t *testing.T) {
 				t.Errorf("err = %v; want nil", err)
 			} else if val, ok := crd.ObjectMeta.Labels["gatekeeper.sh/constraint"]; !ok || val != "yes" {
 				t.Errorf("Wanted label gatekeeper.sh/constraint as yes. but obtained %s", val)
+			} else if crd.Spec.Names.Categories[0] != "constraint" ||
+				crd.Spec.Names.Categories[1] != "constraints" {
+				t.Errorf("Generated CRDs are expected to belong to constraint / constraints categories")
 			}
+
 			err = h.validateCRD(crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
