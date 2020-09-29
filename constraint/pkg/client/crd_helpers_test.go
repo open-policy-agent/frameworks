@@ -30,6 +30,12 @@ func crdNames(kind string) tmplArg {
 	}
 }
 
+func labels(labels map[string]string) tmplArg {
+	return func(tmpl *templates.ConstraintTemplate) {
+		tmpl.ObjectMeta.Labels = labels
+	}
+}
+
 func crdSchema(pm propMap) tmplArg {
 	p := prop(pm)
 	return func(tmpl *templates.ConstraintTemplate) {
@@ -285,6 +291,26 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
+			),
+			Handler:       createTestTargetHandler(),
+			ErrorExpected: false,
+		},
+		{
+			Name: "Most Basic Valid Template With Labels",
+			Template: createTemplate(
+				name("SomeName"),
+				crdNames("Horse"),
+				labels(map[string]string{"horse": "smiley"}),
+			),
+			Handler:       createTestTargetHandler(),
+			ErrorExpected: false,
+		},
+		{
+			Name: "Validtemplate with trying to override system label",
+			Template: createTemplate(
+				name("SomeName"),
+				crdNames("Horse"),
+				labels(map[string]string{"gatekeeper.sh/constraint": "no"}),
 			),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: false,
