@@ -351,7 +351,7 @@ func Convert_v1alpha1_ConstraintTemplateStatus_To_templates_ConstraintTemplateSt
 
 func autoConvert_templates_ConstraintTemplateStatus_To_v1alpha1_ConstraintTemplateStatus(in *templates.ConstraintTemplateStatus, out *ConstraintTemplateStatus, s conversion.Scope) error {
 	out.Created = in.Created
-	out.ByPod = *(*[]*ByPodStatus)(unsafe.Pointer(&in.ByPod))
+	out.ByPod = *(*[]ByPodStatus)(unsafe.Pointer(&in.ByPod))
 	return nil
 }
 
