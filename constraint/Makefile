@@ -10,7 +10,7 @@ endif
 all: lint test
 
 # Run tests
-native-test: generate fmt vet manifests
+native-test: generate manifests
 	go test ./pkg/... -coverprofile cover.out
 
 # Docker internal test
@@ -33,16 +33,8 @@ manifests: buildutils
 	controller-gen all
 	kustomize build config -o deploy/crds.yaml
 
-# Run go fmt against code
-fmt:
-	go fmt ./pkg/...
-
-# Run go vet against code
-vet:
-	go vet ./pkg/...
-
 lint:
-	golangci-lint -v run ./... --timeout 5m --skip-files '(^|/)zz_generated'
+	golangci-lint -v run ./... --timeout 5m
 
 # Generate code
 generate: buildutils

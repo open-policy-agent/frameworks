@@ -82,17 +82,17 @@ func TestTypeConversion(t *testing.T) {
 					Validation: &Validation{
 						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
 							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-								"message": apiextensionsv1beta1.JSONSchemaProps{
+								"message": {
 									Type: "string",
 								},
-								"labels": apiextensionsv1beta1.JSONSchemaProps{
+								"labels": {
 									Type: "array",
 									Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
 										Schema: &apiextensionsv1beta1.JSONSchemaProps{
 											Type: "object",
 											Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-												"key":          apiextensionsv1beta1.JSONSchemaProps{Type: "string"},
-												"allowedRegex": apiextensionsv1beta1.JSONSchemaProps{Type: "string"},
+												"key":          {Type: "string"},
+												"allowedRegex": {Type: "string"},
 											},
 										},
 									},

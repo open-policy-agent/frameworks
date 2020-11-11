@@ -29,25 +29,25 @@ func TestRequireRules(t *testing.T) {
 		{
 			Name:          "Required Rule",
 			Rego:          `package hello r{1 == 1}`,
-			RequiredRules: map[string]struct{}{"r": struct{}{}},
+			RequiredRules: map[string]struct{}{"r": {}},
 			ErrorExpected: false,
 		},
 		{
 			Name:          "Required Rule Extras",
 			Rego:          `package hello r[v]{v == 1} q{3 == 3}`,
-			RequiredRules: map[string]struct{}{"r": struct{}{}},
+			RequiredRules: map[string]struct{}{"r": {}},
 			ErrorExpected: false,
 		},
 		{
 			Name:          "Required Rule Multiple",
 			Rego:          `package hello r[v]{v == 1} q{3 == 3}`,
-			RequiredRules: map[string]struct{}{"r": struct{}{}, "q": struct{}{}},
+			RequiredRules: map[string]struct{}{"r": {}, "q": {}},
 			ErrorExpected: false,
 		},
 		{
 			Name:          "Required Rule Missing",
 			Rego:          `package hello`,
-			RequiredRules: map[string]struct{}{"r": struct{}{}},
+			RequiredRules: map[string]struct{}{"r": {}},
 			ErrorExpected: true,
 		},
 	}
