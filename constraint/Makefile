@@ -49,4 +49,3 @@ endif
 .PHONY: buildutils
 buildutils:
 	cd buildutils && ./buildutils.sh
-
