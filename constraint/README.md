@@ -139,7 +139,7 @@ Kubernetes admission webhooks a potential target.
  
 ##### Kubernetes Authorization Webhooks Create a Target
  
-All Kubernetes requests are can be defined by their type (e.g. `CREATE`, `UPDATE`,
+All Kubernetes requests can be defined by their type (e.g. `CREATE`, `UPDATE`,
 `WATCH`) and therefore have a common selection scheme. All Kubernetes requests
 broadcast the requestor's intent to modify the Kubernetes cluster. Therefore they
 have a common purpose. All requests can be evaluated by an [authorization webhook](https://kubernetes.io/docs/reference/access-authn-authz/webhook/)
@@ -196,7 +196,7 @@ type TargetHandler interface {
 }
 ```
 
-The two most interesting fields here are `HandleReview()`, `MatchSchema()`, and `Library()`.
+The most interesting fields here are `HandleReview()`, `MatchSchema()`, and `Library()`.
 
 ### `HandleReview()`
 
@@ -219,7 +219,7 @@ text template that forms a Rego module with at least two rules:
 
    * `matching_constraints[constraint]`
       * Returns all `constraint` objects that satisfy the `match` criteria for
-        a given `input`. This `perameters` of this `constraint` will be assigned
+        a given `input`. This `parameters` of this `constraint` will be assigned
         to `input.parameters`.
    * `matching_reviews_and_constraints[[review, constraint]]`
       * Returns a `review` that corresponds to all cached data for the target. It
@@ -227,8 +227,8 @@ text template that forms a Rego module with at least two rules:
         Values will be made available to constraint rules as `input.parameters` and
         `input.review`.
    
-Note that the `Library()` module will be sandboxed much like how constraint rules
-are sandboxed. With the following additional freedoms:
+Note that the `Library()` module will be sandboxed much as constraint rules
+are sandboxed, but with the following additional freedoms:
 
    * `data.constraints` is available
    * `data.external` is available
@@ -281,13 +281,13 @@ type Client interface {
 }
 ```
 
-`AddTemplate()` has a unique signature because it returns the Kubernetes Custom
+`CreateCRD()` has a unique signature because it returns the Kubernetes Custom
 Resource Definition that can allow for the creation of constraints once registered.
 
 Requests to a client will be multiplexed to all registered targets. Those targets who self-report
 as being able to handle the request will all be able to add response values.
 
-`types.Responses` is a wrapper around zero to multiple `Result` objects. Each result
+`types.Responses` is a wrapper around zero or more `Result` objects. Each result
 object has the following fields:
 
 ```go
