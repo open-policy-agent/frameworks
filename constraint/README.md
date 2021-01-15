@@ -251,11 +251,12 @@ following tasks:
    * Add/Remove cached data
    * Submit an object for a review
    * Request an audit of the cached data
-   
-To facilitate these tasks, the framework provides the following Client interface:
+
+The [Client](./pkg/client/client.go) type orchestrates these
+operations between a set of targets and the backend policy system.
+To facilitate enforcement point integration, Client exports following methods:
 
 ```go
-type Client interface {
 	AddData(context.Context, interface{}) (*types.Responses, error)
 	RemoveData(context.Context, interface{}) (*types.Responses, error)
 
@@ -278,7 +279,6 @@ type Client interface {
 
 	// Dump dumps the state of OPA to aid in debugging
 	Dump(context.Context) (string, error)
-}
 ```
 
 `CreateCRD()` has a unique signature because it returns the Kubernetes Custom
