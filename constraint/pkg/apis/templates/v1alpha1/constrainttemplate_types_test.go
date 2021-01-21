@@ -61,7 +61,7 @@ func TestStorageConstraintTemplate(t *testing.T) {
 
 func TestTypeConversion(t *testing.T) {
 	scheme := runtime.NewScheme()
-	if err := AddToSchemes.AddToScheme(scheme); err != nil {
+	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("Could not add to scheme: %v", err)
 	}
 

@@ -43,11 +43,8 @@ func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target Mat
 		"enforcementAction": {Type: "string"},
 	}
 	if templ.Spec.CRD.Spec.Validation != nil && templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema != nil {
-		internalSchema := &apiextensions.JSONSchemaProps{}
-		if err := h.scheme.Convert(templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema, internalSchema, nil); err != nil {
-			return nil, err
-		}
-		props["parameters"] = *internalSchema
+		internalSchema := *templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema.DeepCopy()
+		props["parameters"] = internalSchema
 	}
 	schema := &apiextensions.JSONSchemaProps{
 		Properties: map[string]apiextensions.JSONSchemaProps{
