@@ -30,7 +30,7 @@ install: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: buildutils
-	controller-gen all
+	controller-gen paths=./...
 	kustomize build config -o deploy/crds.yaml
 
 lint:

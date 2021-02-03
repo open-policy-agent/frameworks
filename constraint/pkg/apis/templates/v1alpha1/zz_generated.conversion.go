@@ -434,10 +434,8 @@ func autoConvert_v1alpha1_Validation_To_templates_Validation(in *Validation, out
 	if in.OpenAPIV3Schema != nil {
 		in, out := &in.OpenAPIV3Schema, &out.OpenAPIV3Schema
 		*out = new(apiextensions.JSONSchemaProps)
-		// TODO: Inefficient conversion - can we improve it?
-		if err := s.Convert(*in, *out, 0); err != nil {
-			return err
-		}
+		// FIXME: Provide conversion function to convert v1beta1.JSONSchemaProps to apiextensions.JSONSchemaProps
+		compileErrorOnMissingConversion()
 	} else {
 		out.OpenAPIV3Schema = nil
 	}
@@ -453,10 +451,8 @@ func autoConvert_templates_Validation_To_v1alpha1_Validation(in *templates.Valid
 	if in.OpenAPIV3Schema != nil {
 		in, out := &in.OpenAPIV3Schema, &out.OpenAPIV3Schema
 		*out = new(v1beta1.JSONSchemaProps)
-		// TODO: Inefficient conversion - can we improve it?
-		if err := s.Convert(*in, *out, 0); err != nil {
-			return err
-		}
+		// FIXME: Provide conversion function to convert apiextensions.JSONSchemaProps to v1beta1.JSONSchemaProps
+		compileErrorOnMissingConversion()
 	} else {
 		out.OpenAPIV3Schema = nil
 	}
