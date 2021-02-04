@@ -15,12 +15,6 @@ limitations under the License.
 
 // NOTE: Boilerplate only.  Ignore this file.
 
-// Package v1beta1 contains API Schema definitions for the templates v1beta1 API group
-// +k8s:openapi-gen=true
-// +k8s:deepcopy-gen=package,register
-// +k8s:conversion-gen=github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates
-// +k8s:defaulter-gen=TypeMeta
-// +groupName=templates.gatekeeper.sh
 package v1beta1
 
 import (
