@@ -34,7 +34,8 @@ type CRD struct {
 }
 
 type CRDSpec struct {
-	Names      Names       `json:"names,omitempty"`
+	Names Names `json:"names,omitempty"`
+	// +kubebuilder:validation:Schemaless
 	Validation *Validation `json:"validation,omitempty"`
 }
 
@@ -77,12 +78,14 @@ type ConstraintTemplateStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 }
 
-// +genclient
-// +genclient:nonNamespaced
+//+genclient
+//+genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:openapi-gen=true
+// +kubebuilder:storageversion
+// +kubebuilder:resource:scope=Cluster
 
 // ConstraintTemplate is the Schema for the constrainttemplates API
-// +k8s:openapi-gen=true
 type ConstraintTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

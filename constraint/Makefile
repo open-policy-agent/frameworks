@@ -29,7 +29,7 @@ install: manifests
 	kubectl apply -f config/crds
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: buildutils
+manifests:
 	controller-gen paths=./...
 	kustomize build config -o deploy/crds.yaml
 
@@ -37,15 +37,5 @@ lint:
 	golangci-lint -v run ./... --timeout 5m
 
 # Generate code
-generate: buildutils
-ifndef GOPATH
-	$(error GOPATH not defined, please define GOPATH. Run "go help gopath" to learn more about GOPATH)
-endif
-	export GOROOT=$(go env root)
-	GO111MODULE=off go generate ./pkg/...
-
-# find or download controller-gen
-# download controller-gen if necessary
-.PHONY: buildutils
-buildutils:
-	cd buildutils && ./buildutils.sh
+generate:
+	./hack/generate.sh
