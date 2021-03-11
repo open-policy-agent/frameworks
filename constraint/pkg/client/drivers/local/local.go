@@ -45,6 +45,16 @@ func Tracing(enabled bool) Arg {
 	}
 }
 
+func DisableBuiltin(builtin string) Arg {
+	return func(d *driver) {
+		if d.unsafeBuiltin == nil {
+			d.unsafeBuiltin = map[string]struct{}{}
+		}
+		d.unsafeBuiltin[builtin] = struct{}{}
+		d.compiler.WithUnsafeBuiltins(d.unsafeBuiltin)
+	}
+}
+
 func New(args ...Arg) drivers.Driver {
 	d := &driver{
 		compiler: ast.NewCompiler(),
@@ -60,11 +70,12 @@ func New(args ...Arg) drivers.Driver {
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	modulesMux   sync.RWMutex
-	compiler     *ast.Compiler
-	modules      map[string]*ast.Module
-	storage      storage.Store
-	traceEnabled bool
+	modulesMux    sync.RWMutex
+	compiler      *ast.Compiler
+	modules       map[string]*ast.Module
+	storage       storage.Store
+	unsafeBuiltin map[string]struct{}
+	traceEnabled  bool
 }
 
 func (d *driver) Init(ctx context.Context) error {
@@ -186,7 +197,7 @@ func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []
 		}
 	}
 
-	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn))
+	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn)).WithUnsafeBuiltins(d.unsafeBuiltin)
 	if c.Compile(updatedModules); c.Failed() {
 		d.storage.Abort(ctx, txn)
 		return 0, c.Errors
@@ -201,7 +212,7 @@ func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []
 	if err := d.storage.Commit(ctx, txn); err != nil {
 		return 0, err
 	}
-	d.compiler = c
+	d.compiler = c.WithUnsafeBuiltins(d.unsafeBuiltin)
 	d.modules = updatedModules
 	return len(remove), nil
 }
