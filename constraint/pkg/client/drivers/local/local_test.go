@@ -332,7 +332,7 @@ func TestModules(t *testing.T) {
 					ErrorExpected: true,
 				},
 			},
-			driverArg: []Arg{DisableBuiltin("http.send")},
+			driverArg: []Arg{DisableBuiltins("http.send")},
 		},
 	}
 	for _, tt := range tc {
