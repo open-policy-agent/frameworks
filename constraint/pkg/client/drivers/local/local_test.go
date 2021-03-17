@@ -55,8 +55,9 @@ type data map[string]interface{}
 
 // compositeTestCase is a testcase that consists of one or more API calls
 type compositeTestCase struct {
-	Name    string
-	Actions []action
+	Name      string
+	Actions   []action
+	driverArg []Arg
 }
 
 // action corresponds to a method call for compositeTestCase
@@ -73,7 +74,7 @@ type action struct {
 }
 
 func (tt *compositeTestCase) run(t *testing.T) {
-	dr := New()
+	dr := New(tt.driverArg...)
 	d := dr.(*driver)
 	for idx, a := range tt.Actions {
 		t.Run(fmt.Sprintf("action idx %d", idx), func(t *testing.T) {
@@ -305,6 +306,33 @@ func TestModules(t *testing.T) {
 					WantDeleteCount: 0,
 				},
 			},
+		},
+		{
+			Name: "PutModule with valid builtin",
+			Actions: []action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+					},
+					ErrorExpected: false,
+				},
+			},
+		},
+		{
+			Name: "PutModule with invalid builtin",
+			Actions: []action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+					},
+					ErrorExpected: true,
+				},
+			},
+			driverArg: []Arg{DisableBuiltins("http.send")},
 		},
 	}
 	for _, tt := range tc {
