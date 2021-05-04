@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -100,7 +101,7 @@ func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSche
 	if len(pm) == 0 {
 		return apiextensions.JSONSchemaProps{}
 	}
-	return apiextensions.JSONSchemaProps{Properties: pm[0]}
+	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
 }
 
 // tProp creates a typed property
@@ -278,7 +279,7 @@ func TestCreateSchema(t *testing.T) {
 				t.Errorf("error = %v; want nil", err)
 			}
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
-				t.Errorf("createSchema(%#v) = \n%#v; \nwant %#v", tc.Template, *schema, *tc.ExpectedSchema)
+				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
 			}
 		})
 	}
