@@ -37,7 +37,7 @@ gen-dependencies:
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
 	controller-gen \
-		crd:crdVersions="v1beta1",allowDangerousTypes="true" \
+		crd:allowDangerousTypes="true" \
 		paths="./pkg/..." \
 		output:crd:artifacts:config=config/crds
 	cp config/crds/* deploy/crds.yaml
