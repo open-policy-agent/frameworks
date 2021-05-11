@@ -46,7 +46,6 @@ type Names struct {
 type Validation struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:validation:Type=object
-	// +kubebuilder:pruning:PreserveUnknownFields
 	OpenAPIV3Schema *apiextensionsv1beta1.JSONSchemaProps `json:"openAPIV3Schema,omitempty"`
 }
 
