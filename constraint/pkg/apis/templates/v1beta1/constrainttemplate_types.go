@@ -66,6 +66,7 @@ type CreateCRDError struct {
 // ByPodStatus defines the observed state of ConstraintTemplate as seen by
 // an individual controller
 type ByPodStatus struct {
+	// +kubebuilder:pruning:PreserveUnknownFields
 	// a unique identifier for the pod that wrote the status
 	ID                 string           `json:"id,omitempty"`
 	ObservedGeneration int64            `json:"observedGeneration,omitempty"`

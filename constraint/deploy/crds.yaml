@@ -197,6 +197,7 @@ spec:
                       description: a unique identifier for the pod that wrote the
                         status
                       type: string
+                      x-kubernetes-preserve-unknown-fields: true
                     observedGeneration:
                       format: int64
                       type: integer
