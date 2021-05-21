@@ -42,10 +42,13 @@ func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target Mat
 		"match":             target.MatchSchema(),
 		"enforcementAction": {Type: "string"},
 	}
+
 	if templ.Spec.CRD.Spec.Validation != nil && templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema != nil {
 		internalSchema := *templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema.DeepCopy()
 		props["parameters"] = internalSchema
 	}
+
+	trueBool := true
 	schema := &apiextensions.JSONSchemaProps{
 		Type: "object",
 		Properties: map[string]apiextensions.JSONSchemaProps{
@@ -62,8 +65,12 @@ func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target Mat
 				Type:       "object",
 				Properties: props,
 			},
+			"status": {
+				XPreserveUnknownFields: &trueBool,
+			},
 		},
 	}
+
 	return schema, nil
 }
 
@@ -122,12 +129,14 @@ func (h *crdHelper) createCRD(
 			},
 		},
 	}
+
 	// Defaulting functions are not found in versionless CRD package
 	crdv1 := &apiextensionsv1.CustomResourceDefinition{}
 	if err := h.scheme.Convert(crd, crdv1, nil); err != nil {
 		return nil, err
 	}
 	h.scheme.Default(crdv1)
+
 	crd2 := &apiextensions.CustomResourceDefinition{}
 	if err := h.scheme.Convert(crdv1, crd2, nil); err != nil {
 		return nil, err
