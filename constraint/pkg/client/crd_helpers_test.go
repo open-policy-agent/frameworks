@@ -82,6 +82,11 @@ type testTargetHandler struct {
 
 func createTestTargetHandler(args ...targetHandlerArg) MatchSchemaProvider {
 	h := &testTargetHandler{}
+
+	// The default matchSchema is empty, and thus lacks type information
+	trueBool := true
+	h.matchSchema.XPreserveUnknownFields = &trueBool
+
 	for _, arg := range args {
 		arg(h)
 	}
@@ -99,7 +104,8 @@ type propMap map[string]apiextensions.JSONSchemaProps
 // prop currently expects 0 or 1 prop map. More is unsupported.
 func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
 	if len(pm) == 0 {
-		return apiextensions.JSONSchemaProps{}
+		trueBool := true
+		return apiextensions.JSONSchemaProps{XPreserveUnknownFields: &trueBool}
 	}
 	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1beta1"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -75,7 +75,7 @@ type crdHelper struct {
 
 func newCRDHelper() (*crdHelper, error) {
 	scheme := runtime.NewScheme()
-	if err := apiextensionsv1beta1.AddToScheme(scheme); err != nil {
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 	return &crdHelper{scheme: scheme}, nil
@@ -122,14 +122,14 @@ func (h *crdHelper) createCRD(
 			},
 		},
 	}
-	// Defaulting functions only exist for v1beta1
-	v1b1 := &apiextensionsv1beta1.CustomResourceDefinition{}
-	if err := h.scheme.Convert(crd, v1b1, nil); err != nil {
+	// Defaulting functions are not found in versionless CRD package
+	crdv1 := &apiextensionsv1.CustomResourceDefinition{}
+	if err := h.scheme.Convert(crd, crdv1, nil); err != nil {
 		return nil, err
 	}
-	h.scheme.Default(v1b1)
+	h.scheme.Default(crdv1)
 	crd2 := &apiextensions.CustomResourceDefinition{}
-	if err := h.scheme.Convert(v1b1, crd2, nil); err != nil {
+	if err := h.scheme.Convert(crdv1, crd2, nil); err != nil {
 		return nil, err
 	}
 	crd2.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraintGroup)
@@ -146,7 +146,7 @@ func (h *crdHelper) createCRD(
 
 // validateCRD calls the CRD package's validation on an internal representation of the CRD
 func (h *crdHelper) validateCRD(crd *apiextensions.CustomResourceDefinition) error {
-	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(crd, apiextensionsv1beta1.SchemeGroupVersion)
+	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(crd, apiextensionsv1.SchemeGroupVersion)
 	if len(errors) > 0 {
 		return errors.ToAggregate()
 	}

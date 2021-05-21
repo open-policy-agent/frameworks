@@ -58,7 +58,8 @@ matching_reviews_and_constraints[[r,c]] {r = data.r; c = data.c}`))
 }
 
 func (h *badHandler) MatchSchema() apiextensions.JSONSchemaProps {
-	return apiextensions.JSONSchemaProps{}
+	trueBool := true
+	return apiextensions.JSONSchemaProps{XPreserveUnknownFields: &trueBool}
 }
 
 func (h *badHandler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
@@ -370,6 +371,7 @@ some_rule[r] {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			r, err := c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
 				t.Errorf("err = %v; want nil", err)
@@ -377,6 +379,7 @@ some_rule[r] {
 			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
 			}
+
 			expectedCount := 0
 			expectedHandled := make(map[string]bool)
 			if !tt.ErrorExpected {
@@ -389,6 +392,7 @@ some_rule[r] {
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
 			}
+
 			cached, err := c.GetTemplate(context.Background(), tt.Template)
 			if err == nil && tt.ErrorExpected {
 				t.Error("retrieved template when error was expected")
