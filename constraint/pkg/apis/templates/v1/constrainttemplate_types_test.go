@@ -16,11 +16,16 @@ limitations under the License.
 package v1
 
 import (
+	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/onsi/gomega"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"golang.org/x/net/context"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -54,142 +59,74 @@ func TestStorageConstraintTemplate(t *testing.T) {
 	g.Expect(c.Get(context.TODO(), key, fetched)).To(gomega.HaveOccurred())
 }
 
-// func TestTypeConversion(t *testing.T) {
-// 	scheme := runtime.NewScheme()
-// 	if err := AddToScheme(scheme); err != nil {
-// 		t.Fatalf("Could not add to scheme: %v", err)
-// 	}
-// 	versioned := &ConstraintTemplate{
-// 		TypeMeta: metav1.TypeMeta{
-// 			Kind:       "ConstraintTemplate",
-// 			APIVersion: "templates.gatekeeper.sh/v1beta1",
-// 		},
-// 		ObjectMeta: metav1.ObjectMeta{
-// 			Name: "MustHaveMoreCats",
-// 		},
-// 		Spec: ConstraintTemplateSpec{
-// 			CRD: CRD{
-// 				Spec: CRDSpec{
-// 					Names: Names{
-// 						Kind:       "MustHaveMoreCats",
-// 						ShortNames: []string{"mhmc"},
-// 					},
-// 					Validation: &Validation{
-// 						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-// 							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-// 								"message": {
-// 									Type: "string",
-// 								},
-// 								"labels": {
-// 									Type: "array",
-// 									Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-// 										Schema: &apiextensionsv1beta1.JSONSchemaProps{
-// 											Type: "object",
-// 											Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-// 												"key":          {Type: "string"},
-// 												"allowedRegex": {Type: "string"},
-// 											},
-// 										},
-// 									},
-// 								},
-// 							},
-// 						},
-// 					},
-// 				},
-// 			},
-// 			Targets: []Target{
-// 				{
-// 					Target: "sometarget",
-// 					Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
-// 				},
-// 			},
-// 		},
-// 	}
-// 	versionedCopy := versioned.DeepCopy()
-// 	// Kind and API Version do not survive the conversion process
-// 	versionedCopy.Kind = ""
-// 	versionedCopy.APIVersion = ""
-//
-// 	unversioned := &templates.ConstraintTemplate{}
-// 	if err := scheme.Convert(versioned, unversioned, nil); err != nil {
-// 		t.Fatalf("Conversion error: %v", err)
-// 	}
-// 	recast := &ConstraintTemplate{}
-// 	if err := scheme.Convert(unversioned, recast, nil); err != nil {
-// 		t.Fatalf("Recast conversion error: %v", err)
-// 	}
-// }
+func TestTypeConversion(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatalf("Could not add to scheme: %v", err)
+	}
+	versioned := &ConstraintTemplate{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConstraintTemplate",
+			APIVersion: "templates.gatekeeper.sh/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "MustHaveMoreCats",
+		},
+		Spec: ConstraintTemplateSpec{
+			CRD: CRD{
+				Spec: CRDSpec{
+					Names: Names{
+						Kind:       "MustHaveMoreCats",
+						ShortNames: []string{"mhmc"},
+					},
+					Validation: &Validation{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
+							Properties: map[string]apiextensionsv1.JSONSchemaProps{
+								"message": {
+									Type: "string",
+								},
+								"labels": {
+									Type: "array",
+									Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+										Schema: &apiextensionsv1.JSONSchemaProps{
+											Type: "object",
+											Properties: map[string]apiextensionsv1.JSONSchemaProps{
+												"key":          {Type: "string"},
+												"allowedRegex": {Type: "string"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Targets: []Target{
+				{
+					Target: "sometarget",
+					Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+				},
+			},
+		},
+	}
+	versionedCopy := versioned.DeepCopy()
+	// Kind and API Version do not survive the conversion process
+	versionedCopy.Kind = ""
+	versionedCopy.APIVersion = ""
 
-// // function works, and also that it adds in the x-kubernetes-preserve-unknown-fields information
-// // that we require for v1 CRD support
-// func TestValidationVersionConversionAndTransformation(t *testing.T) {
-// 	trueBool := true
-// 	testCases := []struct {
-// 		name  string
-// 		v     *Validation
-// 		exp   *templates.Validation
-// 		error bool
-// 	}{
-// 		{
-// 			name: "Two deep properties",
-// 			v: &Validation{
-// 				OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-// 					Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-// 						"message": {
-// 							Type: "string",
-// 						},
-// 						"labels": {
-// 							Type: "array",
-// 							Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-// 								Schema: &apiextensionsv1beta1.JSONSchemaProps{
-// 									Type: "object",
-// 									Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
-// 										"key":          {Type: "string"},
-// 										"allowedRegex": {Type: "string"},
-// 									},
-// 								},
-// 							},
-// 						},
-// 					},
-// 				},
-// 			},
-// 			exp: &templates.Validation{
-// 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-// 					XPreserveUnknownFields: &trueBool,
-// 					Properties: map[string]apiextensions.JSONSchemaProps{
-// 						"message": {
-// 							Type: "string",
-// 						},
-// 						"labels": {
-// 							Type: "array",
-// 							Items: &apiextensions.JSONSchemaPropsOrArray{
-// 								Schema: &apiextensions.JSONSchemaProps{
-// 									Type:                   "object",
-// 									XPreserveUnknownFields: &trueBool,
-// 									Properties: map[string]apiextensions.JSONSchemaProps{
-// 										"key":          {Type: "string"},
-// 										"allowedRegex": {Type: "string"},
-// 									},
-// 								},
-// 							},
-// 						},
-// 					},
-// 				},
-// 			},
-// 			error: false,
-// 		},
-// 	}
-//
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			out := &templates.Validation{}
-// 			if err := Convert_v1beta1_Validation_To_templates_Validation(tc.v, out, nil); err != nil {
-// 				t.Fatalf("Conversion error: %v", err)
-// 			}
-//
-// 			if !reflect.DeepEqual(out, tc.exp) {
-// 				t.Fatalf("Conversion does not match expected result: %v", cmp.Diff(out, tc.exp))
-// 			}
-// 		})
-// 	}
-// }
+	unversioned := &templates.ConstraintTemplate{}
+	if err := scheme.Convert(versioned, unversioned, nil); err != nil {
+		t.Fatalf("Conversion error: %v", err)
+	}
+
+	recast := &ConstraintTemplate{}
+	if err := scheme.Convert(unversioned, recast, nil); err != nil {
+		t.Fatalf("Recast conversion error: %v", err)
+	}
+
+	if !reflect.DeepEqual(versionedCopy, recast) {
+		t.Fatalf("Unexpected template difference.  Diff: %v", cmp.Diff(versionedCopy, recast))
+	}
+}
