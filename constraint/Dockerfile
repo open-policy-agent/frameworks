@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.15 as builder
+FROM golang:1.16 as builder
 
 RUN apt-get update &&\
     apt-get install -y apt-utils make
@@ -21,15 +21,8 @@ RUN curl -L -O "https://github.com/kubernetes-sigs/kustomize/releases/download/v
     mv kustomize_${version}_linux_${arch} /usr/bin/kustomize &&\
     chmod u+x /usr/bin/kustomize
 
-# Install OPA
-WORKDIR /usr/bin
-RUN curl -L -o opa https://github.com/open-policy-agent/opa/releases/download/v0.10.5/opa_linux_amd64 &&\
-    chmod 755 opa
-
 # Copy in the go src
 WORKDIR /go/src/github.com/open-policy-agent/frameworks/constraint
 COPY .    .
-
-ENV GO111MODULE=off
 
 ENTRYPOINT ["make", "docker-internal-test"]
