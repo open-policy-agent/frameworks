@@ -52,6 +52,9 @@ spec:
                         type: object
                       validation:
                         properties:
+                          legacySchema:
+                            default: false
+                            type: boolean
                           openAPIV3Schema:
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
@@ -150,6 +153,9 @@ spec:
                         type: object
                       validation:
                         properties:
+                          legacySchema:
+                            default: true
+                            type: boolean
                           openAPIV3Schema:
                             type: object
                             x-kubernetes-preserve-unknown-fields: true
@@ -248,6 +254,9 @@ spec:
                         type: object
                       validation:
                         properties:
+                          legacySchema:
+                            default: true
+                            type: boolean
                           openAPIV3Schema:
                             type: object
                             x-kubernetes-preserve-unknown-fields: true

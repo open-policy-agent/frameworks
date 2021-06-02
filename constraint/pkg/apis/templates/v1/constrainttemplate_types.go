@@ -48,6 +48,8 @@ type Validation struct {
 	// +kubebuilder:validation:Type=object
 	// +kubebuilder:pruning:PreserveUnknownFields
 	OpenAPIV3Schema *apiextensionsv1.JSONSchemaProps `json:"openAPIV3Schema,omitempty"`
+	// +kubebuilder:default=false
+	LegacySchema bool `json:"legacySchema,omitempty"`
 }
 
 type Target struct {
