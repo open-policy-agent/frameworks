@@ -24,7 +24,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"golang.org/x/net/context"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -82,17 +82,17 @@ func TestTypeConversion(t *testing.T) {
 						ShortNames: []string{"mhmc"},
 					},
 					Validation: &Validation{
-						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Properties: map[string]apiextensionsv1.JSONSchemaProps{
 								"message": {
 									Type: "string",
 								},
 								"labels": {
 									Type: "array",
-									Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-										Schema: &apiextensionsv1beta1.JSONSchemaProps{
+									Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+										Schema: &apiextensionsv1.JSONSchemaProps{
 											Type: "object",
-											Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+											Properties: map[string]apiextensionsv1.JSONSchemaProps{
 												"key":          {Type: "string"},
 												"allowedRegex": {Type: "string"},
 											},
@@ -141,17 +141,17 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties",
 			v: &Validation{
-				OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-					Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{
 						"message": {
 							Type: "string",
 						},
 						"labels": {
 							Type: "array",
-							Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-								Schema: &apiextensionsv1beta1.JSONSchemaProps{
+							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+								Schema: &apiextensionsv1.JSONSchemaProps{
 									Type: "object",
-									Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
 										"key":          {Type: "string"},
 										"allowedRegex": {Type: "string"},
 									},

@@ -20,62 +20,62 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 func TestAddPreserveUnknownFields(t *testing.T) {
 	trueBool := true
 	testCases := []struct {
 		name  string
-		v     *apiextensionsv1beta1.JSONSchemaProps
-		exp   *apiextensionsv1beta1.JSONSchemaProps
+		v     *apiextensionsv1.JSONSchemaProps
+		exp   *apiextensionsv1.JSONSchemaProps
 		error bool
 	}{
 		{
 			name: "no information",
-			v:    &apiextensionsv1beta1.JSONSchemaProps{},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			v:    &apiextensionsv1.JSONSchemaProps{},
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
 			},
 		},
 		{
 			name: "nil properties",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Properties: nil,
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
 				Properties:             nil,
 			},
 		},
 		{
 			name: "x-kubernetes-preserve-unknown-fields is present already and true",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
 			},
 		},
 		{
 			name: "type object with no Properties",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type: "object",
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
 				Type:                   "object",
 			},
 		},
 		{
 			name: "type array with no Items",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type: "array",
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				Type: "array",
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						XPreserveUnknownFields: &trueBool,
 					},
 				},
@@ -83,14 +83,14 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "type array with Items but no schemas",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type:  "array",
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{},
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				Type: "array",
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						XPreserveUnknownFields: &trueBool,
 					},
 				},
@@ -98,14 +98,14 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "map with empty JSONSchemaProps value",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						XPreserveUnknownFields: &trueBool,
 					},
@@ -114,24 +114,24 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Items with no type: array",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "object",
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"key":          {Type: "string"},
 							"allowedRegex": {Type: "string"},
 						},
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						Type:                   "object",
 						XPreserveUnknownFields: &trueBool,
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"key":          {Type: "string"},
 							"allowedRegex": {Type: "string"},
 						},
@@ -141,12 +141,12 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Recuse through doubly-nested properties",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type: "object",
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type: "object",
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type: "string",
 							},
@@ -154,14 +154,14 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				Type:                   "object",
 				XPreserveUnknownFields: &trueBool,
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type:                   "object",
 						XPreserveUnknownFields: &trueBool,
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type: "string",
 							},
@@ -172,15 +172,15 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Recurse through triply-nested properties",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type: "object",
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type: "object",
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type: "object",
-								Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+								Properties: map[string]apiextensionsv1.JSONSchemaProps{
 									"burrito": {
 										Type: "string",
 									},
@@ -190,18 +190,18 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				Type:                   "object",
 				XPreserveUnknownFields: &trueBool,
-				Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type:                   "object",
 						XPreserveUnknownFields: &trueBool,
-						Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type:                   "object",
 								XPreserveUnknownFields: &trueBool,
-								Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+								Properties: map[string]apiextensionsv1.JSONSchemaProps{
 									"burrito": {
 										Type: "string",
 									},
@@ -214,24 +214,24 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Recurse through doubly-nested Items with no type information",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
-						Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-							Schema: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{
 								Type: "string",
 							},
 						},
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						XPreserveUnknownFields: &trueBool,
-						Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-							Schema: &apiextensionsv1beta1.JSONSchemaProps{
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{
 								Type: "string",
 							},
 						},
@@ -241,26 +241,26 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Recurse through doubly-nested Items with array type",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
+			v: &apiextensionsv1.JSONSchemaProps{
 				Type: "array",
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "array",
-						Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-							Schema: &apiextensionsv1beta1.JSONSchemaProps{
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{
 								Type: "string",
 							},
 						},
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				Type: "array",
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						Type: "array",
-						Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-							Schema: &apiextensionsv1beta1.JSONSchemaProps{
+						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionsv1.JSONSchemaProps{
 								Type: "string",
 							},
 						},
@@ -270,21 +270,21 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "Recurse through doubly-nested AdditionalProperties",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
-				AdditionalProperties: &apiextensionsv1beta1.JSONSchemaPropsOrBool{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
-						AdditionalProperties: &apiextensionsv1beta1.JSONSchemaPropsOrBool{
+			v: &apiextensionsv1.JSONSchemaProps{
+				AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
+					Schema: &apiextensionsv1.JSONSchemaProps{
+						AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
 							Allows: false,
 						},
 					},
 				},
 			},
-			exp: &apiextensionsv1beta1.JSONSchemaProps{
+			exp: &apiextensionsv1.JSONSchemaProps{
 				XPreserveUnknownFields: &trueBool,
-				AdditionalProperties: &apiextensionsv1beta1.JSONSchemaPropsOrBool{
-					Schema: &apiextensionsv1beta1.JSONSchemaProps{
+				AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
+					Schema: &apiextensionsv1.JSONSchemaProps{
 						XPreserveUnknownFields: &trueBool,
-						AdditionalProperties: &apiextensionsv1beta1.JSONSchemaPropsOrBool{
+						AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
 							Allows: false,
 						},
 					},
@@ -293,9 +293,9 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 		},
 		{
 			name: "JSONSchemas not supported",
-			v: &apiextensionsv1beta1.JSONSchemaProps{
-				Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-					JSONSchemas: []apiextensionsv1beta1.JSONSchemaProps{},
+			v: &apiextensionsv1.JSONSchemaProps{
+				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+					JSONSchemas: []apiextensionsv1.JSONSchemaProps{},
 				},
 			},
 			error: true,
