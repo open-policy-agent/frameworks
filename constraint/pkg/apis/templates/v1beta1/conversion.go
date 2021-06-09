@@ -26,8 +26,11 @@ import (
 func Convert_v1beta1_Validation_To_templates_Validation(in *Validation, out *coreTemplates.Validation, s conversion.Scope) error { //nolint:golint
 	if in.OpenAPIV3Schema != nil {
 		inSchemaCopy := in.OpenAPIV3Schema.DeepCopy()
-		if err := apisTemplates.AddPreserveUnknownFields(inSchemaCopy); err != nil {
-			return err
+
+		if in.LegacySchema {
+			if err := apisTemplates.AddPreserveUnknownFields(inSchemaCopy); err != nil {
+				return err
+			}
 		}
 
 		out.OpenAPIV3Schema = new(apiextensions.JSONSchemaProps)

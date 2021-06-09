@@ -141,6 +141,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties",
 			v: &Validation{
+				LegacySchema: true,
 				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 					Properties: map[string]apiextensionsv1.JSONSchemaProps{
 						"message": {

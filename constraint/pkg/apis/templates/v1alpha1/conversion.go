@@ -25,13 +25,16 @@ import (
 
 func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *coreTemplates.Validation, s conversion.Scope) error { //nolint:golint
 	if in.OpenAPIV3Schema != nil {
-		inSchema := in.OpenAPIV3Schema.DeepCopy()
-		if err := apisTemplates.AddPreserveUnknownFields(inSchema); err != nil {
-			return err
+		inSchemaCopy := in.OpenAPIV3Schema.DeepCopy()
+
+		if in.LegacySchema {
+			if err := apisTemplates.AddPreserveUnknownFields(inSchemaCopy); err != nil {
+				return err
+			}
 		}
 
 		out.OpenAPIV3Schema = new(apiextensions.JSONSchemaProps)
-		if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(inSchema, out.OpenAPIV3Schema, s); err != nil {
+		if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(inSchemaCopy, out.OpenAPIV3Schema, s); err != nil {
 			return err
 		}
 
