@@ -60,4 +60,4 @@ generate:
 		--input-dirs "./pkg/apis/templates/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
-		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
+		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
