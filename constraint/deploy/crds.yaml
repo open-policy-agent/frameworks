@@ -5,13 +5,13 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.5.0
   name: constrainttemplates.templates.gatekeeper.sh
 spec:
-  PreserveUnknownFields: false
   group: templates.gatekeeper.sh
   names:
     kind: ConstraintTemplate
     listKind: ConstraintTemplateList
     plural: constrainttemplates
     singular: constrainttemplate
+  preserveUnknownFields: false
   scope: Cluster
   versions:
   - name: v1alpha1

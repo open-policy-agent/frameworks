@@ -8,4 +8,4 @@ patchesStrategicMerge:
   metadata:
     name: constrainttemplates.templates.gatekeeper.sh
   spec:
-    PreserveUnknownFields: false
+    preserveUnknownFields: false
