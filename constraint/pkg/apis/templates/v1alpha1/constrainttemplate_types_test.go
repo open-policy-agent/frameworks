@@ -133,10 +133,9 @@ func TestTypeConversion(t *testing.T) {
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	trueBool := true
 	testCases := []struct {
-		name  string
-		v     *Validation
-		exp   *templates.Validation
-		error bool
+		name string
+		v    *Validation
+		exp  *templates.Validation
 	}{
 		{
 			name: "Two deep properties, LegacySchema=true",
@@ -185,7 +184,6 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 					},
 				},
 			},
-			error: false,
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
@@ -232,7 +230,6 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 					},
 				},
 			},
-			error: false,
 		},
 	}
 
