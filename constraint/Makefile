@@ -40,7 +40,7 @@ manifests:
 		crd:allowDangerousTypes="true" \
 		paths="./pkg/..." \
 		output:crd:artifacts:config=config/crds
-	cp config/crds/* deploy/crds.yaml
+	kustomize build config/crds --output=deploy/crds.yaml
 
 lint:
 	golangci-lint -v run ./... --timeout 5m
