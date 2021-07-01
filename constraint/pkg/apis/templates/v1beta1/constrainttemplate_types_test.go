@@ -132,14 +132,14 @@ func TestTypeConversion(t *testing.T) {
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	trueBool := true
 	testCases := []struct {
-		name  string
-		v     *Validation
-		exp   *templates.Validation
-		error bool
+		name string
+		v    *Validation
+		exp  *templates.Validation
 	}{
 		{
-			name: "Two deep properties",
+			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
+				LegacySchema: true,
 				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 					Properties: map[string]apiextensionsv1.JSONSchemaProps{
 						"message": {
@@ -183,7 +183,52 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 					},
 				},
 			},
-			error: false,
+		},
+		{
+			name: "Two deep properties, LegacySchema=false",
+			v: &Validation{
+				LegacySchema: false,
+				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+					Properties: map[string]apiextensionsv1.JSONSchemaProps{
+						"message": {
+							Type: "string",
+						},
+						"labels": {
+							Type: "array",
+							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+								Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"key":          {Type: "string"},
+										"allowedRegex": {Type: "string"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"message": {
+							Type: "string",
+						},
+						"labels": {
+							Type: "array",
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensions.JSONSchemaProps{
+										"key":          {Type: "string"},
+										"allowedRegex": {Type: "string"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 

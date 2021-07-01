@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
 	"reflect"
@@ -65,11 +65,10 @@ func TestTypeConversion(t *testing.T) {
 	if err := AddToScheme(scheme); err != nil {
 		t.Fatalf("Could not add to scheme: %v", err)
 	}
-
 	versioned := &ConstraintTemplate{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConstraintTemplate",
-			APIVersion: "templates.gatekeeper.sh/v1alpha1",
+			APIVersion: "templates.gatekeeper.sh/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "MustHaveMoreCats",
@@ -83,6 +82,7 @@ func TestTypeConversion(t *testing.T) {
 					},
 					Validation: &Validation{
 						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Type: "object",
 							Properties: map[string]apiextensionsv1.JSONSchemaProps{
 								"message": {
 									Type: "string",
@@ -121,9 +121,14 @@ func TestTypeConversion(t *testing.T) {
 	if err := scheme.Convert(versioned, unversioned, nil); err != nil {
 		t.Fatalf("Conversion error: %v", err)
 	}
+
 	recast := &ConstraintTemplate{}
 	if err := scheme.Convert(unversioned, recast, nil); err != nil {
-		t.Fatalf("Conversion error: %v", err)
+		t.Fatalf("Recast conversion error: %v", err)
+	}
+
+	if !reflect.DeepEqual(versionedCopy, recast) {
+		t.Fatalf("Unexpected template difference.  Diff: %v", cmp.Diff(versionedCopy, recast))
 	}
 }
 
@@ -236,12 +241,12 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			out := &templates.Validation{}
-			if err := Convert_v1alpha1_Validation_To_templates_Validation(tc.v, out, nil); err != nil {
+			if err := Convert_v1_Validation_To_templates_Validation(tc.v, out, nil); err != nil {
 				t.Fatalf("Conversion error: %v", err)
 			}
 
 			if !reflect.DeepEqual(out, tc.exp) {
-				t.Error(cmp.Diff(out, tc.exp))
+				t.Fatalf("Conversion does not match expected result: %v", cmp.Diff(out, tc.exp))
 			}
 		})
 	}

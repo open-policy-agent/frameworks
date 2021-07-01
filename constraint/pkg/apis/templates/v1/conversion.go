@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
 	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/conversion"
 )
 
-func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *coreTemplates.Validation, s conversion.Scope) error { //nolint:golint
+func Convert_v1_Validation_To_templates_Validation(in *Validation, out *coreTemplates.Validation, s conversion.Scope) error { //nolint:golint
 	if in.OpenAPIV3Schema != nil {
 		inSchemaCopy := in.OpenAPIV3Schema.DeepCopy()
 
