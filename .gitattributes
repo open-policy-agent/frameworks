@@ -1,0 +1,2 @@
+constraint/vendor/github.com/bytecodealliance/wasmtime-go/build/linux-x86_64/libwasmtime.a filter=lfs diff=lfs merge=lfs -text
+constraint/vendor/github.com/bytecodealliance/wasmtime-go/build/macos-x86_64/libwasmtime.a filter=lfs diff=lfs merge=lfs -text
