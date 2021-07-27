@@ -61,3 +61,19 @@ generate:
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
 		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+
+CRD_SOURCE_FILE := deploy/crds.yaml
+FILE_STUB := "package templates\
+\n\
+\n// This file is generated from $(CRD_SOURCE_FILE) via \"make constraint-template-string-constant\"\
+\n// DO NOT MODIFY THIS FILE DIRECTLY!\
+\n\
+\nconst constraintTemplateCRDYaml = \`"
+
+YAML_CONSTANT_GOLANG_FILE := ./pkg/apis/templates/yaml_constant.go
+
+constraint-template-string-constant: manifests
+	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
+	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'cat deploy/crds.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
