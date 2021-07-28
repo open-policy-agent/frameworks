@@ -1,4 +1,4 @@
-package v1alpha1
+package v1
 
 import (
 	"testing"
@@ -64,7 +64,7 @@ func TestSetDefaults_ConstraintTemplate(t *testing.T) {
 
 	scheme.Default(ct)
 
-	if !ct.Spec.CRD.Spec.Validation.LegacySchema {
-		t.Errorf("legacySchema: Got false, wanted true")
+	if ct.Spec.CRD.Spec.Validation.LegacySchema {
+		t.Errorf("legacySchema: Got true, wanted false")
 	}
 }

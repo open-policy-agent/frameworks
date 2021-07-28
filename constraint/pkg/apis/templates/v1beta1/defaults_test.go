@@ -5,9 +5,14 @@ import (
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func TestSetDefaults_ConstraintTemplate(t *testing.T) {
+	// The scheme is responsible for defaulting
+	scheme := runtime.NewScheme()
+	AddToScheme(scheme)
+
 	// Create a Constraint Template with legacySchema unset
 	ct := &ConstraintTemplate{
 		TypeMeta: metav1.TypeMeta{
@@ -57,7 +62,7 @@ func TestSetDefaults_ConstraintTemplate(t *testing.T) {
 		},
 	}
 
-	SetDefaults_ConstraintTemplate(ct)
+	scheme.Default(ct)
 
 	if !ct.Spec.CRD.Spec.Validation.LegacySchema {
 		t.Errorf("legacySchema: Got false, wanted true")

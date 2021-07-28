@@ -37,7 +37,8 @@ func TestStorageConstraintTemplate(t *testing.T) {
 	created := &ConstraintTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
-		}}
+		},
+	}
 	g := gomega.NewGomegaWithT(t)
 
 	// Test Create
@@ -167,6 +168,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				},
 			},
 			exp: &templates.Validation{
+				LegacySchema: true,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					XPreserveUnknownFields: &trueBool,
 					Properties: map[string]apiextensions.JSONSchemaProps{
@@ -215,6 +217,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				},
 			},
 			exp: &templates.Validation{
+				LegacySchema: false,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					Properties: map[string]apiextensions.JSONSchemaProps{
 						"message": {
