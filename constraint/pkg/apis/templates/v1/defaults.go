@@ -1,0 +1,26 @@
+package v1
+
+import (
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
+	"k8s.io/apimachinery/pkg/runtime"
+)
+
+const version = "v1"
+
+func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) {
+	// turn the CT into an unstructured
+	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		// JULIAN - what do I do here?  These functions don't return errors
+		panic("Failed to convert v1 ConstraintTemplate to Unstructured")
+	}
+
+	defaulting.Default(un, templates.ConstraintTemplateSchemas[version])
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(un, obj)
+	if err != nil {
+		// JULIAN - What do I do here?
+		panic("Failed to convert Unstructured to v1 ConstraintTemplate")
+	}
+}

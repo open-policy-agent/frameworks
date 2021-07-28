@@ -3,15 +3,20 @@ package templates
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 )
 
-var constraintTemplateCRD *apiextensionsv1.CustomResourceDefinition
+var ConstraintTemplateSchemas map[string]*schema.Structural
 
 func init() {
+	ConstraintTemplateSchemas = make(map[string]*schema.Structural)
+
 	// Ingest the constraint template CRD for use in defaulting functions
 	crdJSON, err := yaml.YAMLToJSONStrict([]byte(constraintTemplateCRDYaml))
 	if err != nil {
@@ -20,22 +25,36 @@ func init() {
 
 	unCRD := unstructured.Unstructured{}
 	unCRD.UnmarshalJSON(crdJSON)
-
-	constraintTemplateCRD = &apiextensionsv1.CustomResourceDefinition{}
+	constraintTemplateCRD := &apiextensionsv1.CustomResourceDefinition{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unCRD.Object, constraintTemplateCRD)
 	if err != nil {
 		panic("Failed to convert unstructured CRD to apiextensions.CustomResourceDefinition{}")
 	}
-}
 
-func getVersionSchema(crd *apiextensionsv1.CustomResourceDefinition, version string) (*apiextensionsv1.JSONSchemaProps, error) {
-	for _, crdVersion := range crd.Spec.Versions {
-		if crdVersion.Name != version {
-			continue
-		}
-
-		return crdVersion.Schema.OpenAPIV3Schema, nil
+	// NewStructural requires apiextensions.JSONSchemaProps, where ConstraintTemplate uses
+	// apiextensionsv1.JSONSchemaProps.  Set up scheme for conversion.
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := apiextensions.AddToScheme(scheme); err != nil {
+		panic(err)
 	}
 
-	return nil, fmt.Errorf("CRD does not contain version '%v'", version)
+	// Fill version map with Structural types derived from ConstraintTemplate versions
+	for _, crdVersion := range constraintTemplateCRD.Spec.Versions {
+		versionedSchemaCopy := crdVersion.Schema.OpenAPIV3Schema.DeepCopy()
+		versionlessSchema := &apiextensions.JSONSchemaProps{}
+		err := scheme.Convert(versionedSchemaCopy, versionlessSchema, nil)
+		if err != nil {
+			panic(errors.Wrap(err, "Failed to convert JSONSchemaProps"))
+		}
+
+		structural, err := schema.NewStructural(versionlessSchema)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to create Structural for ConstraintTemplate version %v", crdVersion.Name))
+		}
+
+		ConstraintTemplateSchemas[crdVersion.Name] = structural
+	}
 }
