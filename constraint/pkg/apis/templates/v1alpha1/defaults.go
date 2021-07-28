@@ -6,7 +6,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const version = "v1beta1"
+const version = "v1alpha1"
+
+func addDefaultingFuncs(scheme *runtime.Scheme) error {
+	return RegisterDefaults(scheme)
+}
 
 func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) {
 	// turn the CT into an unstructured

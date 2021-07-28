@@ -8,6 +8,10 @@ import (
 
 const version = "v1"
 
+func addDefaultingFuncs(scheme *runtime.Scheme) error {
+	return RegisterDefaults(scheme)
+}
+
 func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) {
 	// turn the CT into an unstructured
 	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)

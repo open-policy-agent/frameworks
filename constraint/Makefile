@@ -32,7 +32,9 @@ install: manifests
 # Install the generation dependencies on the local machine
 gen-dependencies:
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.5.0
+	# go install k8s.io/code-generator/cmd/conversion-gen@v0.21.3
 	go install k8s.io/code-generator/cmd/conversion-gen@v0.20.2
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.21.3
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
@@ -47,7 +49,7 @@ lint:
 
 # Generate code
 # Not working?  Try running `make gen-dependencies`
-generate:
+generate: generate-defaults
 	controller-gen \
 		object:headerFile=./hack/boilerplate.go.txt \
 		paths="./pkg/..."
@@ -77,3 +79,9 @@ constraint-template-string-constant: manifests
 	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
 	bash -c 'cat deploy/crds.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
 	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
+
+generate-defaults: constraint-template-string-constant
+	defaulter-gen \
+		--input-dirs "./pkg/apis/templates/..." \
+		--go-header-file=./hack/boilerplate.go.txt \
+		--output-file-base=zz_generated.defaults
