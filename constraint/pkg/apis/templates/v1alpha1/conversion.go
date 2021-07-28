@@ -41,5 +41,7 @@ func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *co
 	} else {
 		out.OpenAPIV3Schema = nil
 	}
+
+	out.LegacySchema = in.LegacySchema
 	return nil
 }
