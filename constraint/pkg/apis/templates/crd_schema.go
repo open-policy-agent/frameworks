@@ -1,6 +1,8 @@
 package templates
 
 import (
+	"fmt"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,4 +26,16 @@ func init() {
 	if err != nil {
 		panic("Failed to convert unstructured CRD to apiextensions.CustomResourceDefinition{}")
 	}
+}
+
+func getVersionSchema(crd *apiextensionsv1.CustomResourceDefinition, version string) (*apiextensionsv1.JSONSchemaProps, error) {
+	for _, crdVersion := range crd.Spec.Versions {
+		if crdVersion.Name != version {
+			continue
+		}
+
+		return crdVersion.Schema.OpenAPIV3Schema, nil
+	}
+
+	return nil, fmt.Errorf("CRD does not contain version '%v'", version)
 }
