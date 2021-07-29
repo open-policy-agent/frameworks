@@ -20,7 +20,7 @@ func init() {
 	// Ingest the constraint template CRD for use in defaulting functions
 	crdJSON, err := yaml.YAMLToJSONStrict([]byte(constraintTemplateCRDYaml))
 	if err != nil {
-		panic("Failed to convert Constraint Template yaml to JSON")
+		panic(errors.Wrap(err, "Failed to convert Constraint Template yaml to JSON"))
 	}
 
 	unCRD := unstructured.Unstructured{}
@@ -28,7 +28,7 @@ func init() {
 	constraintTemplateCRD := &apiextensionsv1.CustomResourceDefinition{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unCRD.Object, constraintTemplateCRD)
 	if err != nil {
-		panic("Failed to convert unstructured CRD to apiextensions.CustomResourceDefinition{}")
+		panic(errors.Wrap(err, "Failed to convert unstructured CRD to apiextensions.CustomResourceDefinition{}"))
 	}
 
 	// NewStructural requires apiextensions.JSONSchemaProps, where ConstraintTemplate uses
@@ -52,7 +52,7 @@ func init() {
 
 		structural, err := schema.NewStructural(versionlessSchema)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to create Structural for ConstraintTemplate version %v", crdVersion.Name))
+			panic(errors.Wrap(err, fmt.Sprintf("Failed to create Structural for ConstraintTemplate version %v", crdVersion.Name)))
 		}
 
 		ConstraintTemplateSchemas[crdVersion.Name] = structural
