@@ -8,10 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func TestSetDefaults_ConstraintTemplate(t *testing.T) {
+func TestSetDefaultsConstraintTemplate(t *testing.T) {
 	// The scheme is responsible for defaulting
 	scheme := runtime.NewScheme()
-	AddToScheme(scheme)
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a Constraint Template with legacySchema unset
 	ct := &ConstraintTemplate{

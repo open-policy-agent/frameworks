@@ -12,7 +12,7 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) {
+func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) { //nolint:golint
 	// turn the CT into an unstructured
 	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {

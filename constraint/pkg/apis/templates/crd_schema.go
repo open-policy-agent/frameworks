@@ -24,7 +24,9 @@ func init() {
 	}
 
 	unCRD := unstructured.Unstructured{}
-	unCRD.UnmarshalJSON(crdJSON)
+	if err := unCRD.UnmarshalJSON(crdJSON); err != nil {
+		panic(errors.Wrap(err, "Failed to unmarshal JSON into unstructured"))
+	}
 	constraintTemplateCRD := &apiextensionsv1.CustomResourceDefinition{}
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unCRD.Object, constraintTemplateCRD)
 	if err != nil {
