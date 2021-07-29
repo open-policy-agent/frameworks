@@ -16,7 +16,6 @@ func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) { //nolint:golint
 	// turn the CT into an unstructured
 	un, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
 	if err != nil {
-		// JULIAN - what do I do here?  These functions don't return errors
 		panic("Failed to convert v1 ConstraintTemplate to Unstructured")
 	}
 
@@ -24,7 +23,6 @@ func SetDefaults_ConstraintTemplate(obj *ConstraintTemplate) { //nolint:golint
 
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(un, obj)
 	if err != nil {
-		// JULIAN - What do I do here?
 		panic("Failed to convert Unstructured to v1 ConstraintTemplate")
 	}
 }
