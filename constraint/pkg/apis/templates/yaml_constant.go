@@ -1,8 +1,8 @@
-package templates 
- 
-// This file is generated from deploy/crds.yaml via "make constraint-template-string-constant" 
-// DO NOT MODIFY THIS FILE DIRECTLY! 
- 
+package templates
+
+// This file is generated from deploy/crds.yaml via "make constraint-template-string-constant"
+// DO NOT MODIFY THIS FILE DIRECTLY!
+
 const constraintTemplateCRDYaml = `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
