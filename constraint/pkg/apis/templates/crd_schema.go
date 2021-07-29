@@ -43,9 +43,8 @@ func init() {
 
 	// Fill version map with Structural types derived from ConstraintTemplate versions
 	for _, crdVersion := range constraintTemplateCRD.Spec.Versions {
-		versionedSchemaCopy := crdVersion.Schema.OpenAPIV3Schema.DeepCopy()
 		versionlessSchema := &apiextensions.JSONSchemaProps{}
-		err := scheme.Convert(versionedSchemaCopy, versionlessSchema, nil)
+		err := scheme.Convert(crdVersion.Schema.OpenAPIV3Schema, versionlessSchema, nil)
 		if err != nil {
 			panic(errors.Wrap(err, "Failed to convert JSONSchemaProps"))
 		}
