@@ -131,6 +131,12 @@ func TestTypeConversion(t *testing.T) {
 // function works, and also that it adds in the x-kubernetes-preserve-unknown-fields information
 // that we require for v1 CRD support
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
+	// The scheme is responsible for defaulting
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
 	trueBool := true
 	falseBool := false
 	testCases := []struct {
@@ -174,7 +180,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			out := &templates.Validation{}
-			if err := Convert_v1beta1_Validation_To_templates_Validation(tc.v, out, nil); err != nil {
+			if err := scheme.Convert(tc.v, out, nil); err != nil {
 				t.Fatalf("Conversion error: %v", err)
 			}
 
