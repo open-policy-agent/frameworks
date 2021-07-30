@@ -48,7 +48,7 @@ type Names struct {
 type Validation struct {
 	// +kubebuilder:validation:Schemaless
 	OpenAPIV3Schema *apiextensions.JSONSchemaProps `json:"openAPIV3Schema,omitempty"`
-	LegacySchema    bool                           `json:"legacySchema,omitempty"`
+	LegacySchema    *bool                          `json:"legacySchema,omitempty"`
 }
 
 type Target struct {

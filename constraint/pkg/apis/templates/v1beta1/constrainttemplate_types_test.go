@@ -132,6 +132,7 @@ func TestTypeConversion(t *testing.T) {
 // that we require for v1 CRD support
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	trueBool := true
+	falseBool := false
 	testCases := []struct {
 		name string
 		v    *Validation
@@ -140,7 +141,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema: true,
+				LegacySchema: &trueBool,
 				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 					Properties: map[string]apiextensionsv1.JSONSchemaProps{
 						"message": {
@@ -162,7 +163,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				},
 			},
 			exp: &templates.Validation{
-				LegacySchema: true,
+				LegacySchema: &trueBool,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					XPreserveUnknownFields: &trueBool,
 					Properties: map[string]apiextensions.JSONSchemaProps{
@@ -189,7 +190,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema: false,
+				LegacySchema: &falseBool,
 				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
 					Properties: map[string]apiextensionsv1.JSONSchemaProps{
 						"message": {
@@ -211,7 +212,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				},
 			},
 			exp: &templates.Validation{
-				LegacySchema: false,
+				LegacySchema: &falseBool,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					Properties: map[string]apiextensions.JSONSchemaProps{
 						"message": {

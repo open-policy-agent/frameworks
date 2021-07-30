@@ -27,7 +27,7 @@ func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *co
 	if in.OpenAPIV3Schema != nil {
 		inSchemaCopy := in.OpenAPIV3Schema.DeepCopy()
 
-		if in.LegacySchema {
+		if in.LegacySchema != nil && *in.LegacySchema {
 			if err := apisTemplates.AddPreserveUnknownFields(inSchemaCopy); err != nil {
 				return err
 			}
