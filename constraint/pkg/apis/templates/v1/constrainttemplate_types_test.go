@@ -21,9 +21,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/onsi/gomega"
+	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"golang.org/x/net/context"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -147,97 +147,23 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema: &trueBool,
-				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
-								Schema: &apiextensionsv1.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensionsv1.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &trueBool,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
 			},
 			exp: &templates.Validation{
-				LegacySchema: &trueBool,
-				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					XPreserveUnknownFields: &trueBool,
-					Properties: map[string]apiextensions.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensions.JSONSchemaPropsOrArray{
-								Schema: &apiextensions.JSONSchemaProps{
-									Type:                   "object",
-									XPreserveUnknownFields: &trueBool,
-									Properties: map[string]apiextensions.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &trueBool,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchemaWithXPreserve,
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema: &falseBool,
-				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
-								Schema: &apiextensionsv1.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensionsv1.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &falseBool,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
 			},
 			exp: &templates.Validation{
-				LegacySchema: &falseBool,
-				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					Properties: map[string]apiextensions.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensions.JSONSchemaPropsOrArray{
-								Schema: &apiextensions.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensions.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &falseBool,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema,
 			},
 		},
 	}
