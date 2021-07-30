@@ -1,13 +1,13 @@
 package templates
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 )
@@ -23,18 +23,11 @@ func init() {
 		panic(errors.Wrap(err, "Failed to convert Constraint Template yaml to JSON"))
 	}
 
-	unCRD := unstructured.Unstructured{}
-	if err := unCRD.UnmarshalJSON(crdJSON); err != nil {
-		panic(errors.Wrap(err, "Failed to unmarshal JSON into unstructured"))
-	}
 	constraintTemplateCRD := &apiextensionsv1.CustomResourceDefinition{}
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unCRD.Object, constraintTemplateCRD)
-	if err != nil {
-		panic(errors.Wrap(err, "Failed to convert unstructured CRD to apiextensions.CustomResourceDefinition{}"))
+	if err := json.Unmarshal(crdJSON, constraintTemplateCRD); err != nil {
+		panic(errors.Wrap(err, "Failed to unmarshal JSON into CT CRD"))
 	}
 
-	// NewStructural requires apiextensions.JSONSchemaProps, where ConstraintTemplate uses
-	// apiextensionsv1.JSONSchemaProps.  Set up scheme for conversion.
 	scheme := runtime.NewScheme()
 	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
 		panic(err)
