@@ -166,6 +166,15 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				OpenAPIV3Schema: apisTemplates.VersionlessSchema,
 			},
 		},
+		{
+			name: "Two deep properties, LegacySchema=nil",
+			v: &Validation{
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
