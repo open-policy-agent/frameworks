@@ -186,6 +186,17 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 			},
 			error: false,
 		},
+		{
+			name: "Nil properties",
+			v: &Validation{
+				OpenAPIV3Schema: nil,
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					XPreserveUnknownFields: &trueBool,
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -199,5 +210,23 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				t.Error(cmp.Diff(out, tc.exp))
 			}
 		})
+	}
+}
+
+func TestEmptyConversion(t *testing.T) {
+	trueBool := true
+	expected := &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			XPreserveUnknownFields: &trueBool,
+		},
+	}
+	in := &ConstraintTemplate{}
+	out := &templates.ConstraintTemplate{}
+	if err := Convert_v1alpha1_ConstraintTemplate_To_templates_ConstraintTemplate(in, out, nil); err != nil {
+		t.Fatalf("Conversion error: %v", err)
+	}
+
+	if !reflect.DeepEqual(out.Spec.CRD.Spec.Validation, expected) {
+		t.Fatalf("Conversion does not match expected result: %v", cmp.Diff(out, expected))
 	}
 }
