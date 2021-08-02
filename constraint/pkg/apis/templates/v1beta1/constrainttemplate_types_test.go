@@ -230,6 +230,28 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Nil properties, LegacySchema=true",
+			v: &Validation{
+				LegacySchema:    true,
+				OpenAPIV3Schema: nil,
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					XPreserveUnknownFields: &trueBool,
+				},
+			},
+		},
+		{
+			name: "Nil properties, LegacySchema=false",
+			v: &Validation{
+				LegacySchema:    false,
+				OpenAPIV3Schema: nil,
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: nil,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
