@@ -24,6 +24,7 @@ import (
 	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"golang.org/x/net/context"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -179,10 +180,11 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    true,
+				LegacySchema:    &trueBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
+				LegacySchema: &trueBool,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					XPreserveUnknownFields: &trueBool,
 				},
@@ -191,10 +193,11 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    false,
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 		},

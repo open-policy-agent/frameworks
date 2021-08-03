@@ -25,8 +25,9 @@ import (
 
 func Convert_v1beta1_Validation_To_templates_Validation(in *Validation, out *coreTemplates.Validation, s conversion.Scope) error { //nolint:golint
 	inSchema := in.OpenAPIV3Schema
+
 	// legacySchema should allow for users to provide arbitrary parameters, regardless of whether the user specified them
-	if in.LegacySchema && inSchema == nil {
+	if in.LegacySchema != nil && *in.LegacySchema && inSchema == nil {
 		inSchema = &apiextensionsv1.JSONSchemaProps{}
 	}
 
