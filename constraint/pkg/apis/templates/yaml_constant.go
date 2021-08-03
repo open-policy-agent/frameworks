@@ -49,6 +49,8 @@ spec:
                             type: array
                         type: object
                       validation:
+                        default:
+                          legacySchema: false
                         properties:
                           legacySchema:
                             default: false
@@ -142,6 +144,8 @@ spec:
                             type: array
                         type: object
                       validation:
+                        default:
+                          legacySchema: true
                         properties:
                           legacySchema:
                             default: true
@@ -235,6 +239,8 @@ spec:
                             type: array
                         type: object
                       validation:
+                        default:
+                          legacySchema: true
                         properties:
                           legacySchema:
                             default: true
