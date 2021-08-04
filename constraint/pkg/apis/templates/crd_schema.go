@@ -13,7 +13,8 @@ import (
 
 var ConstraintTemplateSchemas map[string]*schema.Structural
 
-func init() {
+func initializeCTSchemaMap() {
+	// Setup the CT Schema map for use in generalized defaulting functions
 	ConstraintTemplateSchemas = make(map[string]*schema.Structural)
 
 	// Ingest the constraint template CRD for use in defaulting functions

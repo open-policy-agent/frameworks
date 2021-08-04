@@ -8,9 +8,8 @@ import (
 
 var Scheme = &runtime.Scheme{}
 
-func init() {
+func initializeScheme() {
 	Scheme = runtime.NewScheme()
-
 	if err := apiextensionsv1.AddToScheme(Scheme); err != nil {
 		panic(err)
 	}
