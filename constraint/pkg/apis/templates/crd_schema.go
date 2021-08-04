@@ -8,7 +8,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 )
 
@@ -28,18 +27,10 @@ func init() {
 		panic(errors.Wrap(err, "Failed to unmarshal JSON into CT CRD"))
 	}
 
-	scheme := runtime.NewScheme()
-	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
-	if err := apiextensions.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
-
 	// Fill version map with Structural types derived from ConstraintTemplate versions
 	for _, crdVersion := range constraintTemplateCRD.Spec.Versions {
 		versionlessSchema := &apiextensions.JSONSchemaProps{}
-		err := scheme.Convert(crdVersion.Schema.OpenAPIV3Schema, versionlessSchema, nil)
+		err := Scheme.Convert(crdVersion.Schema.OpenAPIV3Schema, versionlessSchema, nil)
 		if err != nil {
 			panic(errors.Wrap(err, "Failed to convert JSONSchemaProps"))
 		}

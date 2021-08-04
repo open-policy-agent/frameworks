@@ -1,23 +1,22 @@
 package v1alpha1
 
 import (
+	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // ToVersionless runs defaulting functions and then converts the ConstraintTemplate to the
 // versionless api representation
 func (versioned *ConstraintTemplate) ToVersionless() (*templates.ConstraintTemplate, error) {
-	scheme := runtime.NewScheme()
-	if err := AddToScheme(scheme); err != nil {
+	if err := AddToScheme(apisTemplates.Scheme); err != nil {
 		return nil, err
 	}
 
 	versionedCopy := versioned.DeepCopy()
-	scheme.Default(versionedCopy)
+	apisTemplates.Scheme.Default(versionedCopy)
 
 	versionless := &templates.ConstraintTemplate{}
-	if err := scheme.Convert(versionedCopy, versionless, nil); err != nil {
+	if err := apisTemplates.Scheme.Convert(versionedCopy, versionless, nil); err != nil {
 		return nil, err
 	}
 
