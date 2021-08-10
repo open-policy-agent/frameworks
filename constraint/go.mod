@@ -37,4 +37,5 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.19 // indirect
 	sigs.k8s.io/controller-runtime v0.8.3
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.1 // indirect
+	sigs.k8s.io/yaml v1.2.0
 )

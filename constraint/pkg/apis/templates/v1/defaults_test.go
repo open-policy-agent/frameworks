@@ -67,10 +67,10 @@ func TestSetDefaultsConstraintTemplate(t *testing.T) {
 	scheme.Default(ct)
 
 	if ct.Spec.CRD.Spec.Validation.LegacySchema == nil {
-		t.Fatalf("legacySchema: Got nil, wanted false")
+		t.Fatalf("legacySchema: Got nil, want false")
 	}
 
 	if *ct.Spec.CRD.Spec.Validation.LegacySchema {
-		t.Errorf("legacySchema: Got true, wanted false")
+		t.Errorf("legacySchema: Got true, want false")
 	}
 }

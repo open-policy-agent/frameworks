@@ -86,3 +86,8 @@ generate-defaults: constraint-template-string-constant
 		--input-dirs "./pkg/apis/templates/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.defaults
+
+.PHONY: vendor
+vendor:
+	go mod vendor
+	go mod tidy

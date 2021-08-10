@@ -5,8 +5,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
-var (
-	VersionedIncompleteSchema = &apiextensionsv1.JSONSchemaProps{
+func VersionedIncompleteSchema() *apiextensionsv1.JSONSchemaProps {
+	return &apiextensionsv1.JSONSchemaProps{
 		Properties: map[string]apiextensionsv1.JSONSchemaProps{
 			"message": {
 				Type: "string",
@@ -25,9 +25,11 @@ var (
 			},
 		},
 	}
+}
 
-	trueBool                       = true
-	VersionlessSchemaWithXPreserve = &apiextensions.JSONSchemaProps{
+func VersionlessSchemaWithXPreserve() *apiextensions.JSONSchemaProps {
+	trueBool := true
+	return &apiextensions.JSONSchemaProps{
 		XPreserveUnknownFields: &trueBool,
 		Properties: map[string]apiextensions.JSONSchemaProps{
 			"message": {
@@ -48,8 +50,10 @@ var (
 			},
 		},
 	}
+}
 
-	VersionlessSchema = &apiextensions.JSONSchemaProps{
+func VersionlessSchema() *apiextensions.JSONSchemaProps {
+	return &apiextensions.JSONSchemaProps{
 		Properties: map[string]apiextensions.JSONSchemaProps{
 			"message": {
 				Type: "string",
@@ -68,4 +72,4 @@ var (
 			},
 		},
 	}
-)
+}

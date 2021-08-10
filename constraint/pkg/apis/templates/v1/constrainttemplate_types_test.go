@@ -155,31 +155,31 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
 				LegacySchema:    &trueBool,
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
 				LegacySchema:    &trueBool,
-				OpenAPIV3Schema: apisTemplates.VersionlessSchemaWithXPreserve,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
 				LegacySchema:    &falseBool,
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
 				LegacySchema:    &falseBool,
-				OpenAPIV3Schema: apisTemplates.VersionlessSchema,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=nil",
 			v: &Validation{
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				OpenAPIV3Schema: apisTemplates.VersionlessSchema,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
 			},
 		},
 		{

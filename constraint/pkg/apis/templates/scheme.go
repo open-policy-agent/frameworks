@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-var Scheme = &runtime.Scheme{}
+var Scheme *runtime.Scheme
 
 func initializeScheme() {
 	Scheme = runtime.NewScheme()

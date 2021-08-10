@@ -1,10 +1,8 @@
 package templates
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
@@ -18,14 +16,9 @@ func initializeCTSchemaMap() {
 	ConstraintTemplateSchemas = make(map[string]*schema.Structural)
 
 	// Ingest the constraint template CRD for use in defaulting functions
-	crdJSON, err := yaml.YAMLToJSONStrict([]byte(constraintTemplateCRDYaml))
-	if err != nil {
-		panic(errors.Wrap(err, "Failed to convert Constraint Template yaml to JSON"))
-	}
-
 	constraintTemplateCRD := &apiextensionsv1.CustomResourceDefinition{}
-	if err := json.Unmarshal(crdJSON, constraintTemplateCRD); err != nil {
-		panic(errors.Wrap(err, "Failed to unmarshal JSON into CT CRD"))
+	if err := yaml.Unmarshal([]byte(constraintTemplateCRDYaml), constraintTemplateCRD); err != nil {
+		panic(fmt.Errorf("%w: failed to unmarshal yaml into constraintTemplateCRD", err))
 	}
 
 	// Fill version map with Structural types derived from ConstraintTemplate versions
@@ -33,12 +26,12 @@ func initializeCTSchemaMap() {
 		versionlessSchema := &apiextensions.JSONSchemaProps{}
 		err := Scheme.Convert(crdVersion.Schema.OpenAPIV3Schema, versionlessSchema, nil)
 		if err != nil {
-			panic(errors.Wrap(err, "Failed to convert JSONSchemaProps"))
+			panic(fmt.Errorf("%w: failed to convert JSONSchemaProps for ConstraintTemplate version %v", err, crdVersion.Name))
 		}
 
 		structural, err := schema.NewStructural(versionlessSchema)
 		if err != nil {
-			panic(errors.Wrap(err, fmt.Sprintf("Failed to create Structural for ConstraintTemplate version %v", crdVersion.Name)))
+			panic(fmt.Errorf("%w: failed to create Structural for ConstraintTemplate version %v", err, crdVersion.Name))
 		}
 
 		ConstraintTemplateSchemas[crdVersion.Name] = structural
