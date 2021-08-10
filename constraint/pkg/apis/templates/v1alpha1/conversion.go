@@ -44,16 +44,11 @@ func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *co
 		if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(inSchemaCopy, out.OpenAPIV3Schema, s); err != nil {
 			return err
 		}
+
 	} else {
 		out.OpenAPIV3Schema = nil
 	}
 
-	// As LegacySchema is a pointer, we have to explicitly copy the value.  Doing a simple copy of
-	// out.LegacySchema = in.LegacySchema yields a duplicate pointer to the same value.  This links
-	// the value of LegacySchema in the out object to that of the in object, potentially creating
-	// a bug where both change when only one is meant to.
-	out.LegacySchema = new(bool)
-	*out.LegacySchema = *in.LegacySchema
-
+	out.LegacySchema = in.LegacySchema
 	return nil
 }
