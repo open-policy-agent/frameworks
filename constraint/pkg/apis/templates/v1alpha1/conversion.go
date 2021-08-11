@@ -49,6 +49,16 @@ func Convert_v1alpha1_Validation_To_templates_Validation(in *Validation, out *co
 		out.OpenAPIV3Schema = nil
 	}
 
-	out.LegacySchema = in.LegacySchema
+	// As LegacySchema is a pointer, we have to explicitly copy the value.  Doing a simple copy of
+	// out.LegacySchema = in.LegacySchema yields a duplicate pointer to the same value.  This links
+	// the value of LegacySchema in the out object to that of the in object, potentially creating
+	// a bug where both change when only one is meant to.
+	if in.LegacySchema == nil {
+		out.LegacySchema = nil
+	} else {
+		inVal := *in.LegacySchema
+		out.LegacySchema = &inVal
+	}
+
 	return nil
 }
