@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/onsi/gomega"
+	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"golang.org/x/net/context"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -37,7 +38,8 @@ func TestStorageConstraintTemplate(t *testing.T) {
 	created := &ConstraintTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
-		}}
+		},
+	}
 	g := gomega.NewGomegaWithT(t)
 
 	// Test Create
@@ -136,7 +138,14 @@ func TestTypeConversion(t *testing.T) {
 // function works, and also that it adds in the x-kubernetes-preserve-unknown-fields information
 // that we require for v1 CRD support
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
+	// The scheme is responsible for defaulting
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
 	trueBool := true
+	falseBool := false
 	testCases := []struct {
 		name string
 		v    *Validation
@@ -145,104 +154,42 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema: true,
-				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
-								Schema: &apiextensionsv1.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensionsv1.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &trueBool,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					XPreserveUnknownFields: &trueBool,
-					Properties: map[string]apiextensions.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensions.JSONSchemaPropsOrArray{
-								Schema: &apiextensions.JSONSchemaProps{
-									Type:                   "object",
-									XPreserveUnknownFields: &trueBool,
-									Properties: map[string]apiextensions.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &trueBool,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema: false,
-				OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensionsv1.JSONSchemaPropsOrArray{
-								Schema: &apiextensionsv1.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensionsv1.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &falseBool,
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					Properties: map[string]apiextensions.JSONSchemaProps{
-						"message": {
-							Type: "string",
-						},
-						"labels": {
-							Type: "array",
-							Items: &apiextensions.JSONSchemaPropsOrArray{
-								Schema: &apiextensions.JSONSchemaProps{
-									Type: "object",
-									Properties: map[string]apiextensions.JSONSchemaProps{
-										"key":          {Type: "string"},
-										"allowedRegex": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
+				LegacySchema:    &falseBool,
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
+			},
+		},
+		{
+			name: "Two deep properties, LegacySchema=nil",
+			v: &Validation{
+				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
 			},
 		},
 		{
 			name: "Nil properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    true,
+				LegacySchema:    &trueBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
+				LegacySchema: &trueBool,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 					XPreserveUnknownFields: &trueBool,
 				},
@@ -251,10 +198,11 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    false,
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 		},
@@ -263,7 +211,7 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			out := &templates.Validation{}
-			if err := Convert_v1_Validation_To_templates_Validation(tc.v, out, nil); err != nil {
+			if err := scheme.Convert(tc.v, out, nil); err != nil {
 				t.Fatalf("Conversion error: %v", err)
 			}
 
