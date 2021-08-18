@@ -15,10 +15,12 @@ RUN curl -L -O "https://github.com/kubernetes-sigs/kubebuilder/releases/download
 ENV PATH=$PATH:/usr/local/kubebuilder/bin:/usr/bin
 
 # Install kustomize
-ENV version=3.0.2
+ENV version=3.8.9
 ENV arch=amd64
-RUN curl -L -O "https://github.com/kubernetes-sigs/kustomize/releases/download/v${version}/kustomize_${version}_linux_${arch}" &&\
-    mv kustomize_${version}_linux_${arch} /usr/bin/kustomize &&\
+ENV tar_name=kustomize_v${version}_linux_${arch}.tar.gz
+RUN curl -LO "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${version}/${tar_name}" &&\
+    tar -xf ${tar_name} &&\
+    mv ./kustomize /usr/bin/kustomize &&\
     chmod u+x /usr/bin/kustomize
 
 # Copy in the go src

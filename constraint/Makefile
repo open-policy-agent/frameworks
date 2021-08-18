@@ -23,7 +23,7 @@ docker-internal-test:
 
 # Hook to run docker tests
 test:
-	docker build . -t constraint-test && docker run -t constraint-test
+	docker build . -t constraint-test && docker run -it constraint-test
 
 # Install CRDs into a cluster
 install: manifests
@@ -32,7 +32,8 @@ install: manifests
 # Install the generation dependencies on the local machine
 gen-dependencies:
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.5.0
-	go install k8s.io/code-generator/cmd/conversion-gen@v0.20.2
+	go install k8s.io/code-generator/cmd/conversion-gen@v0.21.3
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.21.3
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
@@ -47,7 +48,7 @@ lint:
 
 # Generate code
 # Not working?  Try running `make gen-dependencies`
-generate:
+generate: generate-defaults
 	controller-gen \
 		object:headerFile=./hack/boilerplate.go.txt \
 		paths="./pkg/..."
@@ -61,3 +62,32 @@ generate:
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
 		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+
+CRD_SOURCE_FILE := deploy/crds.yaml
+FILE_STUB := "package templates\
+\n\
+\n// This file is generated from $(CRD_SOURCE_FILE) via \"make constraint-template-string-constant\"\
+\n// DO NOT MODIFY THIS FILE DIRECTLY!\
+\n\
+\nconst constraintTemplateCRDYaml = \`"
+
+YAML_CONSTANT_GOLANG_FILE := ./pkg/apis/templates/yaml_constant.go
+
+constraint-template-string-constant: manifests
+	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
+	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'cat deploy/crds.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
+	# Remove trailing spaces.  Double $ is to prevent variable expansion in make
+	sed -i "s/ $$//g" ${YAML_CONSTANT_GOLANG_FILE}
+
+generate-defaults: constraint-template-string-constant
+	defaulter-gen \
+		--input-dirs "./pkg/apis/templates/..." \
+		--go-header-file=./hack/boilerplate.go.txt \
+		--output-file-base=zz_generated.defaults
+
+.PHONY: vendor
+vendor:
+	go mod vendor
+	go mod tidy
