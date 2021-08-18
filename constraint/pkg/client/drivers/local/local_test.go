@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -76,6 +77,7 @@ type action struct {
 func (tt *compositeTestCase) run(t *testing.T) {
 	dr := New(tt.driverArg...)
 	d := dr.(*driver)
+	_ = d.Init(context.TODO())
 	for idx, a := range tt.Actions {
 		t.Run(fmt.Sprintf("action idx %d", idx), func(t *testing.T) {
 			ctx := context.Background()
@@ -168,6 +170,7 @@ func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
 }
 
 func TestModules(t *testing.T) {
+	providerCache := externaldata.NewCache()
 	tc := []compositeTestCase{
 		{
 			Name: "PutModules then DeleteModules",
@@ -314,7 +317,7 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
 					},
 					ErrorExpected: false,
 				},
@@ -327,12 +330,40 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
 					},
 					ErrorExpected: true,
 				},
 			},
 			driverArg: []Arg{DisableBuiltins("http.send")},
+		},
+		{
+			Name: "PutModule with external data cache",
+			Actions: []action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = externaldata("myprovider", "test")`},
+					},
+					ErrorExpected: false,
+				},
+			},
+			driverArg: []Arg{AddExternalDataProviderCache(providerCache)},
+		},
+		{
+			Name: "PutModule with external data disabled",
+			Actions: []action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = externaldata("myprovider", "test")`},
+					},
+					ErrorExpected: true,
+				},
+			},
+			driverArg: []Arg{DisableBuiltins("externaldata")},
 		},
 	}
 	for _, tt := range tc {
