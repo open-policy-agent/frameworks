@@ -111,10 +111,7 @@ func (r *RegoRewriter) addTestDir(testDirPath string) error {
 		r.testData = append(r.testData, &TestData{FilePath: FilePath{path: path}, content: bytes})
 		return nil
 	}
-	if err := filepath.Walk(testDirPath, walkFn); err != nil {
-		return err
-	}
-	return nil
+	return filepath.Walk(testDirPath, walkFn)
 }
 
 // addFileFromFs reads a file from the filesystem, parses it then appends it to slice.
@@ -166,10 +163,7 @@ func (r *RegoRewriter) addPathFromFs(path string, slice *[]*Module) error {
 			}
 			return r.addFileFromFs(path, slice)
 		}
-		if err := filepath.Walk(path, walkFn); err != nil {
-			return err
-		}
-		return nil
+		return filepath.Walk(path, walkFn)
 	}
 
 	return r.addFileFromFs(path, slice)

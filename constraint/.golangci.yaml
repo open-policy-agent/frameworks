@@ -11,7 +11,7 @@ linters:
     - errcheck
     - govet
     - ineffassign
-    - golint
+    - revive
     - goconst
     - gofmt
     - goimports

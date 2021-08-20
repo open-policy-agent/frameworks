@@ -291,10 +291,7 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 		d.storage.Abort(ctx, txn)
 		return err
 	}
-	if err := d.storage.Commit(ctx, txn); err != nil {
-		return err
-	}
-	return nil
+	return d.storage.Commit(ctx, txn)
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
