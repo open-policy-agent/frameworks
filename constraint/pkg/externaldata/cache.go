@@ -19,33 +19,26 @@ func NewCache() *ProviderCache {
 }
 
 func (c *ProviderCache) Get(key string) (v1alpha1.Provider, error) {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
+
 	if v, ok := c.cache[key]; ok {
-		return v, nil
+		dc := *v.DeepCopy()
+		return dc, nil
 	}
 	return v1alpha1.Provider{}, fmt.Errorf("key is not found in provider cache")
 }
 
-func (c *ProviderCache) Upsert(provider *v1alpha1.Provider) error {
+func (c *ProviderCache) Upsert(provider *v1alpha1.Provider) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	c.cache[provider.GetName()] = v1alpha1.Provider{
-		Spec: v1alpha1.ProviderSpec{
-			ProxyURL:      provider.Spec.ProxyURL,
-			FailurePolicy: provider.Spec.FailurePolicy,
-			Timeout:       provider.Spec.Timeout,
-			MaxRetry:      provider.Spec.MaxRetry,
-		},
-	}
-
-	return nil
+	c.cache[provider.GetName()] = *provider.DeepCopy()
 }
 
-func (c *ProviderCache) Remove(name string) error {
+func (c *ProviderCache) Remove(name string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
 	delete(c.cache, name)
-
-	return nil
 }
