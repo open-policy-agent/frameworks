@@ -76,8 +76,9 @@ YAML_CONSTANT_GOLANG_FILE := ./pkg/apis/templates/yaml_constant.go
 constraint-template-string-constant: manifests
 	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
 	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
-	bash -c 'cat deploy/crds.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'cat config/crds/templates.gatekeeper.sh_constrainttemplates.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
 	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
+	sed -i -z "s/\n---\n//g" ${YAML_CONSTANT_GOLANG_FILE}
 	# Remove trailing spaces.  Double $ is to prevent variable expansion in make
 	sed -i "s/ $$//g" ${YAML_CONSTANT_GOLANG_FILE}
 
