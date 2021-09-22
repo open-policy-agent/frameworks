@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
@@ -90,8 +91,8 @@ func New(args ...Arg) drivers.Driver {
 	// if a capability, like http.send, is disabled
 	if d.providerCache != nil {
 		d.capabilities.Builtins = append(d.capabilities.Builtins, &ast.Builtin{
-			Name: "externaldata",
-			Decl: opatypes.NewFunction(opatypes.Args(opatypes.S, opatypes.S), opatypes.A),
+			Name: "external_data",
+			Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
 		})
 	}
 	d.compiler.WithCapabilities(d.capabilities)
@@ -112,28 +113,42 @@ type driver struct {
 
 func (d *driver) Init(ctx context.Context) error {
 	if d.providerCache != nil {
-		rego.RegisterBuiltin2(
+		rego.RegisterBuiltin1(
 			&rego.Function{
-				Name:    "externaldata",
-				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.S, opatypes.S), opatypes.A),
+				Name:    "external_data",
+				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
 				Memoize: true,
 			},
-			func(bctx rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
-				var providerName, body string
-
-				if err := ast.As(a.Value, &providerName); err != nil {
+			func(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
+				var regoReq externaldata.RegoRequest
+				if err := ast.As(regorequest.Value, &regoReq); err != nil {
 					return nil, err
 				}
-				if err := ast.As(b.Value, &body); err != nil {
-					return nil, err
+				// only primitive types are allowed for keys
+				for _, key := range regoReq.Keys {
+					switch v := key.(type) {
+					case int:
+					case string:
+					case float64:
+					case float32:
+						break
+					default:
+						return nil, fmt.Errorf("type %v is not supported in external_data", v)
+					}
 				}
 
-				provider, err := d.providerCache.Get(providerName)
+				provider, err := d.providerCache.Get(regoReq.ProviderName)
 				if err != nil {
-					return nil, fmt.Errorf("unable to retrieve provider %v from cache", providerName)
+					return nil, fmt.Errorf("unable to retrieve provider %v from cache", regoReq.ProviderName)
 				}
 
-				req, err := http.NewRequest("GET", provider.Spec.ProxyURL, bytes.NewBuffer([]byte(body)))
+				externaldataRequest := externaldata.NewProviderRequest(regoReq.Keys)
+				reqBody, err := json.Marshal(externaldataRequest)
+				if err != nil {
+					return nil, err
+				}
+
+				req, err := http.NewRequest("POST", provider.Spec.ProxyURL, bytes.NewBuffer(reqBody))
 				if err != nil {
 					return nil, err
 				}
@@ -145,14 +160,19 @@ func (d *driver) Init(ctx context.Context) error {
 				if err != nil {
 					return nil, err
 				}
-
 				defer resp.Body.Close()
-
-				if resp.StatusCode != http.StatusOK {
-					return nil, fmt.Errorf(resp.Status)
+				respBody, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return nil, err
 				}
 
-				v, err := ast.ValueFromReader(resp.Body)
+				var externaldataResponse externaldata.ProviderResponse
+				if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
+					return nil, err
+				}
+
+				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, externaldataResponse)
+				v, err := ast.InterfaceToValue(regoResponse)
 				if err != nil {
 					return nil, err
 				}

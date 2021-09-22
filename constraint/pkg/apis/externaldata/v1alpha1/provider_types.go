@@ -19,20 +19,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// +kubebuilder:validation:Enum=Ignore;Fail
-type FailurePolicy string
-
-const (
-	Ignore FailurePolicy = "Ignore"
-	Fail   FailurePolicy = "Fail"
-)
-
 // ProviderSpec defines the desired state of Provider
 type ProviderSpec struct {
-	ProxyURL      string        `json:"proxyURL,omitempty"`
-	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
-	Timeout       int           `json:"timeout,omitempty"`
-	MaxRetry      int           `json:"maxRetry,omitempty"`
+	ProxyURL string `json:"proxyURL,omitempty"`
+	Timeout  int    `json:"timeout,omitempty"`
+	MaxRetry int    `json:"maxRetry,omitempty"`
 }
 
 // +genclient

@@ -43,9 +43,6 @@ func (c *ProviderCache) Upsert(provider *v1alpha1.Provider) error {
 	if !isValidTimeout(provider.Spec.Timeout) {
 		return fmt.Errorf("provider timeout should be a positive integer. value: %d", provider.Spec.Timeout)
 	}
-	if !isValidFailurePolicy(string(provider.Spec.FailurePolicy)) {
-		return fmt.Errorf("provider failure policy should be either Ignore or Fail. value: %s", provider.Spec.FailurePolicy)
-	}
 
 	c.cache[provider.GetName()] = *provider.DeepCopy()
 	return nil
@@ -74,11 +71,4 @@ func isValidURL(url string) bool {
 
 func isValidTimeout(timeout int) bool {
 	return timeout >= 0
-}
-
-func isValidFailurePolicy(policy string) bool {
-	if strings.EqualFold(policy, string(v1alpha1.Ignore)) || strings.EqualFold(policy, string(v1alpha1.Fail)) {
-		return true
-	}
-	return false
 }
