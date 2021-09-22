@@ -344,7 +344,7 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = externaldata("myprovider", "test")`},
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
 					},
 					ErrorExpected: false,
 				},
@@ -358,12 +358,12 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = externaldata("myprovider", "test")`},
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
 					},
 					ErrorExpected: true,
 				},
 			},
-			driverArg: []Arg{DisableBuiltins("externaldata")},
+			driverArg: []Arg{DisableBuiltins("external_data")},
 		},
 	}
 	for _, tt := range tc {
