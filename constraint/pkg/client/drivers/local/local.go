@@ -172,11 +172,14 @@ func (d *driver) Init(ctx context.Context) error {
 				}
 
 				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, externaldataResponse)
-				v, err := ast.InterfaceToValue(regoResponse)
+				rr, err := json.Marshal(regoResponse)
 				if err != nil {
 					return nil, err
 				}
-
+				v, err := ast.ValueFromReader(bytes.NewReader(rr))
+				if err != nil {
+					return nil, err
+				}
 				return ast.NewTerm(v), nil
 			},
 		)
