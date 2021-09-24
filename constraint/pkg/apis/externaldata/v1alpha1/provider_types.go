@@ -21,9 +21,10 @@ import (
 
 // ProviderSpec defines the desired state of Provider
 type ProviderSpec struct {
+	// ProxyURL is the URL of the proxy to use for the provider
 	ProxyURL string `json:"proxyURL,omitempty"`
-	Timeout  int    `json:"timeout,omitempty"`
-	MaxRetry int    `json:"maxRetry,omitempty"`
+	// Timeout is the timeout for the provider
+	Timeout int `json:"timeout,omitempty"`
 }
 
 // +genclient
@@ -46,7 +47,8 @@ type Provider struct {
 type ProviderList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Provider `json:"items"`
+
+	Items []Provider `json:"items"`
 }
 
 func init() {

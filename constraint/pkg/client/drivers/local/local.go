@@ -128,6 +128,8 @@ func (d *driver) Init(ctx context.Context) error {
 				for _, key := range regoReq.Keys {
 					switch v := key.(type) {
 					case int:
+					case int32:
+					case int64:
 					case string:
 					case float64:
 					case float32:

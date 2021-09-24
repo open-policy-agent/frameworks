@@ -338,11 +338,11 @@ spec:
           spec:
             description: ProviderSpec defines the desired state of Provider
             properties:
-              maxRetry:
-                type: integer
               proxyURL:
+                description: ProxyURL is the URL of the proxy to use for the provider
                 type: string
               timeout:
+                description: Timeout is the timeout for the provider
                 type: integer
             type: object
         type: object
