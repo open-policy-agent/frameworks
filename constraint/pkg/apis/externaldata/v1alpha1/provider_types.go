@@ -19,11 +19,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ProviderSpec defines the desired state of Provider
+// ProviderSpec defines the desired state of Provider.
 type ProviderSpec struct {
-	// ProxyURL is the URL of the proxy to use for the provider
-	ProxyURL string `json:"proxyURL,omitempty"`
-	// Timeout is the timeout for the provider
+	// URL is the URL of the proxy to use for the provider. URL is prefixed with http:// or https://.
+	URL string `json:"URL,omitempty"`
+	// Timeout is the timeout when querying the provider.
 	Timeout int `json:"timeout,omitempty"`
 }
 
@@ -38,16 +38,18 @@ type Provider struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// Spec defines the Provider specifications.
 	Spec ProviderSpec `json:"spec,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// ProviderList contains a list of Provider
+// ProviderList contains a list of Provider.
 type ProviderList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
+	// Items contains the list of Providers.
 	Items []Provider `json:"items"`
 }
 
