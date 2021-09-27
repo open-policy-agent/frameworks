@@ -156,7 +156,7 @@ func makeURLPath(path string) (string, error) {
 			quoted = !quoted
 			continue
 		}
-		fmt.Fprint(builder, ch)
+		_, _ = fmt.Fprint(builder, ch)
 	}
 	pieces = append(pieces, builder.String())
 

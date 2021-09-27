@@ -109,20 +109,20 @@ func copyModules(modules map[string]*ast.Module, filter string) map[string]*ast.
 
 func (d *driver) checkModuleName(name string) error {
 	if name == "" {
-		return errors.Errorf("Module name cannot be empty")
+		return fmt.Errorf("Module name cannot be empty")
 	}
 	if strings.HasPrefix(name, moduleSetPrefix) {
-		return errors.Errorf("Single modules not allowed to use name prefix %s", moduleSetPrefix)
+		return fmt.Errorf("Single modules not allowed to use name prefix %s", moduleSetPrefix)
 	}
 	return nil
 }
 
 func (d *driver) checkModuleSetName(name string) error {
 	if name == "" {
-		return errors.Errorf("Modules name prefix cannot be empty")
+		return fmt.Errorf("Modules name prefix cannot be empty")
 	}
 	if strings.Contains(name, moduleSetSep) {
-		return errors.Errorf("Modules name prefix not allowed to contain the sequence n%s", moduleSetSep)
+		return fmt.Errorf("Modules name prefix not allowed to contain the sequence n%s", moduleSetSep)
 	}
 	return nil
 }
@@ -334,16 +334,17 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *
 	}
 	if d.traceEnabled || cfg.TracingEnabled {
 		buf := topdown.NewBufferTracer()
-		args = append(args, rego.Tracer(buf))
-		rego := rego.New(args...)
-		res, err := rego.Eval(ctx)
+		args = append(args, rego.QueryTracer(buf))
+		r := rego.New(args...)
+		res, err := r.Eval(ctx)
 		b := &bytes.Buffer{}
 		topdown.PrettyTrace(b, *buf)
 		t := b.String()
 		return res, &t, err
 	}
-	rego := rego.New(args...)
-	res, err := rego.Eval(ctx)
+
+	r := rego.New(args...)
+	res, err := r.Eval(ctx)
 	return res, nil, err
 }
 

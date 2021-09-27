@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/pkg/errors"
@@ -65,7 +66,7 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	}
 	for _, field := range c.allowedDataFields {
 		if !validDataFields[field] {
-			return nil, errors.Errorf("Invalid data field %s", field)
+			return nil, fmt.Errorf("Invalid data field %s", field)
 		}
 	}
 	if len(errs) > 0 {

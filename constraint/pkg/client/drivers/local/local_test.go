@@ -151,7 +151,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 }
 
 func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
-	ev := []string{}
+	var ev []string
 	for _, r := range res {
 		i, ok := r.Bindings["a"].(string)
 		if !ok {

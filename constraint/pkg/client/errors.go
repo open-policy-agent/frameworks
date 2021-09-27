@@ -25,7 +25,7 @@ type ErrorMap map[string]error
 func (e ErrorMap) Error() string {
 	b := &strings.Builder{}
 	for k, v := range e {
-		fmt.Fprintf(b, "%s: %s\n", k, v)
+		_, _ = fmt.Fprintf(b, "%s: %s\n", k, v)
 	}
 	return b.String()
 }

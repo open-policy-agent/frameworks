@@ -186,8 +186,9 @@ func TestAddData(t *testing.T) {
 			}
 			r, err := c.AddData(context.Background(), nil)
 			if err != nil && len(tt.ErroredBy) == 0 {
-				t.Errorf("err = %s; want nil", err)
+				t.Fatalf("err = %s; want nil", err)
 			}
+
 			expectedErr := make(map[string]bool)
 			actualErr := make(map[string]bool)
 			for _, v := range tt.ErroredBy {
@@ -204,6 +205,9 @@ func TestAddData(t *testing.T) {
 			expectedHandled := make(map[string]bool)
 			for _, v := range tt.HandledBy {
 				expectedHandled[v] = true
+			}
+			if r == nil {
+				t.Fatal("got AddTemplate() == nil, want non-nil")
 			}
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("handledSet = %v; wanted %v", r.Handled, expectedHandled)
@@ -267,7 +271,7 @@ func TestRemoveData(t *testing.T) {
 			}
 			r, err := c.RemoveData(context.Background(), nil)
 			if err != nil && len(tt.ErroredBy) == 0 {
-				t.Errorf("err = %s; want nil", err)
+				t.Fatalf("err = %s; want nil", err)
 			}
 			expectedErr := make(map[string]bool)
 			actualErr := make(map[string]bool)
@@ -285,6 +289,10 @@ func TestRemoveData(t *testing.T) {
 			expectedHandled := make(map[string]bool)
 			for _, v := range tt.HandledBy {
 				expectedHandled[v] = true
+			}
+
+			if r == nil {
+				t.Fatal("got RemoveData() == nil, want non-nil")
 			}
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("handledSet = %v; wanted %v", r.Handled, expectedHandled)
@@ -374,7 +382,7 @@ some_rule[r] {
 
 			r, err := c.AddTemplate(context.Background(), tt.Template)
 			if err != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 			if err == nil && tt.ErrorExpected {
 				t.Error("err = nil; want non-nil")
@@ -386,6 +394,9 @@ some_rule[r] {
 				expectedCount = 1
 				expectedHandled = map[string]bool{"h1": true}
 			}
+			if r == nil {
+				t.Fatal("got AddTemplate() == nil, want non-nil")
+			}
 			if r.HandledCount() != expectedCount {
 				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)
 			}
@@ -395,25 +406,29 @@ some_rule[r] {
 
 			cached, err := c.GetTemplate(context.Background(), tt.Template)
 			if err == nil && tt.ErrorExpected {
-				t.Error("retrieved template when error was expected")
+				t.Fatal("retrieved template when error was expected")
 			}
-			if err != nil && !tt.ErrorExpected {
-				t.Error("could not retrieve template when error was expected")
+
+			if tt.ErrorExpected {
+				return
 			}
-			if !tt.ErrorExpected {
-				if !cached.SemanticEqual(tt.Template) {
-					t.Error("cached template does not equal stored template")
-				}
-				r2, err := c.RemoveTemplate(context.Background(), tt.Template)
-				if err != nil {
-					t.Error("could not remove template")
-				}
-				if r2.HandledCount() != 1 {
-					t.Error("more targets handled than expected")
-				}
-				if _, err := c.GetTemplate(context.Background(), tt.Template); err == nil {
-					t.Error("template not cleared from cache")
-				}
+
+			if err != nil {
+				t.Fatalf("could not retrieve template when error was expected: %v", err)
+			}
+
+			if !cached.SemanticEqual(tt.Template) {
+				t.Error("cached template does not equal stored template")
+			}
+			r2, err := c.RemoveTemplate(context.Background(), tt.Template)
+			if err != nil {
+				t.Fatal("could not remove template")
+			}
+			if r2.HandledCount() != 1 {
+				t.Error("more targets handled than expected")
+			}
+			if _, err := c.GetTemplate(context.Background(), tt.Template); err == nil {
+				t.Error("template not cleared from cache")
 			}
 		})
 	}
@@ -691,8 +706,8 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	template := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
-	if _, err = c.AddTemplate(context.Background(), template); err != nil {
+	templ := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
+	if _, err = c.AddTemplate(context.Background(), templ); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
@@ -735,7 +750,7 @@ func TestTemplateCascadingDelete(t *testing.T) {
 		t.Errorf("preservation candidate not cached: %s", orig)
 	}
 
-	if _, err = c.RemoveTemplate(context.Background(), template); err != nil {
+	if _, err = c.RemoveTemplate(context.Background(), templ); err != nil {
 		t.Error("could not remove template")
 	}
 	if len(c.constraints) != 1 {
@@ -816,6 +831,10 @@ func TestAddConstraint(t *testing.T) {
 				expectedCount = 1
 				expectedHandled = map[string]bool{"h1": true}
 			}
+
+			if r == nil {
+				t.Fatal("got AddConstraint() == nil, want non-nil")
+			}
 			if r.HandledCount() != expectedCount {
 				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)
 			}
@@ -836,6 +855,10 @@ func TestAddConstraint(t *testing.T) {
 				r2, err := c.RemoveConstraint(context.Background(), tt.Constraint)
 				if err != nil {
 					t.Error("could not remove constraint")
+				}
+
+				if r2 == nil {
+					t.Fatal("got RemoveConstraint() == nil, want non-nil")
 				}
 				if r2.HandledCount() != 1 {
 					t.Error("more targets handled than expected")
@@ -919,6 +942,10 @@ func TestRemoveConstraint(t *testing.T) {
 				expectedCount = 1
 				expectedHandled = map[string]bool{"h1": true}
 			}
+
+			if r == nil {
+				t.Fatal("got RemoveConstraint() == nil, want non-nil")
+			}
 			if r.HandledCount() != expectedCount {
 				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)
 			}
@@ -993,6 +1020,10 @@ violation[{"msg": "msg"}] {
 			if !tt.ErrorExpected {
 				expectedCount = 1
 				expectedHandled = map[string]bool{"h1": true}
+			}
+
+			if r == nil {
+				t.Fatal("got AddTemplate() == nil, want non-nil")
 			}
 			if r.HandledCount() != expectedCount {
 				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)

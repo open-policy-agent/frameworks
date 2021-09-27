@@ -162,9 +162,9 @@ func (h *crdHelper) createCRD(
 
 // validateCRD calls the CRD package's validation on an internal representation of the CRD.
 func (h *crdHelper) validateCRD(crd *apiextensions.CustomResourceDefinition) error {
-	errors := apiextensionsvalidation.ValidateCustomResourceDefinition(crd, apiextensionsv1.SchemeGroupVersion)
-	if len(errors) > 0 {
-		return errors.ToAggregate()
+	errs := apiextensionsvalidation.ValidateCustomResourceDefinition(crd, apiextensionsv1.SchemeGroupVersion)
+	if len(errs) > 0 {
+		return errs.ToAggregate()
 	}
 	return nil
 }

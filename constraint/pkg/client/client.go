@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -16,7 +17,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/format"
-	"github.com/pkg/errors"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -95,7 +95,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
 	for target, h := range c.targets {
-		handled, path, processedData, err := h.ProcessData(data)
+		handled, relPath, processedData, err := h.ProcessData(data)
 		if err != nil {
 			errMap[target] = err
 			continue
@@ -103,7 +103,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, createDataPath(target, path), processedData); err != nil {
+		if err := c.backend.driver.PutData(ctx, createDataPath(target, relPath), processedData); err != nil {
 			errMap[target] = err
 			continue
 		}
@@ -122,7 +122,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
 	for target, h := range c.targets {
-		handled, path, _, err := h.ProcessData(data)
+		handled, relPath, _, err := h.ProcessData(data)
 		if err != nil {
 			errMap[target] = err
 			continue
@@ -130,7 +130,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if !handled {
 			continue
 		}
-		if _, err := c.backend.driver.DeleteData(ctx, createDataPath(target, path)); err != nil {
+		if _, err := c.backend.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
 			errMap[target] = err
 			continue
 		}
@@ -159,7 +159,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 	}
 
 	if len(templ.Spec.Targets) != 1 {
-		return nil, nil, errors.Errorf("expected exactly 1 item in targets, got %v", templ.Spec.Targets)
+		return nil, nil, fmt.Errorf("expected exactly 1 item in targets, got %v", templ.Spec.Targets)
 	}
 
 	targetSpec := &templ.Spec.Targets[0]
@@ -251,7 +251,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to validate targets for template %s", templ.Name)
+		return nil, fmt.Errorf("failed to validate targets for template %s: %w", templ.Name, err)
 	}
 
 	sch, err := c.backend.crd.createSchema(templ, targetHandler)
@@ -305,7 +305,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 		return nil, err
 	}
 	if entryPoint == nil {
-		return nil, errors.Errorf("Failed to parse module for unknown reason")
+		return nil, fmt.Errorf("Failed to parse module for unknown reason")
 	}
 
 	if err := rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
@@ -558,14 +558,14 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 	for _, target := range entry.Targets {
-		path, err := createConstraintPath(target, constraint)
+		relPath, err := createConstraintPath(target, constraint)
 		// If we ever create multi-target constraints we will need to handle this more cleverly.
 		// the short-circuiting question, cleanup, etc.
 		if err != nil {
 			errMap[target] = err
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, path, constraint.Object); err != nil {
+		if err := c.backend.driver.PutData(ctx, relPath, constraint.Object); err != nil {
 			errMap[target] = err
 			continue
 		}
@@ -598,14 +598,14 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 		return resp, err
 	}
 	for _, target := range entry.Targets {
-		path, err := createConstraintPath(target, constraint)
+		relPath, err := createConstraintPath(target, constraint)
 		// If we ever create multi-target constraints we will need to handle this more cleverly.
 		// the short-circuiting question, cleanup, etc.
 		if err != nil {
 			errMap[target] = err
 			continue
 		}
-		if _, err := c.backend.driver.DeleteData(ctx, path); err != nil {
+		if _, err := c.backend.driver.DeleteData(ctx, relPath); err != nil {
 			errMap[target] = err
 		}
 		resp.Handled[target] = true
@@ -699,15 +699,15 @@ func (c *Client) init() error {
 			"matching_reviews_and_constraints": {},
 			"matching_constraints":             {},
 		}
-		path := fmt.Sprintf("%s.library", hooks)
-		libModule, err := parseModule(path, lib)
+		modulePath := fmt.Sprintf("%s.library", hooks)
+		libModule, err := parseModule(modulePath, lib)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse module")
+			return fmt.Errorf("failed to parse module: %w", err)
 		}
 		if err := requireRulesModule(libModule, req); err != nil {
 			return fmt.Errorf("Problem with the below Rego for %s target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
 		}
-		err = rewriteModulePackage(path, libModule)
+		err = rewriteModulePackage(modulePath, libModule)
 		if err != nil {
 			return err
 		}
@@ -715,7 +715,7 @@ func (c *Client) init() error {
 		if err != nil {
 			return fmt.Errorf("Could not re-format Rego source: %v", err)
 		}
-		if err := c.backend.driver.PutModule(context.Background(), path, string(src)); err != nil {
+		if err := c.backend.driver.PutModule(context.Background(), modulePath, string(src)); err != nil {
 			return fmt.Errorf("Error %s from compiled source:\n%s", err, src)
 		}
 	}

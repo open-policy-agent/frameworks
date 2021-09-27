@@ -281,7 +281,7 @@ func makePath(join string, paths ...string) string {
 }
 
 func joinPaths(join string, paths ...string) string {
-	parts := []string{}
+	var parts []string
 	for _, path := range paths {
 		path = strings.Trim(path, join)
 		if path != "" {

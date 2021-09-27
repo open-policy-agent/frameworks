@@ -47,7 +47,7 @@ func (s *Sources) allSources() []sourceFile {
 	return m
 }
 
-// ForEachModule applys fn to each EntryPoint and Lib.
+// ForEachModule applies fn to each EntryPoint and Lib.
 func (s *Sources) ForEachModule(fn func(m *Module) error) error {
 	for _, module := range s.EntryPoints {
 		if err := fn(module); err != nil {
@@ -91,8 +91,8 @@ func (s *Sources) Reparent(old, new string) error {
 
 // Write will write the sources to the filesystem.
 func (s *Sources) Write() error {
-	// TODO: Determine if _unused is intended to be used in anything.
-	return s.forAll(func(_unused sourceFile) error {
+	// TODO: Determine if _ is intended to be used in anything.
+	return s.forAll(func(_ sourceFile) error {
 		for _, module := range s.allSources() {
 			path := module.Path()
 			content, err := module.Content()
