@@ -82,7 +82,6 @@ func compileSrcs(
 			"data.inventory",
 		},
 	)
-
 	if err != nil {
 		return err
 	}

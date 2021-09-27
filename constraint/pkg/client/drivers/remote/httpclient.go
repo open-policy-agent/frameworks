@@ -68,7 +68,8 @@ type Data interface {
 // New returns a new client object.
 func newHTTPClient(url string, opaCAs *x509.CertPool, auth string) client {
 	return &httpClient{
-		strings.TrimRight(url, "/"), "", opaCAs, auth}
+		strings.TrimRight(url, "/"), "", opaCAs, auth,
+	}
 }
 
 type httpClient struct {
@@ -262,7 +263,7 @@ func (c *httpClient) do(verb, path string, body io.Reader) (*http.Response, erro
 	client := &http.Client{}
 	if strings.HasPrefix(c.url, "https") && c.opaCAs != nil {
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
+			TLSClientConfig: &tls.Config{ // nolint:gosec // TODO: Determine appropriate minimum TLS version.
 				RootCAs: c.opaCAs,
 			},
 		}

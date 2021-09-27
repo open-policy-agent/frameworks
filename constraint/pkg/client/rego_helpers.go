@@ -7,12 +7,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-var (
-	// Currently rules should only access data.inventory
-	validDataFields = map[string]bool{
-		"inventory": true,
-	}
-)
+// Currently rules should only access data.inventory.
+var validDataFields = map[string]bool{
+	"inventory": true,
+}
 
 // parseModule parses the module and also fails empty modules.
 func parseModule(path, rego string) (*ast.Module, error) {
@@ -38,7 +36,7 @@ func rewriteModulePackage(path string, module *ast.Module) error {
 	return nil
 }
 
-// requireRulesModule makes sure the listed rules are specified
+// requireRulesModule makes sure the listed rules are specified.
 func requireRulesModule(module *ast.Module, requiredRules map[string]struct{}) error {
 	ruleSets := make(map[string]struct{}, len(module.Rules))
 	for _, rule := range module.Rules {

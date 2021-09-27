@@ -8,7 +8,7 @@ import (
 // Errors is a list of error.
 type Errors []error
 
-// Errors implements error
+// Errors implements error.
 var _ error = Errors{}
 
 // Error implements error.

@@ -76,13 +76,13 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
-// PutModules implements drivers.Driver
+// PutModules implements drivers.Driver.
 func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
 	panic("not implemented")
 }
 
 // DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
-// if a rule was not found, and any errors
+// if a rule was not found, and any errors.
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
@@ -95,7 +95,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	return err == nil, err
 }
 
-// DeleteModules implements drivers.Driver
+// DeleteModules implements drivers.Driver.
 func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, error) {
 	panic("not implemented")
 }
@@ -105,7 +105,7 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
-// if data was not found, and any errors
+// if data was not found, and any errors.
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
@@ -119,7 +119,7 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 }
 
 // makeURLPath takes a path of the form data.foo["bar.baz"].yes and converts it to an URI path
-// such as /data/foo/bar.baz/yes
+// such as /data/foo/bar.baz/yes.
 func makeURLPath(path string) (string, error) {
 	var pieces []string
 	quoted := false

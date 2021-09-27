@@ -35,15 +35,18 @@ func Targets(ts ...TargetHandler) Opt {
 		var errs Errors
 		handlers := make(map[string]TargetHandler, len(ts))
 		for _, t := range ts {
-			if t.GetName() == "" {
-				errs = append(errs, errors.New("Invalid target: a target is returning an empty string for GetName()"))
-			} else if !targetNameRegex.MatchString(t.GetName()) {
-				errs = append(errs, fmt.Errorf("Target name \"%s\" is not of the form %s", t.GetName(), targetNameRegex.String()))
-			} else {
-				handlers[t.GetName()] = t
+			name := t.GetName()
+			switch {
+			case name == "":
+				errs = append(errs, errors.New("invalid target: a target is returning an empty string for GetName()"))
+			case !targetNameRegex.MatchString(name):
+				errs = append(errs, fmt.Errorf("target name %q is not of the form %q", name, targetNameRegex.String()))
+			default:
+				handlers[name] = t
 			}
 		}
 		c.targets = handlers
+
 		if len(errs) > 0 {
 			return errs
 		}
@@ -76,7 +79,7 @@ type Client struct {
 	allowedDataFields []string
 }
 
-// createDataPath compiles the data destination: data.external.<target>.<path>
+// createDataPath compiles the data destination: data.external.<target>.<path>.
 func createDataPath(target, subpath string) string {
 	subpaths := strings.Split(subpath, "/")
 	p := []string{"external", target}
@@ -139,7 +142,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 	return resp, errMap
 }
 
-// createTemplatePath returns the package path for a given template: templates.<target>.<name>
+// createTemplatePath returns the package path for a given template: templates.<target>.<name>.
 func createTemplatePath(target, name string) string {
 	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
 }
@@ -181,7 +184,7 @@ func templateKeyFromConstraint(cst *unstructured.Unstructured) templateKey {
 }
 
 // rawCTArtifacts have no processing and are only useful for looking things up
-// from the cache
+// from the cache.
 type rawCTArtifacts struct {
 	// template is the template itself
 	template *templates.ConstraintTemplate
@@ -201,7 +204,7 @@ func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate)
 }
 
 // basicCTArtifacts are the artifacts created by processing a constraint template
-// that require little compute effort
+// that require little compute effort.
 type basicCTArtifacts struct {
 	rawCTArtifacts
 
@@ -223,11 +226,11 @@ type basicCTArtifacts struct {
 	targetSpec *templates.Target
 }
 
-func (a basicCTArtifacts) CRD() *apiextensions.CustomResourceDefinition {
+func (a *basicCTArtifacts) CRD() *apiextensions.CustomResourceDefinition {
 	return a.crd
 }
 
-// ctArtifacts are all artifacts created by processing a constraint template
+// ctArtifacts are all artifacts created by processing a constraint template.
 type ctArtifacts struct {
 	basicCTArtifacts
 
@@ -242,8 +245,8 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	if err != nil {
 		return nil, err
 	}
-	if templ.ObjectMeta.Name != strings.ToLower(templ.Spec.CRD.Spec.Names.Kind) {
-		return nil, fmt.Errorf("Template's name %s is not equal to the lowercase of CRD's Kind: %s", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
+	if !strings.EqualFold(templ.ObjectMeta.Name, templ.Spec.CRD.Spec.Names.Kind) {
+		return nil, fmt.Errorf("the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -346,7 +349,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	}, nil
 }
 
-// CreateCRD creates a CRD from template
+// CreateCRD creates a CRD from template.
 func (c *Client) CreateCRD(ctx context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	artifacts, err := c.createTemplateArtifacts(templ)
 	if err != nil {
@@ -448,7 +451,6 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 // GetTemplate gets the currently recognized template.
 func (c *Client) GetTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
-
 	artifacts, err := c.createRawTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
@@ -469,7 +471,7 @@ func (c *Client) getTemplateNoLock(ctx context.Context, artifacts keyableArtifac
 }
 
 // createConstraintSubPath returns the key where we will store the constraint
-// for each target: cluster.<group>.<kind>.<name>
+// for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
 		return "", errors.New("Constraint has no name")
@@ -484,17 +486,17 @@ func createConstraintSubPath(constraint *unstructured.Unstructured) (string, err
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
 }
 
-// createConstraintGKPath returns the subpath for given a constraint GK
+// createConstraintGKPath returns the subpath for given a constraint GK.
 func createConstraintGKSubPath(gk schema.GroupKind) string {
 	return "/" + path.Join("cluster", gk.Group, gk.Kind)
 }
 
-// createConstraintGKPath returns the storage path for a given constrain GK: constraints.<target>.cluster.<group>.<kind>
+// createConstraintGKPath returns the storage path for a given constrain GK: constraints.<target>.cluster.<group>.<kind>.
 func createConstraintGKPath(target string, gk schema.GroupKind) string {
 	return constraintPathMerge(target, createConstraintGKSubPath(gk))
 }
 
-// createConstraintPath returns the storage path for a given constraint: constraints.<target>.cluster.<group>.<kind>.<name>
+// createConstraintPath returns the storage path for a given constraint: constraints.<target>.cluster.<group>.<kind>.<name>.
 func createConstraintPath(target string, constraint *unstructured.Unstructured) (string, error) {
 	p, err := createConstraintSubPath(constraint)
 	if err != nil {
@@ -504,12 +506,12 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 }
 
 // constraintPathMerge is a shared function for creating constraint paths to
-// ensure uniformity, it is not meant to be called directly
+// ensure uniformity, it is not meant to be called directly.
 func constraintPathMerge(target, subpath string) string {
 	return "/" + path.Join("constraints", target, subpath)
 }
 
-// getTemplateEntry returns the template entry for a given constraint
+// getTemplateEntry returns the template entry for a given constraint.
 func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
@@ -617,7 +619,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 	return resp, errMap
 }
 
-// getConstraintNoLock gets the currently recognized constraint without the lock
+// getConstraintNoLock gets the currently recognized constraint without the lock.
 func (c *Client) getConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
@@ -639,7 +641,7 @@ func (c *Client) GetConstraint(ctx context.Context, constraint *unstructured.Uns
 }
 
 // validateConstraint is an internal function that allows us to toggle whether we use a read lock
-// when validating a constraint
+// when validating a constraint.
 func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock bool) error {
 	entry, err := c.getTemplateEntry(constraint, lock)
 	if err != nil {
@@ -663,7 +665,7 @@ func (c *Client) ValidateConstraint(ctx context.Context, constraint *unstructure
 	return c.validateConstraint(constraint, true)
 }
 
-// init initializes the OPA backend for the client
+// init initializes the OPA backend for the client.
 func (c *Client) init() error {
 	for _, t := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())

@@ -74,13 +74,13 @@ func newConstraint(kind, name string, params map[string]string, enforcementActio
 }
 
 var (
-	// basic deny template
+	// basic deny template.
 	denyTemplateRego = `package foo
 violation[{"msg": "DENIED", "details": {}}] {
 	"always" == "always"
 }`
 
-	// basic deny template that uses a lib rule
+	// basic deny template that uses a lib rule.
 	denyTemplateWithLibRego = `package foo
 
 import data.lib.bar

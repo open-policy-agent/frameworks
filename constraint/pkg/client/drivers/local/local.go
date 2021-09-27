@@ -18,8 +18,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const moduleSetPrefix = "__modset_"
-const moduleSetSep = "_idx_"
+const (
+	moduleSetPrefix = "__modset_"
+	moduleSetSep    = "_idx_"
+)
 
 type module struct {
 	text   string
@@ -143,7 +145,7 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	return err
 }
 
-// PutModules implements drivers.Driver
+// PutModules implements drivers.Driver.
 func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
 	if err := d.checkModuleSetName(namePrefix); err != nil {
 		return err
@@ -171,7 +173,7 @@ func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []strin
 }
 
 // DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
-// if a rule was not found, and any errors
+// if a rule was not found, and any errors.
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	if err := d.checkModuleName(name); err != nil {
 		return false, err
@@ -230,7 +232,7 @@ func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []
 	return len(remove), nil
 }
 
-// DeleteModules implements drivers.Driver
+// DeleteModules implements drivers.Driver.
 func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, error) {
 	if err := d.checkModuleSetName(namePrefix); err != nil {
 		return 0, err
@@ -291,14 +293,12 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 		d.storage.Abort(ctx, txn)
 		return err
 	}
-	if err := d.storage.Commit(ctx, txn); err != nil {
-		return err
-	}
-	return nil
+
+	return d.storage.Commit(ctx, txn)
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
-// if data was not found, and any errors
+// if data was not found, and any errors.
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
