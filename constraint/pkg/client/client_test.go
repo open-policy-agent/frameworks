@@ -64,7 +64,7 @@ func (h *badHandler) MatchSchema() apiextensions.JSONSchemaProps {
 
 func (h *badHandler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
 	if h.Errors {
-		return false, "", nil, errors.New("TEST ERROR")
+		return false, "", nil, errors.New("some error")
 	}
 	if !h.HandlesData {
 		return false, "", nil, nil

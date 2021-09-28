@@ -37,7 +37,7 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 	}
 
 	if b.driver == nil {
-		return nil, errors.New("No driver supplied to the backend")
+		return nil, errors.New("no driver supplied to the backend")
 	}
 
 	return b, nil
@@ -46,7 +46,7 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 // NewClient creates a new client for the supplied backend.
 func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	if b.hasClient {
-		return nil, errors.New("Currently only one client per backend is supported")
+		return nil, errors.New("currently only one client per backend is supported")
 	}
 	var fields []string
 	for k := range validDataFields {
@@ -66,14 +66,14 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	}
 	for _, field := range c.allowedDataFields {
 		if !validDataFields[field] {
-			return nil, fmt.Errorf("Invalid data field %s", field)
+			return nil, fmt.Errorf("invalid data field %s", field)
 		}
 	}
 	if len(errs) > 0 {
 		return nil, errs
 	}
 	if len(c.targets) == 0 {
-		return nil, errors.New("No targets registered. Please register a target via client.Targets()")
+		return nil, errors.New("no targets registered: please register a target via client.Targets()")
 	}
 	if err := b.driver.Init(context.Background()); err != nil {
 		return nil, err

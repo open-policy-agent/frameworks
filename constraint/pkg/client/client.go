@@ -198,7 +198,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.ObjectMeta.Name == "" {
-		return nil, errors.New("Template has no name")
+		return nil, errors.New("invalid Template: missing name")
 	}
 	return &rawCTArtifacts{template: templ}, nil
 }
@@ -305,7 +305,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 		return nil, err
 	}
 	if entryPoint == nil {
-		return nil, fmt.Errorf("Failed to parse module for unknown reason")
+		return nil, fmt.Errorf("failed to parse module for unknown reason")
 	}
 
 	if err := rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
@@ -315,7 +315,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	req := map[string]struct{}{"violation": {}}
 
 	if err := requireRulesModule(entryPoint, req); err != nil {
-		return nil, fmt.Errorf("Invalid rego: %s", err)
+		return nil, fmt.Errorf("invalid rego: %s", err)
 	}
 
 	rr.AddEntryPointModule(artifacts.namePrefix, entryPoint)
@@ -474,14 +474,14 @@ func (c *Client) getTemplateNoLock(ctx context.Context, artifacts keyableArtifac
 // for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
-		return "", errors.New("Constraint has no name")
+		return "", errors.New("invalid Constraint: missing name")
 	}
 	gvk := constraint.GroupVersionKind()
 	if gvk.Group == "" {
-		return "", fmt.Errorf("Empty group for the constrant named %s", constraint.GetName())
+		return "", fmt.Errorf("empty group for the constrant named %s", constraint.GetName())
 	}
 	if gvk.Kind == "" {
-		return "", fmt.Errorf("Empty kind for the constraint named %s", constraint.GetName())
+		return "", fmt.Errorf("empty kind for the constraint named %s", constraint.GetName())
 	}
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
 }
@@ -515,10 +515,10 @@ func constraintPathMerge(target, subpath string) string {
 func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
-		return nil, fmt.Errorf("Constraint %s has no kind", constraint.GetName())
+		return nil, fmt.Errorf("kind missing from Constraint %q", constraint.GetName())
 	}
 	if constraint.GroupVersionKind().Group != constraintGroup {
-		return nil, fmt.Errorf("Constraint %s has the wrong group", constraint.GetName())
+		return nil, fmt.Errorf("wrong API Group for Constraint %q", constraint.GetName())
 	}
 	if lock {
 		c.constraintsMux.RLock()
@@ -684,7 +684,7 @@ func (c *Client) init() error {
 
 		libTempl := t.Library()
 		if libTempl == nil {
-			return fmt.Errorf("Target %s has no Rego library template", t.GetName())
+			return fmt.Errorf("target %q has no Rego library template", t.GetName())
 		}
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
@@ -705,7 +705,7 @@ func (c *Client) init() error {
 			return fmt.Errorf("failed to parse module: %w", err)
 		}
 		if err := requireRulesModule(libModule, req); err != nil {
-			return fmt.Errorf("Problem with the below Rego for %s target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
+			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
 		}
 		err = rewriteModulePackage(modulePath, libModule)
 		if err != nil {
@@ -713,10 +713,10 @@ func (c *Client) init() error {
 		}
 		src, err := format.Ast(libModule)
 		if err != nil {
-			return fmt.Errorf("Could not re-format Rego source: %v", err)
+			return fmt.Errorf("could not re-format Rego source: %v", err)
 		}
 		if err := c.backend.driver.PutModule(context.Background(), modulePath, string(src)); err != nil {
-			return fmt.Errorf("Error %s from compiled source:\n%s", err, src)
+			return fmt.Errorf("error %s from compiled source:\n%s", err, src)
 		}
 	}
 

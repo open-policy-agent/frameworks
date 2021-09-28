@@ -109,20 +109,20 @@ func copyModules(modules map[string]*ast.Module, filter string) map[string]*ast.
 
 func (d *driver) checkModuleName(name string) error {
 	if name == "" {
-		return fmt.Errorf("Module name cannot be empty")
+		return fmt.Errorf("module name cannot be empty")
 	}
 	if strings.HasPrefix(name, moduleSetPrefix) {
-		return fmt.Errorf("Single modules not allowed to use name prefix %s", moduleSetPrefix)
+		return fmt.Errorf("single modules not allowed to use name prefix %q", moduleSetPrefix)
 	}
 	return nil
 }
 
 func (d *driver) checkModuleSetName(name string) error {
 	if name == "" {
-		return fmt.Errorf("Modules name prefix cannot be empty")
+		return fmt.Errorf("modules name prefix cannot be empty")
 	}
 	if strings.Contains(name, moduleSetSep) {
-		return fmt.Errorf("Modules name prefix not allowed to contain the sequence n%s", moduleSetSep)
+		return fmt.Errorf("modules name prefix not allowed to contain the sequence n%s", moduleSetSep)
 	}
 	return nil
 }
@@ -259,7 +259,7 @@ func (d *driver) listModuleSet(namePrefix string) []string {
 func parsePath(path string) ([]string, error) {
 	p, ok := storage.ParsePathEscaped(path)
 	if !ok {
-		return nil, fmt.Errorf("Bad data path: %s", path)
+		return nil, fmt.Errorf("bad data path: %q", path)
 	}
 	return p, nil
 }
@@ -397,11 +397,11 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	var dt interface{}
 	// There should be only 1 or 0 expression values
 	if len(data) > 1 {
-		return "", errors.New("Too many dump results")
+		return "", errors.New("too many dump results")
 	}
 	for _, da := range data {
 		if len(data) > 1 {
-			return "", errors.New("Too many expressions results")
+			return "", errors.New("too many expressions results")
 		}
 		for _, e := range da.Expressions {
 			dt = e.Value

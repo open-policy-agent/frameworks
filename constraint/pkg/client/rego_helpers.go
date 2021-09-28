@@ -19,7 +19,7 @@ func parseModule(path, rego string) (*ast.Module, error) {
 		return nil, err
 	}
 	if module == nil {
-		return nil, errors.New("Empty module")
+		return nil, errors.New("empty module")
 	}
 	return module, nil
 }
@@ -47,7 +47,7 @@ func requireRulesModule(module *ast.Module, requiredRules map[string]struct{}) e
 	for name := range requiredRules {
 		_, ok := ruleSets[name]
 		if !ok {
-			errs = append(errs, fmt.Errorf("Missing required rule: %s", name))
+			errs = append(errs, fmt.Errorf("missing required rule: %s", name))
 			continue
 		}
 	}

@@ -122,7 +122,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -161,7 +161,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
@@ -195,7 +195,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -258,7 +258,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
@@ -296,7 +296,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
@@ -318,7 +318,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrapf(err, "AuditX2")
 		}
 		if len(rsps2.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps2.Results()) != 1 {
 			return e("Bad number of results", rsps2)
@@ -353,7 +353,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -400,7 +400,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -442,7 +442,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -469,7 +469,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -504,7 +504,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
@@ -539,7 +539,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.Wrap(err, "Audit")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
@@ -577,7 +577,7 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -608,7 +608,7 @@ violation[{"msg": "DENIED", "details": {}}] {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned")
+			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
 			return e("Bad number of results", rsps)
@@ -625,7 +625,7 @@ violation[{"msg": "DENIED", "details": {}}] {
 			return errors.Wrap(err, "Review")
 		}
 		if len(rsps.ByTarget) == 0 {
-			return errors.New("No responses returned for second test")
+			return errors.New("no responses returned for second test")
 		}
 		if len(rsps.Results()) != 0 {
 			return e("Expected no results", rsps)

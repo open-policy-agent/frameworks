@@ -52,7 +52,7 @@ func New(args ...Arg) (drivers.Driver, error) {
 		arg(i)
 	}
 	if i.url == "" {
-		return nil, errors.New("OPA URL not set")
+		return nil, errors.New("missing URL for OPA")
 	}
 	return &driver{opa: newHTTPClient(i.url, i.opaCAs, i.auth), traceEnabled: i.traceEnabled}, nil
 }
@@ -140,7 +140,7 @@ func makeURLPath(path string) (string, error) {
 					builder.Reset()
 					continue
 				} else {
-					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+					return "", fmt.Errorf("mismatched bracketing: %q", path)
 				}
 			}
 			if ch == "]" {
@@ -148,7 +148,7 @@ func makeURLPath(path string) (string, error) {
 					openBracket = false
 					continue
 				} else {
-					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+					return "", fmt.Errorf("mismatched bracketing: %q", path)
 				}
 			}
 		}

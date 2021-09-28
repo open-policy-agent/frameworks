@@ -179,16 +179,16 @@ func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensions
 		return err.ToAggregate()
 	}
 	if errs := apivalidation.IsDNS1123Subdomain(cr.GetName()); len(errs) != 0 {
-		return fmt.Errorf("Invalid Name: %s", strings.Join(errs, "\n"))
+		return fmt.Errorf("invalid Name: %s", strings.Join(errs, "\n"))
 	}
 	if cr.GetKind() != crd.Spec.Names.Kind {
-		return fmt.Errorf("Wrong kind for constraint %s. Have %s, want %s", cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
+		return fmt.Errorf("wrong kind for constraint %s. Have %s, want %s", cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
 	}
 	if cr.GroupVersionKind().Group != constraintGroup {
-		return fmt.Errorf("Wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
+		return fmt.Errorf("wrong group for constraint %s. Have %s, want %s", cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
 	}
 	if !supportedVersions[cr.GroupVersionKind().Version] {
-		return fmt.Errorf("Wrong version for constraint %s. Have %s, supported: %v", cr.GetName(), cr.GroupVersionKind().Version, supportedVersions)
+		return fmt.Errorf("wrong version for constraint %s. Have %s, supported: %v", cr.GetName(), cr.GroupVersionKind().Version, supportedVersions)
 	}
 	return nil
 }
