@@ -2,10 +2,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )

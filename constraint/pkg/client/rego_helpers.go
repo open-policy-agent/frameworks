@@ -1,10 +1,10 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/open-policy-agent/opa/ast"
-	"errors"
 )
 
 // Currently rules should only access data.inventory.

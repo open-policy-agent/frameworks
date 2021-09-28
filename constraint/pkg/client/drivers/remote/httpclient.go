@@ -211,7 +211,7 @@ func (c *httpClient) ListPolicies() (*QueryResult, error) {
 		return nil, fmt.Errorf("got running ListPolicies:handleErrors: %w", c.handleErrors(resp))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return nil, fmt.Errorf("got decoding ListPolicies: %w", err, )
+		return nil, fmt.Errorf("got decoding ListPolicies: %w", err)
 	}
 	return result, nil
 }
