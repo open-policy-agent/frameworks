@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/pkg/errors"
 )
 
 type Arg func(*inits)
@@ -86,7 +86,8 @@ func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []strin
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
-		if e, ok := errors.Cause(err).(*Error); ok {
+		e := &Error{}
+		if errors.As(err, &e) {
 			if e.Status == 404 {
 				return false, nil
 			}
@@ -109,7 +110,8 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
-		if e, ok := errors.Cause(err).(*Error); ok {
+		e := &Error{}
+		if errors.As(err, &e) {
 			if e.Status == 404 {
 				return false, nil
 			}
@@ -184,7 +186,7 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 	if response.Result != nil {
 		if err := json.Unmarshal(response.Result, &results); err != nil {
 			rawJSON := string(response.Result)
-			return nil, errors.Wrapf(err, "DriverQuery: Unmarshal result: %s", rawJSON)
+			return nil, fmt.Errorf("error Unmarshalling DriverQuery: %w: Unmarshal result: %s", err, rawJSON)
 		}
 	}
 	resp := &ctypes.Response{Results: results}

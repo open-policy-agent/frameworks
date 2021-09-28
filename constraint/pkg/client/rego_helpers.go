@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 // Currently rules should only access data.inventory.

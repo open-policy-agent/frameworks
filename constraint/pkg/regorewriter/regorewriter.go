@@ -11,7 +11,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/format"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -47,11 +46,11 @@ type RegoRewriter struct {
 func New(pt PackageTransformer, libs []string, externs []string) (*RegoRewriter, error) {
 	externRefs, err := packagesAsRefs(externs)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse externs")
+		return nil, fmt.Errorf("failed to parse externs: %w", err)
 	}
 	libRefs, err := packagesAsRefs(libs)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse libs")
+		return nil, fmt.Errorf("failed to parse libs: %w", err)
 	}
 
 	return &RegoRewriter{
@@ -96,7 +95,7 @@ func (r *RegoRewriter) addTestDir(testDirPath string) error {
 	glog.V(vLog).Infof("Walking test dir %s", testDirPath)
 	walkFn := func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return errors.Wrapf(err, "walk error on path %s", path)
+			return fmt.Errorf("walk error on path %s: %w", path, err)
 		}
 		if info.IsDir() {
 			return nil
@@ -313,7 +312,7 @@ func (r *RegoRewriter) checkDataReferences() error {
 			})
 		}
 		if errs != nil {
-			return errors.Wrapf(errs, "check refs failed on module %s", m.FilePath)
+			return fmt.Errorf("check refs failed on module %s: %w", m.FilePath, errs)
 		}
 		return nil
 	})
