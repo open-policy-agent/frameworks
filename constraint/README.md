@@ -5,7 +5,7 @@
 ### What is a Constraint?
 
 A constraint is a declaration that its author wants a system to meet a given set of
-requirements. For example, if I have a system with objects that can be labeled and
+requirements. For example, if I have a system with objects that can be labeled, and
 I want to make sure that every object has a `billing` label, I might write the
 following constraint YAML:
 
@@ -34,7 +34,7 @@ multiple places in a workflow, improving likelihood of compliance.
 ### What is a Constraint Template?
 
 Constraint Templates allow people to declare new constraints. They can provide the
-expected input parameters and the underlying Rego necessary to enforce their
+expected input parameters, and the underlying Rego necessary to enforce their
 intent. For example, to define the `FooSystemRequiredLabel` constraint kind
 implemented above, I might write the following template YAML:
 
@@ -130,7 +130,7 @@ in the same validation context. This is probably best illustrated by a few examp
 ##### Kubernetes Admission Webhooks Create a Target
  
 All Kubernetes resources are defined by `group`, `version` and `kind`. They can
-additionally be grouped by namespace, or by using label selectors. Therefore they
+additionally be grouped by namespace, or by using label selectors. Therefore, they
 have a common naming and selection scheme. All Kubernetes resources declaratively
 configure the state of a Kubernetes cluster, therefore they share a purpose.
 Finally, they are all can be evaluated using a [Validating Admission Webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/).
@@ -141,15 +141,15 @@ Kubernetes admission webhooks a potential target.
  
 All Kubernetes requests can be defined by their type (e.g. `CREATE`, `UPDATE`,
 `WATCH`) and therefore have a common selection scheme. All Kubernetes requests
-broadcast the requestor's intent to modify the Kubernetes cluster. Therefore they
+broadcast the requestor's intent to modify the Kubernetes cluster. Therefore, they
 have a common purpose. All requests can be evaluated by an [authorization webhook](https://kubernetes.io/docs/reference/access-authn-authz/webhook/)
 and therefore they share a common evaluation schema.
  
 #### How Do I Know if [X] Should be a Target?
  
-Currently there are no hard and fast litmus tests for determining a good boundary
+Currently, there are no hard and fast litmus tests for determining a good boundary
 for a target, much like there are no hard and fast rules for what should be in a
-function or a class, just guidelines, ideology and the notion of orthoganality and
+function or a class, just guidelines, ideology and the notion of orthogonality and
 testability (among others). Chances are, if you can come up with a set of rules for
 a new system that could be useful, you may have a good candidate for a new target.
 
@@ -200,10 +200,10 @@ The most interesting fields here are `HandleReview()`, `MatchSchema()`, and `Lib
 
 ### `HandleReview()`
 
-`HandleReview()` determinines whether and how a target handler is involved with a
+`HandleReview()` determines whether and how a target handler is involved with a
 `Review()` request (which checks to make sure an input complies with all
 constraints). It returns `true` if the target should be involved with reviewing the
-object and the second return value defines the schema of the `input.review` object
+object, and the second return value defines the schema of the `input.review` object
 available to all constraint rules.
 
 ### `MatchSchema()`
