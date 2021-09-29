@@ -5,7 +5,7 @@ import (
 )
 
 // ToVersionless runs defaulting functions and then converts the ConstraintTemplate to the
-// versionless api representation
+// versionless api representation.
 func (versioned *ConstraintTemplate) ToVersionless() (*templates.ConstraintTemplate, error) {
 	versionedCopy := versioned.DeepCopy()
 	Scheme.Default(versionedCopy)

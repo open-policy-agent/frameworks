@@ -93,7 +93,7 @@ func createTestTargetHandler(args ...targetHandlerArg) MatchSchemaProvider {
 	return h
 }
 
-func (h testTargetHandler) MatchSchema() apiextensions.JSONSchemaProps {
+func (h *testTargetHandler) MatchSchema() apiextensions.JSONSchemaProps {
 	return h.matchSchema
 }
 
@@ -110,7 +110,7 @@ func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSche
 	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
 }
 
-// tProp creates a typed property
+// tProp creates a typed property.
 func tProp(t string) apiextensions.JSONSchemaProps {
 	return apiextensions.JSONSchemaProps{Type: t}
 }
@@ -249,7 +249,9 @@ func TestCreateSchema(t *testing.T) {
 			Handler:  createTestTargetHandler(matchSchema(propMap{"labels": prop()})),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(propMap{
-					"labels": prop()})}),
+					"labels": prop(),
+				}),
+			}),
 		},
 		{
 			Name:     "Just Parameters",

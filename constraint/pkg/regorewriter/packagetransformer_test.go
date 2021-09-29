@@ -44,7 +44,6 @@ func TestPackagePrefixer(t *testing.T) {
 			if !wantRef.Equal(gotRef) {
 				t.Errorf("wanted %s, got %s", wantRef, gotRef)
 			}
-
 		})
 	}
 }

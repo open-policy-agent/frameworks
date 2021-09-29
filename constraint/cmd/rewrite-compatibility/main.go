@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/glog"
 	_ "github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -67,10 +66,10 @@ func compileSrcs(
 	oldRoot string,
 	newRoot string) error {
 	if len(cts) == 0 && len(libs) == 0 {
-		return errors.Errorf("must specify --ct or --lib or both")
+		return fmt.Errorf("must specify --ct or --lib or both")
 	}
 	if (oldRoot == "") != (newRoot == "") {
-		return errors.Errorf("--input and --output must be empty or non empty together")
+		return fmt.Errorf("--input and --output must be empty or non empty together")
 	}
 
 	regoRewriter, err := regorewriter.New(
@@ -82,7 +81,6 @@ func compileSrcs(
 			"data.inventory",
 		},
 	)
-
 	if err != nil {
 		return err
 	}
