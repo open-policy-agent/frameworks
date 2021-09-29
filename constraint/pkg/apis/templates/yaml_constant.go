@@ -33,7 +33,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate
+            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
                 properties:
@@ -76,7 +76,7 @@ spec:
                 type: array
             type: object
           status:
-            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate
+            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate.
             properties:
               byPod:
                 items:
@@ -128,7 +128,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate
+            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
                 properties:
@@ -171,7 +171,7 @@ spec:
                 type: array
             type: object
           status:
-            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate
+            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate.
             properties:
               byPod:
                 items:
@@ -223,7 +223,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate
+            description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
                 properties:
@@ -266,7 +266,7 @@ spec:
                 type: array
             type: object
           status:
-            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate
+            description: ConstraintTemplateStatus defines the observed state of ConstraintTemplate.
             properties:
               byPod:
                 items:
