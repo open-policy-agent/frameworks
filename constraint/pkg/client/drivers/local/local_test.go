@@ -342,7 +342,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with external data cache",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -356,7 +356,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with external data disabled",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",

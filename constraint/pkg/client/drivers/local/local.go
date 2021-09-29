@@ -175,7 +175,7 @@ func (d *driver) Init(ctx context.Context) error {
 					return externaldata.HandleError(http.StatusInternalServerError, err)
 				}
 
-				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, externaldataResponse)
+				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, &externaldataResponse)
 				return externaldata.PrepareRegoResponse(regoResponse)
 			},
 		)
