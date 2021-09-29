@@ -131,7 +131,7 @@ func TestTypeConversion(t *testing.T) {
 
 // TestValidationVersionConversionAndTransformation confirms that our custom conversion
 // function works, and also that it adds in the x-kubernetes-preserve-unknown-fields information
-// that we require for v1 CRD support
+// that we require for v1 CRD support.
 func TestValidationVersionConversionAndTransformation(t *testing.T) {
 	// The scheme is responsible for defaulting
 	scheme := runtime.NewScheme()

@@ -35,13 +35,13 @@ type testCase struct {
 	ExpectedVals  []string
 }
 
-// rule corresponds to a rego snippet from the constraint template or other
+// rule corresponds to a rego snippet from the constraint template or other.
 type rule struct {
 	Path    string
 	Content string
 }
 
-// rules is a list of rules
+// rules is a list of rules.
 type rules []rule
 
 func (r rules) srcs() []string {
@@ -54,14 +54,14 @@ func (r rules) srcs() []string {
 
 type data map[string]interface{}
 
-// compositeTestCase is a testcase that consists of one or more API calls
+// compositeTestCase is a testcase that consists of one or more API calls.
 type compositeTestCase struct {
 	Name      string
-	Actions   []action
+	Actions   []*action
 	driverArg []Arg
 }
 
-// action corresponds to a method call for compositeTestCase
+// action corresponds to a method call for compositeTestCase.
 type action struct {
 	Op              string
 	RuleNamePrefix  string // Used in PutModules/DeleteModules
@@ -76,8 +76,11 @@ type action struct {
 
 func (tt *compositeTestCase) run(t *testing.T) {
 	dr := New(tt.driverArg...)
-	d := dr.(*driver)
-	_ = d.Init(context.TODO())
+	d, ok := dr.(*driver)
+	if !ok {
+		t.Fatalf("got driver %T, want %T", dr, &driver{})
+	}
+
 	for idx, a := range tt.Actions {
 		t.Run(fmt.Sprintf("action idx %d", idx), func(t *testing.T) {
 			ctx := context.Background()
@@ -149,7 +152,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 }
 
 func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
-	ev := []string{}
+	var ev []string
 	for _, r := range res {
 		i, ok := r.Bindings["a"].(string)
 		if !ok {
@@ -174,7 +177,7 @@ func TestModules(t *testing.T) {
 	tc := []compositeTestCase{
 		{
 			Name: "PutModules then DeleteModules",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -202,7 +205,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules with invalid empty string name",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op: putModules,
 					Rules: rules{
@@ -215,7 +218,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules with invalid sequence",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1_idx_",
@@ -229,7 +232,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with invalid prefix",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addModule,
 					Rules:         rules{{"__modset_test1", `package hello r[a] {a = "m"}`}},
@@ -239,7 +242,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules twice, decrease src count",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -263,7 +266,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules twice, increase src count",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -287,7 +290,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "DeleteModules twice",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -312,7 +315,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with valid builtin",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -325,7 +328,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with invalid builtin",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -395,7 +398,11 @@ func TestPutModule(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, r := range tt.Rules {
 				err := d.PutModule(context.Background(), r.Path, r.Content)
 				if (err == nil) && tt.ErrorExpected {
@@ -420,7 +427,7 @@ func TestDeleteModule(t *testing.T) {
 	tc := []compositeTestCase{
 		{
 			Name: "Delete One Rule",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:    addModule,
 					Rules: rules{{"test1", `package hello r[a] {a = "m"}`}},
@@ -438,7 +445,7 @@ func TestDeleteModule(t *testing.T) {
 		},
 		{
 			Name: "Delete One Rule Twice",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addModule,
 					Rules:         rules{{"test1", `package hello r[a] {a = "m"}`}},
@@ -466,7 +473,7 @@ func TestDeleteModule(t *testing.T) {
 }
 
 func makeDataPath(s string) string {
-	s = strings.Replace(s, "/", ".", -1)
+	s = strings.ReplaceAll(s, "/", ".")
 	return "data." + s[1:]
 }
 
@@ -496,7 +503,11 @@ func TestPutData(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, data := range tt.Data {
 				for k, v := range data {
 					err := d.PutData(context.Background(), k, v)
@@ -526,7 +537,7 @@ func TestDeleteData(t *testing.T) {
 	tc := []compositeTestCase{
 		{
 			Name: "Delete One Datum",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addData,
 					Data:          []data{{"/key": "my_value"}},
@@ -543,7 +554,7 @@ func TestDeleteData(t *testing.T) {
 		},
 		{
 			Name: "Delete Data Twice",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addData,
 					Data:          []data{{"/key": "my_value"}},
@@ -568,7 +579,11 @@ func TestDeleteData(t *testing.T) {
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, a := range tt.Actions {
 				for _, data := range a.Data {
 					for k, v := range data {
@@ -677,6 +692,5 @@ func TestQuery(t *testing.T) {
 		if !reflect.DeepEqual(res.Results, responses) {
 			t.Errorf("%s != %s", spew.Sprint(res), spew.Sprint(responses))
 		}
-
 	})
 }

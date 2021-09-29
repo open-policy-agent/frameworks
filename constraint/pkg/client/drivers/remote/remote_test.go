@@ -12,15 +12,15 @@ type testClient struct {
 }
 
 func (c *testClient) InsertPolicy(id string, bs []byte) error {
-	return errors.New("NOT IMPLEMENTED")
+	return errors.New("not implemented")
 }
 
 func (c *testClient) DeletePolicy(id string) error {
-	return errors.New("NOT IMPLEMENTED")
+	return errors.New("not implemented")
 }
 
 func (c *testClient) ListPolicies() (*QueryResult, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+	return nil, errors.New("not implemented")
 }
 
 func (c *testClient) Prefix(path string) Data {
@@ -28,19 +28,19 @@ func (c *testClient) Prefix(path string) Data {
 }
 
 func (c *testClient) PatchData(path string, op string, value *interface{}) error {
-	return errors.New("NOT IMPLEMENTED")
+	return errors.New("not implemented")
 }
 
 func (c *testClient) PutData(path string, value interface{}) error {
-	return errors.New("NOT IMPLEMENTED")
+	return errors.New("not implemented")
 }
 
 func (c *testClient) PostData(path string, value interface{}) (json.RawMessage, error) {
-	return nil, errors.New("NOT IMPLEMENTED")
+	return nil, errors.New("not implemented")
 }
 
 func (c *testClient) DeleteData(path string) error {
-	return errors.New("NOT IMPLEMENTED")
+	return errors.New("not implemented")
 }
 
 func (c *testClient) Query(path string, value interface{}) (*QueryResult, error) {

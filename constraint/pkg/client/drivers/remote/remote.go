@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/pkg/errors"
 )
 
 type Arg func(*inits)
@@ -52,7 +52,7 @@ func New(args ...Arg) (drivers.Driver, error) {
 		arg(i)
 	}
 	if i.url == "" {
-		return nil, errors.New("OPA URL not set")
+		return nil, errors.New("missing URL for OPA")
 	}
 	return &driver{opa: newHTTPClient(i.url, i.opaCAs, i.auth), traceEnabled: i.traceEnabled}, nil
 }
@@ -76,17 +76,18 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
-// PutModules implements drivers.Driver
+// PutModules implements drivers.Driver.
 func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
 	panic("not implemented")
 }
 
 // DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
-// if a rule was not found, and any errors
+// if a rule was not found, and any errors.
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
-		if e, ok := errors.Cause(err).(*Error); ok {
+		e := &Error{}
+		if errors.As(err, &e) {
 			if e.Status == 404 {
 				return false, nil
 			}
@@ -95,7 +96,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	return err == nil, err
 }
 
-// DeleteModules implements drivers.Driver
+// DeleteModules implements drivers.Driver.
 func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, error) {
 	panic("not implemented")
 }
@@ -105,11 +106,12 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
-// if data was not found, and any errors
+// if data was not found, and any errors.
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
-		if e, ok := errors.Cause(err).(*Error); ok {
+		e := &Error{}
+		if errors.As(err, &e) {
 			if e.Status == 404 {
 				return false, nil
 			}
@@ -119,7 +121,7 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 }
 
 // makeURLPath takes a path of the form data.foo["bar.baz"].yes and converts it to an URI path
-// such as /data/foo/bar.baz/yes
+// such as /data/foo/bar.baz/yes.
 func makeURLPath(path string) (string, error) {
 	var pieces []string
 	quoted := false
@@ -140,7 +142,7 @@ func makeURLPath(path string) (string, error) {
 					builder.Reset()
 					continue
 				} else {
-					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+					return "", fmt.Errorf("mismatched bracketing: %q", path)
 				}
 			}
 			if ch == "]" {
@@ -148,7 +150,7 @@ func makeURLPath(path string) (string, error) {
 					openBracket = false
 					continue
 				} else {
-					return "", fmt.Errorf("Mismatched bracketing: %s", path)
+					return "", fmt.Errorf("mismatched bracketing: %q", path)
 				}
 			}
 		}
@@ -156,7 +158,7 @@ func makeURLPath(path string) (string, error) {
 			quoted = !quoted
 			continue
 		}
-		fmt.Fprint(builder, ch)
+		_, _ = fmt.Fprint(builder, ch)
 	}
 	pieces = append(pieces, builder.String())
 
@@ -184,7 +186,7 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 	if response.Result != nil {
 		if err := json.Unmarshal(response.Result, &results); err != nil {
 			rawJSON := string(response.Result)
-			return nil, errors.Wrapf(err, "DriverQuery: Unmarshal result: %s", rawJSON)
+			return nil, fmt.Errorf("error Unmarshalling DriverQuery: %w: Unmarshal result: %s", err, rawJSON)
 		}
 	}
 	resp := &ctypes.Response{Results: results}

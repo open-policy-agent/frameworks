@@ -12,7 +12,6 @@ import (
 )
 
 func TestHTTPClientMakePatch(t *testing.T) {
-
 	tests := []struct {
 		prefix string
 		path   string
@@ -64,7 +63,6 @@ func TestHTTPClientMakePatch(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-
 		client := &httpClient{"URL", tc.prefix, nil, ""}
 		var value *interface{}
 
@@ -87,11 +85,9 @@ func TestHTTPClientMakePatch(t *testing.T) {
 			t.Errorf("Expected %v but got: %v", expected, patch)
 		}
 	}
-
 }
 
 func mustMakePatch(client *httpClient, path, op string, value *interface{}) interface{} {
-
 	buf, err := client.makePatch(path, op, value)
 	if err != nil {
 		panic(err)

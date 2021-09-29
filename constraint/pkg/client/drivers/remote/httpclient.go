@@ -14,8 +14,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // Error contains the standard error fields returned by OPA.
@@ -68,7 +66,8 @@ type Data interface {
 // New returns a new client object.
 func newHTTPClient(url string, opaCAs *x509.CertPool, auth string) client {
 	return &httpClient{
-		strings.TrimRight(url, "/"), "", opaCAs, auth}
+		strings.TrimRight(url, "/"), "", opaCAs, auth,
+	}
 }
 
 type httpClient struct {
@@ -87,11 +86,11 @@ func (c *httpClient) Prefix(path string) Data {
 func (c *httpClient) PatchData(path string, op string, value *interface{}) error {
 	buf, err := c.makePatch(path, op, value)
 	if err != nil {
-		return errors.Wrap(err, "PatchData")
+		return fmt.Errorf("got PatchData: %w", err)
 	}
 	resp, err := c.do("PATCH", slashPath("v1", "data"), buf)
 	if err != nil {
-		return errors.Wrap(err, "PatchData")
+		return fmt.Errorf("got PatchData: %w", err)
 	}
 	return c.handleErrors(resp)
 }
@@ -99,12 +98,12 @@ func (c *httpClient) PatchData(path string, op string, value *interface{}) error
 func (c *httpClient) PutData(path string, value interface{}) error {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(value); err != nil {
-		return errors.Wrap(err, "PutData")
+		return fmt.Errorf("got PutData: %w", err)
 	}
 	absPath := slashPath("v1", "data", c.prefix, path)
 	resp, err := c.do("PUT", absPath, &buf)
 	if err != nil {
-		return errors.Wrap(err, "PutData")
+		return fmt.Errorf("got PutData: %w", err)
 	}
 	return c.handleErrors(resp)
 }
@@ -143,7 +142,7 @@ func (c *httpClient) DeleteData(path string) error {
 	absPath := slashPath("v1", "data", c.prefix, path)
 	resp, err := c.do("DELETE", absPath, nil)
 	if err != nil {
-		return errors.Wrap(err, "DeleteData")
+		return fmt.Errorf("got DeleteData: %w", err)
 	}
 	return c.handleErrors(resp)
 }
@@ -161,7 +160,7 @@ func (c *httpClient) Query(path string, input interface{}) (*QueryResult, error)
 	}
 	body.Input = input
 	if err := json.NewEncoder(&buf).Encode(body); err != nil {
-		return nil, errors.Wrap(err, "Query:body")
+		return nil, fmt.Errorf("got encoding Query:body: %w", err)
 	}
 	absPath := slashPath("v1", "data", c.prefix, path)
 	method := "GET"
@@ -170,14 +169,14 @@ func (c *httpClient) Query(path string, input interface{}) (*QueryResult, error)
 	}
 	resp, err := c.do(method, absPath, &buf)
 	if err != nil {
-		return nil, errors.Wrap(err, "Query:do")
+		return nil, fmt.Errorf("got running Query:do: %w", err)
 	}
 	result := &QueryResult{}
 	if resp.StatusCode != 200 {
-		return nil, errors.Wrap(c.handleErrors(resp), "Query:handleErrors")
+		return nil, fmt.Errorf("got error running Query:handleErrors: %w", c.handleErrors(resp))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return nil, errors.Wrapf(err, "Query")
+		return nil, fmt.Errorf("got decoding Query: %w", err)
 	}
 	return result, nil
 }
@@ -187,7 +186,7 @@ func (c *httpClient) InsertPolicy(id string, bs []byte) error {
 	path := slashPath("v1", "policies", id)
 	resp, err := c.do("PUT", path, buf)
 	if err != nil {
-		return errors.Wrap(err, "InsertPolicy")
+		return fmt.Errorf("got InsertPolicy: %w", err)
 	}
 	return c.handleErrors(resp)
 }
@@ -196,7 +195,7 @@ func (c *httpClient) DeletePolicy(id string) error {
 	path := slashPath("v1", "policies", id)
 	resp, err := c.do("DELETE", path, nil)
 	if err != nil {
-		return errors.Wrap(err, "DeletePolicy")
+		return fmt.Errorf("got DeletePolicy: %w", err)
 	}
 	return c.handleErrors(resp)
 }
@@ -205,14 +204,14 @@ func (c *httpClient) ListPolicies() (*QueryResult, error) {
 	absPath := slashPath("v1", "policies", c.prefix)
 	resp, err := c.do("GET", absPath, nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "ListPolicies:do")
+		return nil, fmt.Errorf("got ListPolicies:do: %w", err)
 	}
 	result := &QueryResult{}
 	if resp.StatusCode != 200 {
-		return nil, errors.Wrap(c.handleErrors(resp), "ListPolicies:handleErrors")
+		return nil, fmt.Errorf("got running ListPolicies:handleErrors: %w", c.handleErrors(resp))
 	}
 	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-		return nil, errors.Wrapf(err, "ListPolicies")
+		return nil, fmt.Errorf("got decoding ListPolicies: %w", err)
 	}
 	return result, nil
 }
@@ -243,7 +242,7 @@ func (c *httpClient) handleErrors(resp *http.Response) error {
 	}
 	msg, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return errors.Wrapf(err, "handleErrors")
+		return fmt.Errorf("got handleErrors: %w", err)
 	}
 	return &Error{Message: string(msg), Status: resp.StatusCode}
 }
@@ -262,7 +261,7 @@ func (c *httpClient) do(verb, path string, body io.Reader) (*http.Response, erro
 	client := &http.Client{}
 	if strings.HasPrefix(c.url, "https") && c.opaCAs != nil {
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{
+			TLSClientConfig: &tls.Config{ // nolint:gosec // TODO: Determine appropriate minimum TLS version.
 				RootCAs: c.opaCAs,
 			},
 		}
@@ -280,7 +279,7 @@ func makePath(join string, paths ...string) string {
 }
 
 func joinPaths(join string, paths ...string) string {
-	parts := []string{}
+	var parts []string
 	for _, path := range paths {
 		path = strings.Trim(path, join)
 		if path != "" {
