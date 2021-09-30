@@ -42,6 +42,10 @@ manifests:
 		paths="./pkg/..." \
 		output:crd:artifacts:config=config/crds
 	kustomize build config/crds --output=deploy/crds.yaml
+	mkdir -p .staging/templatecrd
+	cp config/crds/* .staging/templatecrd
+	sed -i '/- externaldata.gatekeeper.sh_providers.yaml/d' .staging/templatecrd/kustomization.yaml
+	kustomize build .staging/templatecrd --output=.staging/templatecrd/crd.yaml
 
 lint:
 	golangci-lint -v run ./... --timeout 5m
@@ -76,11 +80,11 @@ YAML_CONSTANT_GOLANG_FILE := ./pkg/apis/templates/yaml_constant.go
 constraint-template-string-constant: manifests
 	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
 	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
-	bash -c 'cat config/crds/templates.gatekeeper.sh_constrainttemplates.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'cat .staging/templatecrd/crd.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
 	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
-	sed -i -z "s/\n---\n//g" ${YAML_CONSTANT_GOLANG_FILE}
 	# Remove trailing spaces.  Double $ is to prevent variable expansion in make
 	sed -i "s/ $$//g" ${YAML_CONSTANT_GOLANG_FILE}
+	rm -rf .staging
 
 generate-defaults: constraint-template-string-constant
 	defaulter-gen \
