@@ -21,8 +21,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/onsi/gomega"
-	apisTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
 	"golang.org/x/net/context"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -155,31 +155,31 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
 				LegacySchema:    &trueBool,
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
 				LegacySchema:    &trueBool,
-				OpenAPIV3Schema: apisTemplates.VersionlessSchemaWithXPreserve(),
+				OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
 				LegacySchema:    &falseBool,
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
 				LegacySchema:    &falseBool,
-				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
+				OpenAPIV3Schema: schema.VersionlessSchema(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=nil",
 			v: &Validation{
-				OpenAPIV3Schema: apisTemplates.VersionedIncompleteSchema(),
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				OpenAPIV3Schema: apisTemplates.VersionlessSchema(),
+				OpenAPIV3Schema: schema.VersionlessSchema(),
 			},
 		},
 		{

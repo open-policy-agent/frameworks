@@ -64,14 +64,14 @@ generate: generate-defaults
 		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 
 CRD_SOURCE_FILE := deploy/crds.yaml
-FILE_STUB := "package templates\
+FILE_STUB := "package schema\
 \n\
 \n// This file is generated from $(CRD_SOURCE_FILE) via \"make constraint-template-string-constant\"\
 \n// DO NOT MODIFY THIS FILE DIRECTLY!\
 \n\
 \nconst constraintTemplateCRDYaml = \`"
 
-YAML_CONSTANT_GOLANG_FILE := ./pkg/apis/templates/yaml_constant.go
+YAML_CONSTANT_GOLANG_FILE := ./pkg/schema/yaml_constant.go
 
 constraint-template-string-constant: manifests
 	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
