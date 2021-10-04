@@ -8,10 +8,10 @@ import (
 // versionless api representation.
 func (versioned *ConstraintTemplate) ToVersionless() (*templates.ConstraintTemplate, error) {
 	versionedCopy := versioned.DeepCopy()
-	Scheme.Default(versionedCopy)
+	sch.Default(versionedCopy)
 
 	versionless := &templates.ConstraintTemplate{}
-	if err := Scheme.Convert(versionedCopy, versionless, nil); err != nil {
+	if err := sch.Convert(versionedCopy, versionless, nil); err != nil {
 		return nil, err
 	}
 
