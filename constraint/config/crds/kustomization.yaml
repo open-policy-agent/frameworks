@@ -1,5 +1,6 @@
 resources:
 - templates.gatekeeper.sh_constrainttemplates.yaml
+- externaldata.gatekeeper.sh_providers.yaml
 
 patchesStrategicMerge:
 - |-

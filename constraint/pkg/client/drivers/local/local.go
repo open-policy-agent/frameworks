@@ -6,16 +6,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/topdown"
+	opatypes "github.com/open-policy-agent/opa/types"
 )
 
 const (
@@ -67,6 +72,12 @@ func DisableBuiltins(builtins ...string) Arg {
 	}
 }
 
+func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg {
+	return func(d *driver) {
+		d.providerCache = providerCache
+	}
+}
+
 func New(args ...Arg) drivers.Driver {
 	d := &driver{
 		compiler:     ast.NewCompiler(),
@@ -77,6 +88,15 @@ func New(args ...Arg) drivers.Driver {
 	for _, arg := range args {
 		arg(d)
 	}
+
+	// adding externaldata builtin otherwise capabilities get overridden
+	// if a capability, like http.send, is disabled
+	if d.providerCache != nil {
+		d.capabilities.Builtins = append(d.capabilities.Builtins, &ast.Builtin{
+			Name: "external_data",
+			Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+		})
+	}
 	d.compiler.WithCapabilities(d.capabilities)
 	return d
 }
@@ -84,15 +104,82 @@ func New(args ...Arg) drivers.Driver {
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	modulesMux   sync.RWMutex
-	compiler     *ast.Compiler
-	modules      map[string]*ast.Module
-	storage      storage.Store
-	capabilities *ast.Capabilities
-	traceEnabled bool
+	modulesMux    sync.RWMutex
+	compiler      *ast.Compiler
+	modules       map[string]*ast.Module
+	storage       storage.Store
+	capabilities  *ast.Capabilities
+	traceEnabled  bool
+	providerCache *externaldata.ProviderCache
 }
 
 func (d *driver) Init(ctx context.Context) error {
+	if d.providerCache != nil {
+		rego.RegisterBuiltin1(
+			&rego.Function{
+				Name:    "external_data",
+				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+				Memoize: true,
+			},
+			func(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
+				var regoReq externaldata.RegoRequest
+				if err := ast.As(regorequest.Value, &regoReq); err != nil {
+					return nil, err
+				}
+				// only primitive types are allowed for keys
+				for _, key := range regoReq.Keys {
+					switch v := key.(type) {
+					case int:
+					case int32:
+					case int64:
+					case string:
+					case float64:
+					case float32:
+						break
+					default:
+						return externaldata.HandleError(http.StatusBadRequest, fmt.Errorf("type %v is not supported in external_data", v))
+					}
+				}
+
+				provider, err := d.providerCache.Get(regoReq.ProviderName)
+				if err != nil {
+					return externaldata.HandleError(http.StatusBadRequest, err)
+				}
+
+				externaldataRequest := externaldata.NewProviderRequest(regoReq.Keys)
+				reqBody, err := json.Marshal(externaldataRequest)
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				req, err := http.NewRequest("POST", provider.Spec.URL, bytes.NewBuffer(reqBody))
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				ctx, cancel := context.WithDeadline(bctx.Context, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
+				defer cancel()
+
+				resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+				defer resp.Body.Close()
+				respBody, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				var externaldataResponse externaldata.ProviderResponse
+				if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, &externaldataResponse)
+				return externaldata.PrepareRegoResponse(regoResponse)
+			},
+		)
+	}
 	return nil
 }
 
