@@ -5,6 +5,7 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
+	opatypes "github.com/open-policy-agent/opa/types"
 )
 
 type Arg func(*driver)
@@ -25,6 +26,15 @@ func ArgDefaults() Arg {
 
 		if d.capabilities == nil {
 			d.capabilities = ast.CapabilitiesForThisVersion()
+		}
+
+		// adding external_data builtin otherwise capabilities get overridden
+		// if a capability, like http.send, is disabled
+		if d.providerCache != nil {
+			d.capabilities.Builtins = append(d.capabilities.Builtins, &ast.Builtin{
+				Name: "external_data",
+				Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+			})
 		}
 	}
 }
