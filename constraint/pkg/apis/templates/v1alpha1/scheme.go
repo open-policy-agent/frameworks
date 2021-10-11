@@ -12,7 +12,7 @@ const version = "v1alpha1"
 
 var (
 	structuralSchema *schema.Structural
-	sch              *runtime.Scheme
+	versionedScheme  *runtime.Scheme
 )
 
 func init() {
@@ -22,21 +22,21 @@ func init() {
 	// zz_generated.conversion.go, the conversion functions haven't been
 	// registered with the localSchemeBuilder by the time this init() function
 	// runs.  We sidestep this problem by adding RegisterConversions here.
-	schemeBuilder := runtime.NewSchemeBuilder(localSchemeBuilder...)
-	schemeBuilder.Register(RegisterConversions)
+	sb := runtime.NewSchemeBuilder(SchemeBuilder.AddToScheme, addDefaultingFuncs)
+	sb.Register(RegisterConversions)
 
-	sch = runtime.NewScheme()
+	versionedScheme = runtime.NewScheme()
 	var err error
-	if err = apiextensionsv1.AddToScheme(sch); err != nil {
+	if err = apiextensionsv1.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
-	if err = apiextensions.AddToScheme(sch); err != nil {
+	if err = apiextensions.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
-	if err = schemeBuilder.AddToScheme(sch); err != nil {
+	if err = sb.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
-	if structuralSchema, err = ctschema.CRDSchema(sch, version); err != nil {
+	if structuralSchema, err = ctschema.CRDSchema(versionedScheme, version); err != nil {
 		panic(err)
 	}
 }
