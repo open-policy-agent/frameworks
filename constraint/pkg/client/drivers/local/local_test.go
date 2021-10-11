@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 )
@@ -172,6 +173,7 @@ func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
 }
 
 func TestModules(t *testing.T) {
+	providerCache := externaldata.NewCache()
 	tc := []compositeTestCase{
 		{
 			Name: "PutModules then DeleteModules",
@@ -318,7 +320,7 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
 					},
 					ErrorExpected: false,
 				},
@@ -331,12 +333,40 @@ func TestModules(t *testing.T) {
 					Op:             putModules,
 					RuleNamePrefix: "test1",
 					Rules: rules{
-						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"}) `},
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
 					},
 					ErrorExpected: true,
 				},
 			},
 			driverArg: []Arg{DisableBuiltins("http.send")},
+		},
+		{
+			Name: "PutModule with external data cache",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
+					},
+					ErrorExpected: false,
+				},
+			},
+			driverArg: []Arg{AddExternalDataProviderCache(providerCache)},
+		},
+		{
+			Name: "PutModule with external data disabled",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
+					},
+					ErrorExpected: true,
+				},
+			},
+			driverArg: []Arg{DisableBuiltins("external_data")},
 		},
 	}
 	for _, tt := range tc {
@@ -505,17 +535,6 @@ func TestPutData(t *testing.T) {
 
 func TestDeleteData(t *testing.T) {
 	tc := []compositeTestCase{
-		{
-			Name: "Delete Nonexistent Datum",
-			Actions: []*action{
-				{
-					Op:            deleteData,
-					Data:          []data{{"/key": "my_value"}},
-					ErrorExpected: false,
-					ExpectedBool:  false,
-				},
-			},
-		},
 		{
 			Name: "Delete One Datum",
 			Actions: []*action{

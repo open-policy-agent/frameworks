@@ -1,6 +1,7 @@
 package local
 
 import (
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
@@ -37,6 +38,12 @@ func ArgModules(modules map[string]*ast.Module) Arg {
 func ArgStorage(s storage.Store) Arg {
 	return func(d *driver) {
 		d.storage = s
+	}
+}
+
+func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg {
+	return func(d *driver) {
+		d.providerCache = providerCache
 	}
 }
 

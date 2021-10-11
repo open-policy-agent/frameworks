@@ -6,15 +6,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/topdown"
+	opatypes "github.com/open-policy-agent/opa/types"
 	"k8s.io/utils/pointer"
 )
 
@@ -56,12 +61,83 @@ func New(args ...Arg) drivers.Driver {
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	modulesMux   sync.RWMutex
-	compiler     *ast.Compiler
-	modules      map[string]*ast.Module
-	storage      storage.Store
-	capabilities *ast.Capabilities
-	traceEnabled bool
+	modulesMux    sync.RWMutex
+	compiler      *ast.Compiler
+	modules       map[string]*ast.Module
+	storage       storage.Store
+	capabilities  *ast.Capabilities
+	traceEnabled  bool
+	providerCache *externaldata.ProviderCache
+}
+
+func (d *driver) Init(ctx context.Context) error {
+	if d.providerCache != nil {
+		rego.RegisterBuiltin1(
+			&rego.Function{
+				Name:    "external_data",
+				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+				Memoize: true,
+			},
+			func(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
+				var regoReq externaldata.RegoRequest
+				if err := ast.As(regorequest.Value, &regoReq); err != nil {
+					return nil, err
+				}
+				// only primitive types are allowed for keys
+				for _, key := range regoReq.Keys {
+					switch v := key.(type) {
+					case int:
+					case int32:
+					case int64:
+					case string:
+					case float64:
+					case float32:
+						break
+					default:
+						return externaldata.HandleError(http.StatusBadRequest, fmt.Errorf("type %v is not supported in external_data", v))
+					}
+				}
+
+				provider, err := d.providerCache.Get(regoReq.ProviderName)
+				if err != nil {
+					return externaldata.HandleError(http.StatusBadRequest, err)
+				}
+
+				externaldataRequest := externaldata.NewProviderRequest(regoReq.Keys)
+				reqBody, err := json.Marshal(externaldataRequest)
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				req, err := http.NewRequest("POST", provider.Spec.URL, bytes.NewBuffer(reqBody))
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				ctx, cancel := context.WithDeadline(bctx.Context, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
+				defer cancel()
+
+				resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+				defer resp.Body.Close()
+				respBody, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				var externaldataResponse externaldata.ProviderResponse
+				if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
+					return externaldata.HandleError(http.StatusInternalServerError, err)
+				}
+
+				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, &externaldataResponse)
+				return externaldata.PrepareRegoResponse(regoResponse)
+			},
+		)
+	}
+	return nil
 }
 
 func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
@@ -69,7 +145,6 @@ func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
 	for k, v := range modules {
 		m[k] = v
 	}
-
 	return m
 }
 
@@ -173,7 +248,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 }
 
 // alterModules alters the modules in the driver by inserting and removing
-// the provided modules then returns whether any modules were removed.
+// the provided modules then returns the count of modules removed.
 // alterModules expects that the caller is holding the modulesMux lock.
 func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []string) (int, error) {
 	updatedModules := copyModules(d.modules)
