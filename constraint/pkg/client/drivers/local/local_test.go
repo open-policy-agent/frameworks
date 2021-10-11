@@ -172,8 +172,6 @@ func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
 }
 
 func TestModules(t *testing.T) {
-	t.Skip()
-
 	tc := []compositeTestCase{
 		{
 			Name: "PutModules then DeleteModules",
@@ -347,8 +345,6 @@ func TestModules(t *testing.T) {
 }
 
 func TestPutModule(t *testing.T) {
-	t.Skip()
-
 	tc := []testCase{
 		{
 			Name:          "Put One Rule",
@@ -398,8 +394,6 @@ func TestPutModule(t *testing.T) {
 }
 
 func TestDeleteModule(t *testing.T) {
-	t.Skip()
-
 	tc := []compositeTestCase{
 		{
 			Name: "Delete One Rule",
@@ -454,8 +448,6 @@ func makeDataPath(s string) string {
 }
 
 func TestPutData(t *testing.T) {
-	t.Skip()
-
 	tc := []testCase{
 		{
 			Name:          "Put One Datum",
@@ -512,9 +504,18 @@ func TestPutData(t *testing.T) {
 }
 
 func TestDeleteData(t *testing.T) {
-	t.Skip()
-
 	tc := []compositeTestCase{
+		{
+			Name: "Delete Nonexistent Datum",
+			Actions: []*action{
+				{
+					Op:            deleteData,
+					Data:          []data{{"/key": "my_value"}},
+					ErrorExpected: false,
+					ExpectedBool:  false,
+				},
+			},
+		},
 		{
 			Name: "Delete One Datum",
 			Actions: []*action{
@@ -615,8 +616,6 @@ func TestDeleteData(t *testing.T) {
 }
 
 func TestQuery(t *testing.T) {
-	t.Skip()
-
 	rawResponses := `
 [
 	{
