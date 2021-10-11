@@ -83,6 +83,20 @@ func (d *driver) Init(ctx context.Context) error {
 				if err := ast.As(regorequest.Value, &regoReq); err != nil {
 					return nil, err
 				}
+				// only primitive types are allowed for keys
+				for _, key := range regoReq.Keys {
+					switch v := key.(type) {
+					case int:
+					case int32:
+					case int64:
+					case string:
+					case float64:
+					case float32:
+						break
+					default:
+						return externaldata.HandleError(http.StatusBadRequest, fmt.Errorf("type %v is not supported in external_data", v))
+					}
+				}
 
 				provider, err := d.providerCache.Get(regoReq.ProviderName)
 				if err != nil {
@@ -132,7 +146,6 @@ func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
 	for k, v := range modules {
 		m[k] = v
 	}
-
 	return m
 }
 
@@ -236,7 +249,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 }
 
 // alterModules alters the modules in the driver by inserting and removing
-// the provided modules then returns whether any modules were removed.
+// the provided modules then returns the count of modules removed.
 // alterModules expects that the caller is holding the modulesMux lock.
 func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []string) (int, error) {
 	updatedModules := copyModules(d.modules)
