@@ -315,7 +315,10 @@ func (d *driver) listModuleSet(namePrefix string) []string {
 func parsePath(path string) ([]string, error) {
 	p, ok := storage.ParsePathEscaped(path)
 	if !ok {
-		return nil, fmt.Errorf("bad data path: %q", path)
+		return nil, fmt.Errorf("%w: path must begin with '/': %q", ErrPathInvalid, path)
+	}
+	if len(p) == 0 {
+		return nil, fmt.Errorf("%w: path must contain at least one path element: %q", ErrPathInvalid, path)
 	}
 
 	return p, nil
@@ -332,31 +335,38 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrTransaction, err)
 	}
 
 	if _, err = d.storage.Read(ctx, txn, p); err != nil {
 		if storage.IsNotFound(err) {
 			if err = storage.MakeDir(ctx, d.storage, txn, p[:len(p)-1]); err != nil {
-				return err
+				return fmt.Errorf("%w: unable to make directory: %v", ErrWrite, err)
 			}
 		} else {
 			d.storage.Abort(ctx, txn)
-			return err
+			return fmt.Errorf("%w: %v", ErrRead, err)
 		}
 	}
 
 	if err = d.storage.Write(ctx, txn, storage.AddOp, p, data); err != nil {
 		d.storage.Abort(ctx, txn)
-		return err
+		return fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
 	}
 
+	// TODO: Determine if this can be removed. No tests exercise this path, and
+	//  as far as I can tell storage.MakeDir fails where this might return an error.
 	if errs := ast.CheckPathConflicts(d.compiler, storage.NonEmpty(ctx, d.storage, txn)); len(errs) > 0 {
 		d.storage.Abort(ctx, txn)
-		return errs
+		return fmt.Errorf("%w: %q conflicts with existing path: %v",
+			ErrPathConflict, path, errs)
 	}
 
-	return d.storage.Commit(ctx, txn)
+	err = d.storage.Commit(ctx, txn)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrTransaction, err)
+	}
+	return nil
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
@@ -372,7 +382,7 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
 	}
 
 	if err = d.storage.Write(ctx, txn, storage.RemoveOp, p, interface{}(nil)); err != nil {
@@ -380,11 +390,11 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 		if storage.IsNotFound(err) {
 			return false, nil
 		}
-		return false, err
+		return false, fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
 	}
 
 	if err = d.storage.Commit(ctx, txn); err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
 	}
 
 	return true, nil
@@ -425,11 +435,6 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 		opt(cfg)
 	}
 
-	inp, err := json.MarshalIndent(input, "", "   ")
-	if err != nil {
-		return nil, err
-	}
-
 	// Add a variable binding to the path.
 	path = fmt.Sprintf("data.%s[result]", path)
 
@@ -451,12 +456,15 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 		results = append(results, result)
 	}
 
-	i := string(inp)
+	inp, err := json.MarshalIndent(input, "", "   ")
+	if err != nil {
+		return nil, err
+	}
 
 	return &types.Response{
 		Trace:   trace,
 		Results: results,
-		Input:   &i,
+		Input:   pointer.StringPtr(string(inp)),
 	}, nil
 }
 

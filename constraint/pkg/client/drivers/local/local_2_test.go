@@ -3,10 +3,10 @@ package local
 import (
 	"context"
 	"errors"
-	"github.com/open-policy-agent/opa/storage"
 	"sort"
-	"strings"
 	"testing"
+
+	"github.com/open-policy-agent/opa/storage"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -287,22 +287,22 @@ func TestDriver_PutModules_StorageErrors(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "success",
+			name:    "success",
 			storage: &fakeStorage{},
 			wantErr: false,
 		},
 		{
-			name: "failure to create transaction",
+			name:    "failure to create transaction",
 			storage: &transactionErrorStorage{},
 			wantErr: true,
 		},
 		{
-			name: "failure to upsert policy",
+			name:    "failure to upsert policy",
 			storage: &upsertErrorStorage{},
 			wantErr: true,
 		},
 		{
-			name: "failure to commit policy",
+			name:    "failure to commit policy",
 			storage: &commitErrorStorage{},
 			wantErr: true,
 		},
@@ -344,44 +344,99 @@ func TestDriver_PutModules_StorageErrors(t *testing.T) {
 
 func TestDriver_DeleteModule(t *testing.T) {
 	testCases := []struct {
-		name string
-		beforeModules map[string][]string
+		name          string
+		beforeModules []string
 
 		moduleName string
 
-		wantErr error
+		wantDeleted bool
+		wantErr     error
 		wantModules []string
 	}{
 		{
-			name: "invalid module name",
-			moduleName: "",
+			name:          "invalid module name",
+			beforeModules: []string{"foo"},
+			moduleName:    "",
 
-			wantErr: ErrModuleName,
+			wantErr:     ErrModuleName,
+			wantDeleted: false,
+			wantModules: []string{"foo"},
+		},
+		{
+			name:          "module does not exist",
+			beforeModules: []string{"foo"},
+			moduleName:    "bar",
+
+			wantErr:     nil,
+			wantDeleted: false,
+			wantModules: []string{"foo"},
+		},
+		{
+			name:          "valid deletion",
+			beforeModules: []string{"foo"},
+			moduleName:    "foo",
+
+			wantErr:     nil,
+			wantDeleted: true,
 			wantModules: []string{},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
 
+			d := New()
+
+			for _, name := range tc.beforeModules {
+				err := d.PutModule(ctx, name, Module)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			dr, ok := d.(*driver)
+			if !ok {
+				t.Fatalf("got New() type = %T, want %T",
+					d, &driver{})
+			}
+
+			gotDeleted, gotErr := d.DeleteModule(ctx, tc.moduleName)
+			if gotDeleted != tc.wantDeleted {
+				t.Errorf("got DeleteModule() = %t, want %t", gotDeleted, tc.wantDeleted)
+			}
+
+			if !errors.Is(gotErr, tc.wantErr) {
+				t.Fatalf("got DeleteModule() error = %v, want %v", gotErr, tc.wantErr)
+			}
+
+			gotModules := make([]string, 0, len(dr.modules))
+			for gotModule := range dr.modules {
+				gotModules = append(gotModules, gotModule)
+			}
+			sort.Strings(gotModules)
+
+			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
 		})
 	}
 }
 
 func TestDriver_DeleteModule_StorageErrors(t *testing.T) {
 	testCases := []struct {
-		name string
+		name    string
 		storage storage.Store
 
 		wantErr bool
 	}{
 		{
-			name: "success",
+			name:    "success",
 			storage: &fakeStorage{},
 			wantErr: false,
 		},
 		{
-			name: "failure to delete policy",
+			name:    "failure to delete policy",
 			storage: &deleteErrorStorage{},
 			wantErr: true,
 		},
@@ -421,6 +476,403 @@ func TestDriver_DeleteModule_StorageErrors(t *testing.T) {
 
 			if diff := cmp.Diff(wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf(diff)
+			}
+		})
+	}
+}
+
+func TestDriver_DeleteModules(t *testing.T) {
+	testCases := []struct {
+		name          string
+		beforeModules map[string]int
+
+		prefix string
+
+		wantErr     error
+		wantDeleted int
+		wantModules []string
+	}{
+		{
+			name: "empty module prefix",
+			beforeModules: map[string]int{
+				"foo": 1,
+				"bar": 2,
+			},
+
+			prefix: "",
+
+			wantErr:     ErrModulePrefix,
+			wantDeleted: 0,
+			wantModules: []string{
+				toModuleSetName("bar", 0),
+				toModuleSetName("bar", 1),
+				toModuleSetName("foo", 0),
+			},
+		},
+		{
+			name: "delete one module",
+			beforeModules: map[string]int{
+				"foo": 1,
+				"bar": 2,
+			},
+
+			prefix: "foo",
+
+			wantErr:     nil,
+			wantDeleted: 1,
+			wantModules: []string{
+				toModuleSetName("bar", 0),
+				toModuleSetName("bar", 1),
+			},
+		},
+		{
+			name: "delete two modules",
+			beforeModules: map[string]int{
+				"foo": 1,
+				"bar": 2,
+			},
+
+			prefix: "bar",
+
+			wantErr:     nil,
+			wantDeleted: 2,
+			wantModules: []string{
+				toModuleSetName("foo", 0),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			d := New()
+
+			for prefix, count := range tc.beforeModules {
+				modules := make([]string, count)
+				for i := 0; i < count; i++ {
+					modules[i] = Module
+				}
+				err := d.PutModules(ctx, prefix, modules)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			dr, ok := d.(*driver)
+			if !ok {
+				t.Fatalf("got New() type = %T, want %T",
+					d, &driver{})
+			}
+
+			gotDeleted, gotErr := d.DeleteModules(ctx, tc.prefix)
+			if gotDeleted != tc.wantDeleted {
+				t.Errorf("got DeleteModules() = %v, want %v", gotDeleted, tc.wantDeleted)
+			}
+
+			if !errors.Is(gotErr, tc.wantErr) {
+				t.Fatalf("got DeleteModules() error = %v, want %v", gotErr, tc.wantErr)
+			}
+
+			gotModules := make([]string, 0, len(dr.modules))
+			for gotModule := range dr.modules {
+				gotModules = append(gotModules, gotModule)
+			}
+			sort.Strings(gotModules)
+
+			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestDriver_PutData(t *testing.T) {
+	testCases := []struct {
+		name        string
+		beforePath  string
+		beforeValue interface{}
+		path        string
+		value       interface{}
+
+		wantErr error
+	}{
+		{
+			name:  "empty path",
+			path:  "",
+			value: map[string]string{},
+
+			wantErr: ErrPathInvalid,
+		},
+		{
+			name:  "root path",
+			path:  "/",
+			value: map[string]string{},
+
+			wantErr: ErrPathInvalid,
+		},
+		{
+			name:  "valid write",
+			path:  "/foo",
+			value: map[string]string{"foo": "bar"},
+
+			wantErr: nil,
+		},
+		{
+			name:        "valid overwrite",
+			beforePath:  "/foo",
+			beforeValue: map[string]string{"foo": "bar"},
+			path:        "/foo",
+			value:       map[string]string{"foo": "qux"},
+
+			wantErr: nil,
+		},
+		{
+			name:        "write to subdirectory of existing data",
+			beforePath:  "/foo",
+			beforeValue: map[string]string{"foo": "bar"},
+			path:        "/foo/bar",
+			value:       map[string]string{"foo": "qux"},
+
+			wantErr: ErrWrite,
+		},
+		{
+			name:        "write to subdirectory of non-object",
+			beforePath:  "/foo",
+			beforeValue: "bar",
+			path:        "/foo/bar",
+			value:       map[string]string{"foo": "qux"},
+
+			wantErr: ErrWrite,
+		},
+		{
+			name:        "write to parent directory of existing data",
+			beforePath:  "/foo/bar",
+			beforeValue: map[string]string{"foo": "bar"},
+			path:        "/foo",
+			value:       map[string]string{"foo": "qux"},
+
+			wantErr: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			s := &fakeStorage{}
+			d := New(ArgStorage(s))
+
+			if tc.beforeValue != nil {
+				err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
+				if err != nil {
+					t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
+				}
+			}
+
+			err := d.PutData(ctx, tc.path, tc.value)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("got PutData() error = %v, want %v",
+					err, tc.wantErr)
+			}
+
+			if errors.Is(tc.wantErr, ErrPathInvalid) {
+				return
+			}
+
+			// Verify the state of data in storage.
+
+			readPath := tc.path
+			wantValue := tc.value
+			if tc.wantErr != nil {
+				// We encountered an error writing data, so we expect the original data to be unchanged.
+				readPath = tc.beforePath
+				wantValue = tc.beforeValue
+			}
+
+			path, err := parsePath(readPath)
+			if err != nil {
+				t.Fatalf("got parsePath() e = %v, want %v", err, nil)
+			}
+
+			gotValue, err := s.Read(ctx, nil, path)
+			if err != nil {
+				t.Fatalf("got fakeStorage.Read() error = %v, want %v", err, nil)
+			}
+
+			if diff := cmp.Diff(wantValue, gotValue); diff != "" {
+				t.Errorf("read data did not equal expected (-want, +got): %v", diff)
+			}
+		})
+	}
+}
+
+func TestDriver_PutData_StorageErrors(t *testing.T) {
+	testCases := []struct {
+		name    string
+		storage storage.Store
+
+		wantErr error
+	}{
+		{
+			name:    "success",
+			storage: &fakeStorage{},
+			wantErr: nil,
+		},
+		{
+			name:    "transaction error",
+			storage: &transactionErrorStorage{},
+			wantErr: ErrTransaction,
+		},
+		{
+			name:    "read error",
+			storage: &readErrorStorage{},
+			wantErr: ErrRead,
+		},
+		{
+			name:    "write error",
+			storage: &writeErrorStorage{},
+			wantErr: ErrWrite,
+		},
+		{
+			name:    "commit error",
+			storage: &commitErrorStorage{},
+			wantErr: ErrTransaction,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			d := New(ArgStorage(tc.storage))
+
+			path := "/foo"
+			value := map[string]string{"bar": "qux"}
+			err := d.PutData(ctx, path, value)
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("got PutData() error = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestDriver_DeleteData(t *testing.T) {
+	testCases := []struct {
+		name        string
+		beforePath  string
+		beforeValue interface{}
+		path        string
+
+		wantDeleted bool
+		wantErr     error
+	}{
+		{
+			name:        "empty path",
+			beforePath:  "/foo",
+			beforeValue: "bar",
+			path:        "",
+
+			wantDeleted: false,
+			wantErr:     ErrPathInvalid,
+		},
+		{
+			name:        "success",
+			beforePath:  "/foo",
+			beforeValue: "bar",
+			path:        "/foo",
+
+			wantDeleted: true,
+			wantErr:     nil,
+		},
+		{
+			name:        "non existent",
+			beforePath:  "/foo",
+			beforeValue: "bar",
+			path:        "/qux",
+
+			wantDeleted: false,
+			wantErr:     nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			s := &fakeStorage{}
+			d := New(ArgStorage(s))
+
+			err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
+			if err != nil {
+				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
+			}
+
+			deleted, err := d.DeleteData(ctx, tc.path)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("got DeleteData() error = %v, want %v", err, tc.wantErr)
+			}
+			if deleted != tc.wantDeleted {
+				t.Fatalf("got DeleteData() = %t, want %t", deleted, tc.wantDeleted)
+			}
+
+			var wantValue interface{}
+			if !tc.wantDeleted {
+				wantValue = tc.beforeValue
+			}
+
+			if diff := cmp.Diff(wantValue, s.values[tc.beforePath]); diff != "" {
+				t.Errorf(diff)
+			}
+		})
+	}
+}
+
+func TestDriver_DeleteData_StorageErrors(t *testing.T) {
+	testCases := []struct {
+		name    string
+		storage storage.Store
+
+		wantErr error
+	}{
+		{
+			name:    "success",
+			storage: &fakeStorage{},
+			wantErr: nil,
+		},
+		{
+			name:    "transaction error",
+			storage: &transactionErrorStorage{},
+			wantErr: ErrTransaction,
+		},
+		{
+			name:    "write error",
+			storage: &writeErrorStorage{},
+			wantErr: ErrWrite,
+		},
+		{
+			name: "commit error",
+			storage: &commitErrorStorage{
+				fakeStorage: fakeStorage{values: map[string]interface{}{
+					"/foo": "bar",
+				}},
+			},
+			wantErr: ErrTransaction,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			d := New(ArgStorage(tc.storage))
+
+			path := "/foo"
+			_, err := d.DeleteData(ctx, path)
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
@@ -469,7 +921,7 @@ func (s *fakeStorage) NewTransaction(ctx context.Context, params ...storage.Tran
 }
 
 func (s *fakeStorage) Read(ctx context.Context, txn storage.Transaction, path storage.Path) (interface{}, error) {
-	value, found := s.values[strings.Join(path, ".")]
+	value, found := s.values[path.String()]
 	if !found {
 		return nil, &storage.Error{Code: storage.NotFoundErr}
 	}
@@ -482,7 +934,11 @@ func (s *fakeStorage) Write(ctx context.Context, txn storage.Transaction, op sto
 		s.values = make(map[string]interface{})
 	}
 
-	s.values[strings.Join(path, ".")] = value
+	if value == nil && s.values[path.String()] == nil {
+		return &storage.Error{Code: storage.NotFoundErr}
+	}
+
+	s.values[path.String()] = value
 
 	return nil
 }
@@ -523,4 +979,20 @@ type deleteErrorStorage struct {
 
 func (s *deleteErrorStorage) DeletePolicy(ctx context.Context, transaction storage.Transaction, name string) error {
 	return errors.New("error deleting policy")
+}
+
+type writeErrorStorage struct {
+	fakeStorage
+}
+
+func (s *writeErrorStorage) Write(ctx context.Context, txn storage.Transaction, op storage.PatchOp, path storage.Path, value interface{}) error {
+	return errors.New("error writing data")
+}
+
+type readErrorStorage struct {
+	fakeStorage
+}
+
+func (s *readErrorStorage) Read(ctx context.Context, txn storage.Transaction, path storage.Path) (interface{}, error) {
+	return nil, errors.New("error writing data")
 }

@@ -28,12 +28,6 @@ func ArgDefaults() Arg {
 	}
 }
 
-func ArgCompiler(compiler *ast.Compiler) Arg {
-	return func(d *driver) {
-		d.compiler = compiler
-	}
-}
-
 func ArgModules(modules map[string]*ast.Module) Arg {
 	return func(d *driver) {
 		d.modules = modules
@@ -43,18 +37,6 @@ func ArgModules(modules map[string]*ast.Module) Arg {
 func ArgStorage(s storage.Store) Arg {
 	return func(d *driver) {
 		d.storage = s
-	}
-}
-
-func ArgCapabilities(c *ast.Capabilities) Arg {
-	return func(d *driver) {
-		d.capabilities = c
-	}
-}
-
-func Tracing(enabled bool) Arg {
-	return func(d *driver) {
-		d.traceEnabled = enabled
 	}
 }
 
