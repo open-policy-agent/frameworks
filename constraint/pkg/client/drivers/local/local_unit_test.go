@@ -55,7 +55,7 @@ func TestDriver_PutModule(t *testing.T) {
 		{
 			name:       "empty module name",
 			moduleName: "",
-			moduleSrc:  "",
+			moduleSrc:  Module,
 
 			wantErr:     ErrModuleName,
 			wantModules: nil,
@@ -900,7 +900,7 @@ type fakeStorage struct {
 
 var _ storage.Store = &fakeStorage{}
 
-func (s *fakeStorage) UpsertPolicy(ctx context.Context, transaction storage.Transaction, name string, bytes []byte) error {
+func (s *fakeStorage) UpsertPolicy(_ context.Context, _ storage.Transaction, name string, bytes []byte) error {
 	if s.policies == nil {
 		s.policies = make(map[string][]byte)
 	}
@@ -910,17 +910,17 @@ func (s *fakeStorage) UpsertPolicy(ctx context.Context, transaction storage.Tran
 	return nil
 }
 
-func (s *fakeStorage) DeletePolicy(ctx context.Context, transaction storage.Transaction, name string) error {
+func (s *fakeStorage) DeletePolicy(_ context.Context, _ storage.Transaction, name string) error {
 	delete(s.policies, name)
 
 	return nil
 }
 
-func (s *fakeStorage) NewTransaction(ctx context.Context, params ...storage.TransactionParams) (storage.Transaction, error) {
+func (s *fakeStorage) NewTransaction(_ context.Context, _ ...storage.TransactionParams) (storage.Transaction, error) {
 	return nil, nil
 }
 
-func (s *fakeStorage) Read(ctx context.Context, txn storage.Transaction, path storage.Path) (interface{}, error) {
+func (s *fakeStorage) Read(_ context.Context, _ storage.Transaction, path storage.Path) (interface{}, error) {
 	value, found := s.values[path.String()]
 	if !found {
 		return nil, &storage.Error{Code: storage.NotFoundErr}
@@ -929,7 +929,7 @@ func (s *fakeStorage) Read(ctx context.Context, txn storage.Transaction, path st
 	return value, nil
 }
 
-func (s *fakeStorage) Write(ctx context.Context, txn storage.Transaction, op storage.PatchOp, path storage.Path, value interface{}) error {
+func (s *fakeStorage) Write(_ context.Context, _ storage.Transaction, _ storage.PatchOp, path storage.Path, value interface{}) error {
 	if s.values == nil {
 		s.values = make(map[string]interface{})
 	}
@@ -943,17 +943,17 @@ func (s *fakeStorage) Write(ctx context.Context, txn storage.Transaction, op sto
 	return nil
 }
 
-func (s *fakeStorage) Commit(ctx context.Context, txn storage.Transaction) error {
+func (s *fakeStorage) Commit(_ context.Context, _ storage.Transaction) error {
 	return nil
 }
 
-func (s *fakeStorage) Abort(ctx context.Context, txn storage.Transaction) {}
+func (s *fakeStorage) Abort(_ context.Context, _ storage.Transaction) {}
 
 type transactionErrorStorage struct {
 	fakeStorage
 }
 
-func (s *transactionErrorStorage) NewTransaction(ctx context.Context, params ...storage.TransactionParams) (storage.Transaction, error) {
+func (s *transactionErrorStorage) NewTransaction(_ context.Context, _ ...storage.TransactionParams) (storage.Transaction, error) {
 	return nil, errors.New("error making new transaction")
 }
 
@@ -961,7 +961,7 @@ type upsertErrorStorage struct {
 	fakeStorage
 }
 
-func (s *upsertErrorStorage) UpsertPolicy(ctx context.Context, transaction storage.Transaction, name string, bytes []byte) error {
+func (s *upsertErrorStorage) UpsertPolicy(_ context.Context, _ storage.Transaction, _ string, _ []byte) error {
 	return errors.New("error upserting policy")
 }
 
@@ -969,7 +969,7 @@ type commitErrorStorage struct {
 	fakeStorage
 }
 
-func (s *commitErrorStorage) Commit(ctx context.Context, txn storage.Transaction) error {
+func (s *commitErrorStorage) Commit(_ context.Context, _ storage.Transaction) error {
 	return errors.New("error committing changes")
 }
 
@@ -977,7 +977,7 @@ type deleteErrorStorage struct {
 	fakeStorage
 }
 
-func (s *deleteErrorStorage) DeletePolicy(ctx context.Context, transaction storage.Transaction, name string) error {
+func (s *deleteErrorStorage) DeletePolicy(_ context.Context, _ storage.Transaction, _ string) error {
 	return errors.New("error deleting policy")
 }
 
@@ -985,7 +985,7 @@ type writeErrorStorage struct {
 	fakeStorage
 }
 
-func (s *writeErrorStorage) Write(ctx context.Context, txn storage.Transaction, op storage.PatchOp, path storage.Path, value interface{}) error {
+func (s *writeErrorStorage) Write(_ context.Context, _ storage.Transaction, _ storage.PatchOp, _ storage.Path, _ interface{}) error {
 	return errors.New("error writing data")
 }
 
@@ -993,6 +993,6 @@ type readErrorStorage struct {
 	fakeStorage
 }
 
-func (s *readErrorStorage) Read(ctx context.Context, txn storage.Transaction, path storage.Path) (interface{}, error) {
+func (s *readErrorStorage) Read(_ context.Context, _ storage.Transaction, _ storage.Path) (interface{}, error) {
 	return nil, errors.New("error writing data")
 }
