@@ -64,6 +64,10 @@ type driver struct {
 	traceEnabled bool
 }
 
+func (d *driver) Init(ctx context.Context) error {
+	return nil
+}
+
 func (d *driver) addTrace(path string) string {
 	return path + "?explain=full&pretty=true"
 }

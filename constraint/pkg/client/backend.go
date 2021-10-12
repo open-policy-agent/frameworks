@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -78,6 +79,10 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 
 	if len(c.targets) == 0 {
 		return nil, errors.New("no targets registered: please register a target via client.Targets()")
+	}
+
+	if err := b.driver.Init(context.Background()); err != nil {
+		return nil, err
 	}
 
 	if err := c.init(); err != nil {

@@ -19,6 +19,8 @@ func Tracing(enabled bool) QueryOpt {
 }
 
 type Driver interface {
+	Init(ctx context.Context) error
+
 	PutModule(ctx context.Context, name string, src string) error
 	// PutModules upserts a number of modules under a given prefix.
 	PutModules(ctx context.Context, namePrefix string, srcs []string) error
