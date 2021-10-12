@@ -71,74 +71,79 @@ type driver struct {
 }
 
 func (d *driver) Init(ctx context.Context) error {
-	if d.providerCache != nil {
-		rego.RegisterBuiltin1(
-			&rego.Function{
-				Name:    "external_data",
-				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
-				Memoize: true,
-			},
-			func(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
-				var regoReq externaldata.RegoRequest
-				if err := ast.As(regorequest.Value, &regoReq); err != nil {
-					return nil, err
-				}
-				// only primitive types are allowed for keys
-				for _, key := range regoReq.Keys {
-					switch v := key.(type) {
-					case int:
-					case int32:
-					case int64:
-					case string:
-					case float64:
-					case float32:
-						break
-					default:
-						return externaldata.HandleError(http.StatusBadRequest, fmt.Errorf("type %v is not supported in external_data", v))
-					}
-				}
-
-				provider, err := d.providerCache.Get(regoReq.ProviderName)
-				if err != nil {
-					return externaldata.HandleError(http.StatusBadRequest, err)
-				}
-
-				externaldataRequest := externaldata.NewProviderRequest(regoReq.Keys)
-				reqBody, err := json.Marshal(externaldataRequest)
-				if err != nil {
-					return externaldata.HandleError(http.StatusInternalServerError, err)
-				}
-
-				req, err := http.NewRequest("POST", provider.Spec.URL, bytes.NewBuffer(reqBody))
-				if err != nil {
-					return externaldata.HandleError(http.StatusInternalServerError, err)
-				}
-
-				ctx, cancel := context.WithDeadline(bctx.Context, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
-				defer cancel()
-
-				resp, err := http.DefaultClient.Do(req.WithContext(ctx))
-				if err != nil {
-					return externaldata.HandleError(http.StatusInternalServerError, err)
-				}
-				defer resp.Body.Close()
-				respBody, err := ioutil.ReadAll(resp.Body)
-				if err != nil {
-					return externaldata.HandleError(http.StatusInternalServerError, err)
-				}
-
-				var externaldataResponse externaldata.ProviderResponse
-				if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
-					return externaldata.HandleError(http.StatusInternalServerError, err)
-				}
-
-				regoResponse := externaldata.NewRegoResponse(resp.StatusCode, &externaldataResponse)
-				return externaldata.PrepareRegoResponse(regoResponse)
-			},
-		)
+	if d.providerCache == nil {
+		return nil
 	}
 
+	rego.RegisterBuiltin1(
+		&rego.Function{
+			Name:    "external_data",
+			Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+			Memoize: true,
+		}, d.externalDataImpl,
+	)
+
 	return nil
+}
+
+// nolint: gocritic // rego.Builtin1 requires passing BuiltinContext, which is large.
+func (d *driver) externalDataImpl(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
+	var regoReq externaldata.RegoRequest
+	if err := ast.As(regorequest.Value, &regoReq); err != nil {
+		return nil, err
+	}
+	// only primitive types are allowed for keys
+	for _, key := range regoReq.Keys {
+		switch v := key.(type) {
+		case int:
+		case int32:
+		case int64:
+		case string:
+		case float64:
+		case float32:
+			break
+		default:
+			return externaldata.HandleError(http.StatusBadRequest, fmt.Errorf("type %v is not supported in external_data", v))
+		}
+	}
+
+	provider, err := d.providerCache.Get(regoReq.ProviderName)
+	if err != nil {
+		return externaldata.HandleError(http.StatusBadRequest, err)
+	}
+
+	externaldataRequest := externaldata.NewProviderRequest(regoReq.Keys)
+	reqBody, err := json.Marshal(externaldataRequest)
+	if err != nil {
+		return externaldata.HandleError(http.StatusInternalServerError, err)
+	}
+
+	req, err := http.NewRequest("POST", provider.Spec.URL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return externaldata.HandleError(http.StatusInternalServerError, err)
+	}
+
+	ctx, cancel := context.WithDeadline(bctx.Context, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
+	defer cancel()
+
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	if err != nil {
+		return externaldata.HandleError(http.StatusInternalServerError, err)
+	}
+
+	defer resp.Body.Close()
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return externaldata.HandleError(http.StatusInternalServerError, err)
+	}
+
+	var externaldataResponse externaldata.ProviderResponse
+	if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
+		return externaldata.HandleError(http.StatusInternalServerError, err)
+	}
+
+	regoResponse := externaldata.NewRegoResponse(resp.StatusCode, &externaldataResponse)
+	return externaldata.PrepareRegoResponse(regoResponse)
 }
 
 func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
