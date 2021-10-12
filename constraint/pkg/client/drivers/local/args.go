@@ -10,7 +10,7 @@ import (
 
 type Arg func(*driver)
 
-func ArgDefaults() Arg {
+func Defaults() Arg {
 	return func(d *driver) {
 		if d.compiler == nil {
 			d.compiler = ast.NewCompiler()
@@ -39,13 +39,13 @@ func ArgDefaults() Arg {
 	}
 }
 
-func ArgModules(modules map[string]*ast.Module) Arg {
+func Modules(modules map[string]*ast.Module) Arg {
 	return func(d *driver) {
 		d.modules = modules
 	}
 }
 
-func ArgStorage(s storage.Store) Arg {
+func Storage(s storage.Store) Arg {
 	return func(d *driver) {
 		d.storage = s
 	}

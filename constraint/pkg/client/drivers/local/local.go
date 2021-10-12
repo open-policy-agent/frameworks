@@ -51,7 +51,7 @@ func New(args ...Arg) drivers.Driver {
 		arg(d)
 	}
 
-	ArgDefaults()(d)
+	Defaults()(d)
 
 	d.compiler.WithCapabilities(d.capabilities)
 

@@ -117,7 +117,7 @@ func TestDriver_PutModule(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(ArgModules(tc.beforeModules))
+			d := New(Modules(tc.beforeModules))
 
 			dr, ok := d.(*driver)
 			if !ok {
@@ -312,7 +312,7 @@ func TestDriver_PutModules_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(ArgStorage(tc.storage))
+			d := New(Storage(tc.storage))
 
 			err := d.PutModule(ctx, "foo", Module)
 
@@ -446,7 +446,7 @@ func TestDriver_DeleteModule_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(ArgStorage(tc.storage))
+			d := New(Storage(tc.storage))
 
 			err := d.PutModule(ctx, "foo", Module)
 			if err != nil {
@@ -661,7 +661,7 @@ func TestDriver_PutData(t *testing.T) {
 			ctx := context.Background()
 
 			s := &fakeStorage{}
-			d := New(ArgStorage(s))
+			d := New(Storage(s))
 
 			if tc.beforeValue != nil {
 				err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
@@ -745,7 +745,7 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(ArgStorage(tc.storage))
+			d := New(Storage(tc.storage))
 
 			path := "/foo"
 			value := map[string]string{"bar": "qux"}
@@ -802,7 +802,7 @@ func TestDriver_DeleteData(t *testing.T) {
 			ctx := context.Background()
 
 			s := &fakeStorage{}
-			d := New(ArgStorage(s))
+			d := New(Storage(s))
 
 			err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
 			if err != nil {
@@ -866,7 +866,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(ArgStorage(tc.storage))
+			d := New(Storage(tc.storage))
 
 			path := "/foo"
 			_, err := d.DeleteData(ctx, path)
