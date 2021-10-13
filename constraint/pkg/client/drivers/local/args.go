@@ -39,6 +39,12 @@ func Defaults() Arg {
 	}
 }
 
+func Tracing(enabled bool) Arg {
+	return func(d *driver) {
+		d.traceEnabled = enabled
+	}
+}
+
 func Modules(modules map[string]*ast.Module) Arg {
 	return func(d *driver) {
 		d.modules = modules
