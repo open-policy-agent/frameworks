@@ -665,57 +665,84 @@ func (c *Client) ValidateConstraint(ctx context.Context, constraint *unstructure
 	return c.validateConstraint(constraint, true)
 }
 
+func getLibBuiltin(target TargetHandler) (string, error) {
+	templMap := map[string]string{"Target": target.GetName()}
+	libBuiltin := &bytes.Buffer{}
+	if err := regolib.TargetLib.Execute(libBuiltin, templMap); err != nil {
+		return "", err
+	}
+
+	return libBuiltin.String(), nil
+}
+
+func getLibrary(target TargetHandler, hooks string) (string, error) {
+	libraryTemplate := target.Library()
+	if libraryTemplate == nil {
+		return "", fmt.Errorf("target %q has no Rego library template", target.GetName())
+	}
+
+	libBuf := &bytes.Buffer{}
+	if err := libraryTemplate.Execute(libBuf, map[string]string{
+		"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, target.GetName(), constraintGroup),
+		"DataRoot":        fmt.Sprintf(`data.external["%s"]`, target.GetName()),
+	}); err != nil {
+		return "", err
+	}
+
+	lib := libBuf.String()
+	req := map[string]struct{}{
+		"autoreject_review":                {},
+		"matching_reviews_and_constraints": {},
+		"matching_constraints":             {},
+	}
+	modulePath := fmt.Sprintf("%s.library", hooks)
+
+	libModule, err := parseModule(modulePath, lib)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse module: %w", err)
+	}
+
+	if err := requireRulesModule(libModule, req); err != nil {
+		return "", fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%s", target.GetName(), lib, err)
+	}
+
+	err = rewriteModulePackage(modulePath, libModule)
+	if err != nil {
+		return "", err
+	}
+
+	src, err := format.Ast(libModule)
+	if err != nil {
+		return "", fmt.Errorf("could not re-format Rego source: %v", err)
+	}
+
+	return string(src), nil
+}
+
 // init initializes the OPA backend for the client.
 func (c *Client) init() error {
-	for _, t := range c.targets {
-		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
-		templMap := map[string]string{"Target": t.GetName()}
+	for _, target := range c.targets {
+		hooks := fmt.Sprintf(`hooks["%s"]`, target.GetName())
 
-		libBuiltin := &bytes.Buffer{}
-		if err := regolib.TargetLib.Execute(libBuiltin, templMap); err != nil {
+		libBuiltin, err := getLibBuiltin(target)
+		if err != nil {
 			return err
 		}
+
 		if err := c.backend.driver.PutModule(
 			context.Background(),
 			fmt.Sprintf("%s.hooks_builtin", hooks),
-			libBuiltin.String()); err != nil {
+			libBuiltin); err != nil {
 			return err
 		}
 
-		libTempl := t.Library()
-		if libTempl == nil {
-			return fmt.Errorf("target %q has no Rego library template", t.GetName())
-		}
-		libBuf := &bytes.Buffer{}
-		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraintGroup),
-			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, t.GetName()),
-		}); err != nil {
+		src, err := getLibrary(target, hooks)
+		if err != nil {
 			return err
 		}
-		lib := libBuf.String()
-		req := map[string]struct{}{
-			"autoreject_review":                {},
-			"matching_reviews_and_constraints": {},
-			"matching_constraints":             {},
-		}
+
 		modulePath := fmt.Sprintf("%s.library", hooks)
-		libModule, err := parseModule(modulePath, lib)
-		if err != nil {
-			return fmt.Errorf("failed to parse module: %w", err)
-		}
-		if err := requireRulesModule(libModule, req); err != nil {
-			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
-		}
-		err = rewriteModulePackage(modulePath, libModule)
-		if err != nil {
-			return err
-		}
-		src, err := format.Ast(libModule)
-		if err != nil {
-			return fmt.Errorf("could not re-format Rego source: %v", err)
-		}
-		if err := c.backend.driver.PutModule(context.Background(), modulePath, string(src)); err != nil {
+		if err := c.backend.driver.PutModule(context.Background(), modulePath, src); err != nil {
 			return fmt.Errorf("error %s from compiled source:\n%s", err, src)
 		}
 	}

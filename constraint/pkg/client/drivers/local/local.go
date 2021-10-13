@@ -66,6 +66,8 @@ type driver struct {
 	capabilities  *ast.Capabilities
 	traceEnabled  bool
 	providerCache *externaldata.ProviderCache
+
+	coreModules map[string]string
 }
 
 func (d *driver) Init(ctx context.Context) error {
@@ -194,7 +196,13 @@ func toModuleSetName(prefix string, idx int) string {
 	return fmt.Sprintf("%s%d", toModuleSetPrefix(prefix), idx)
 }
 
+// PutModule implements drivers.Driver.
+//
+// PutModule is only ever used to add libraries which should be shared between
+// the runtime environments of all ConstraintTemplates. It is only called on
+// initialization.
 func (d *driver) PutModule(ctx context.Context, name string, src string) error {
+	fmt.Printf("PutModule(%q)\n", name)
 	if err := d.checkModuleName(name); err != nil {
 		return err
 	}
@@ -207,17 +215,33 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 
+	if d.coreModules == nil {
+		d.coreModules = make(map[string]string)
+	}
+	d.coreModules[name] = src
+
+	// Kept for testing purposes, but unnecessary for sharded runtimes.
 	_, err := d.alterModules(ctx, name, insert, nil)
 	return err
 }
 
 // PutModules implements drivers.Driver.
+//
+// PutModules is only ever used to add a ConstraintTemplate to the Driver. We can
+// be certain that when this is called, namePrefix corresponds to a unique OPA
+// runtime environment. We delete the existing OPA environment, if one exists,
+// and compile a new one.
 func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
+	fmt.Printf("PutModules(%q)\n", namePrefix)
 	if err := d.checkModuleSetName(namePrefix); err != nil {
 		return err
 	}
 
 	insert := insertParam{}
+
+	for _, m := range d.coreModules {
+		srcs = append(srcs, m)
+	}
 
 	for idx, src := range srcs {
 		name := toModuleSetName(namePrefix, idx)
@@ -240,8 +264,8 @@ func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []strin
 	return err
 }
 
-// DeleteModule deletes a rule from OPA. Returns true if a rule was found and deleted, false
-// if a rule was not found, and any errors.
+// DeleteModule deletes a rule from OPA. Returns true if a rule was found and
+// deleted, false if a rule was not found, and any errors.
 func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 	if err := d.checkModuleName(name); err != nil {
 		return false, err
@@ -254,6 +278,13 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 		return false, nil
 	}
 
+	delete(d.coreModules, name)
+	// Normally we would want to recompile all runtime environments here.
+	// However, we don't hot-swap builtin libraries while Gatekeeper is running
+	// so supporting that use case doesn't make sense.
+
+	// Should be removed, just like the line in PutModule, as it serves no
+	// purpose.
 	count, err := d.alterModules(ctx, name, nil, []string{name})
 
 	return count == 1, err
@@ -262,13 +293,15 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 // alterModules alters the modules in the driver by inserting and removing
 // the provided modules then returns the count of modules removed.
 // alterModules expects that the caller is holding the modulesMux lock.
-func (d *driver) alterModules(ctx context.Context, NAME string, insert insertParam, remove []string) (int, error) {
+//
+// environment is the name of the OPA runtime environment to modify.
+func (d *driver) alterModules(ctx context.Context, environment string, insert insertParam, remove []string) (int, error) {
 	updatedModules := copyModules(d.modules)
 	for _, name := range remove {
 		delete(updatedModules, name)
 	}
 	updatedCompilers := copyCompilers(d.compilers)
-	delete(updatedCompilers, NAME)
+	delete(updatedCompilers, environment)
 
 	for name, mod := range insert {
 		updatedModules[name] = mod.parsed
@@ -306,7 +339,7 @@ func (d *driver) alterModules(ctx context.Context, NAME string, insert insertPar
 		return 0, fmt.Errorf("%w: %v", ErrCompile, c.Errors)
 	}
 
-	updatedCompilers[NAME] = c
+	updatedCompilers[environment] = c
 
 	if err := d.storage.Commit(ctx, txn); err != nil {
 		return 0, err
@@ -434,7 +467,9 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *
 
 	var t *string
 
-	for _, compiler := range d.compilers {
+	fmt.Println(len(d.compilers), "compilers")
+	for name, compiler := range d.compilers {
+		fmt.Println("name", name)
 		args := []func(*rego.Rego){
 			rego.Compiler(compiler),
 			rego.Store(d.storage),

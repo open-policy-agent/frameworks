@@ -263,6 +263,8 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 		if len(rsps.ByTarget) == 0 {
 			return errors.New("no responses returned")
 		}
+		rspsJSON, _ := json.MarshalIndent(rsps, "", "  ")
+		fmt.Println(string(rspsJSON))
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
 		}
