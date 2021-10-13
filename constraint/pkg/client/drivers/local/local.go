@@ -202,7 +202,6 @@ func toModuleSetName(prefix string, idx int) string {
 // the runtime environments of all ConstraintTemplates. It is only called on
 // initialization.
 func (d *driver) PutModule(ctx context.Context, name string, src string) error {
-	fmt.Printf("PutModule(%q)\n", name)
 	if err := d.checkModuleName(name); err != nil {
 		return err
 	}
@@ -232,7 +231,6 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 // runtime environment. We delete the existing OPA environment, if one exists,
 // and compile a new one.
 func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
-	fmt.Printf("PutModules(%q)\n", namePrefix)
 	if err := d.checkModuleSetName(namePrefix); err != nil {
 		return err
 	}
@@ -467,9 +465,7 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *
 
 	var t *string
 
-	fmt.Println(len(d.compilers), "compilers")
-	for name, compiler := range d.compilers {
-		fmt.Println("name", name)
+	for _, compiler := range d.compilers {
 		args := []func(*rego.Rego){
 			rego.Compiler(compiler),
 			rego.Store(d.storage),

@@ -16,7 +16,7 @@ const (
 	Module string = `
 package foobar
 
-fooisbar[msg] {
+violation[msg] {
   input.foo == "bar"
   msg := "input.foo is bar"
 }
