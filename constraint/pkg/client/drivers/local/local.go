@@ -53,8 +53,6 @@ func New(args ...Arg) drivers.Driver {
 
 	Defaults()(d)
 
-	d.compiler.WithCapabilities(d.capabilities)
-
 	return d
 }
 
@@ -62,7 +60,7 @@ var _ drivers.Driver = &driver{}
 
 type driver struct {
 	modulesMux    sync.RWMutex
-	compiler      *ast.Compiler
+	compilers     map[string]*ast.Compiler
 	modules       map[string]*ast.Module
 	storage       storage.Store
 	capabilities  *ast.Capabilities
@@ -146,6 +144,14 @@ func (d *driver) externalDataImpl(bctx rego.BuiltinContext, regorequest *ast.Ter
 	return externaldata.PrepareRegoResponse(regoResponse)
 }
 
+func copyCompilers(compilers map[string]*ast.Compiler) map[string]*ast.Compiler {
+	m := make(map[string]*ast.Compiler, len(compilers))
+	for k, v := range compilers {
+		m[k] = v
+	}
+	return m
+}
+
 func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
 	m := make(map[string]*ast.Module, len(modules))
 	for k, v := range modules {
@@ -201,7 +207,7 @@ func (d *driver) PutModule(ctx context.Context, name string, src string) error {
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 
-	_, err := d.alterModules(ctx, insert, nil)
+	_, err := d.alterModules(ctx, name, insert, nil)
 	return err
 }
 
@@ -230,7 +236,7 @@ func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []strin
 		}
 	}
 
-	_, err := d.alterModules(ctx, insert, remove)
+	_, err := d.alterModules(ctx, namePrefix, insert, remove)
 	return err
 }
 
@@ -248,7 +254,7 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 		return false, nil
 	}
 
-	count, err := d.alterModules(ctx, nil, []string{name})
+	count, err := d.alterModules(ctx, name, nil, []string{name})
 
 	return count == 1, err
 }
@@ -256,11 +262,13 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 // alterModules alters the modules in the driver by inserting and removing
 // the provided modules then returns the count of modules removed.
 // alterModules expects that the caller is holding the modulesMux lock.
-func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []string) (int, error) {
+func (d *driver) alterModules(ctx context.Context, NAME string, insert insertParam, remove []string) (int, error) {
 	updatedModules := copyModules(d.modules)
 	for _, name := range remove {
 		delete(updatedModules, name)
 	}
+	updatedCompilers := copyCompilers(d.compilers)
+	delete(updatedCompilers, NAME)
 
 	for name, mod := range insert {
 		updatedModules[name] = mod.parsed
@@ -278,14 +286,6 @@ func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []
 		}
 	}
 
-	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn)).
-		WithCapabilities(d.capabilities)
-
-	if c.Compile(updatedModules); c.Failed() {
-		d.storage.Abort(ctx, txn)
-		return 0, fmt.Errorf("%w: %v", ErrCompile, c.Errors)
-	}
-
 	for name, mod := range insert {
 		if err := d.storage.UpsertPolicy(ctx, txn, name, []byte(mod.text)); err != nil {
 			d.storage.Abort(ctx, txn)
@@ -293,12 +293,28 @@ func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []
 		}
 	}
 
+	modules := make(map[string]*ast.Module)
+	for name, m := range insert {
+		modules[name] = m.parsed
+	}
+
+	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn)).
+		WithCapabilities(d.capabilities)
+
+	if c.Compile(modules); c.Failed() {
+		d.storage.Abort(ctx, txn)
+		return 0, fmt.Errorf("%w: %v", ErrCompile, c.Errors)
+	}
+
+	updatedCompilers[NAME] = c
+
 	if err := d.storage.Commit(ctx, txn); err != nil {
 		return 0, err
 	}
 
-	d.compiler = c
 	d.modules = updatedModules
+
+	d.compilers = updatedCompilers
 
 	return len(remove), nil
 }
@@ -312,7 +328,7 @@ func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, err
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 
-	return d.alterModules(ctx, nil, d.listModuleSet(namePrefix))
+	return d.alterModules(ctx, namePrefix, nil, d.listModuleSet(namePrefix))
 }
 
 // listModuleSet returns the list of names corresponding to a given module
@@ -372,14 +388,6 @@ func (d *driver) PutData(ctx context.Context, path string, data interface{}) err
 		return fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
 	}
 
-	// TODO: Determine if this can be removed. No tests exercise this path, and
-	//  as far as I can tell storage.MakeDir fails where this might return an error.
-	if errs := ast.CheckPathConflicts(d.compiler, storage.NonEmpty(ctx, d.storage, txn)); len(errs) > 0 {
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: %q conflicts with existing path: %v",
-			ErrPathConflict, path, errs)
-	}
-
 	err = d.storage.Commit(ctx, txn)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrTransaction, err)
@@ -422,29 +430,40 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
 
-	args := []func(*rego.Rego){
-		rego.Compiler(d.compiler),
-		rego.Store(d.storage),
-		rego.Input(input),
-		rego.Query(path),
-	}
-
-	buf := topdown.NewBufferTracer()
-	if d.traceEnabled || cfg.TracingEnabled {
-		args = append(args, rego.QueryTracer(buf))
-	}
-
-	r := rego.New(args...)
-	res, err := r.Eval(ctx)
+	var r2 rego.ResultSet
 
 	var t *string
-	if d.traceEnabled || cfg.TracingEnabled {
-		b := &bytes.Buffer{}
-		topdown.PrettyTrace(b, *buf)
-		t = pointer.StringPtr(b.String())
+
+	for _, compiler := range d.compilers {
+		args := []func(*rego.Rego){
+			rego.Compiler(compiler),
+			rego.Store(d.storage),
+			rego.Input(input),
+			rego.Query(path),
+		}
+
+		buf := topdown.NewBufferTracer()
+		if d.traceEnabled || cfg.TracingEnabled {
+			args = append(args, rego.QueryTracer(buf))
+		}
+
+		r := rego.New(args...)
+		res, err := r.Eval(ctx)
+
+		if d.traceEnabled || cfg.TracingEnabled {
+			b := &bytes.Buffer{}
+			topdown.PrettyTrace(b, *buf)
+			t = pointer.StringPtr(b.String())
+		}
+
+		if err != nil {
+			return nil, t, err
+		}
+
+		r2 = append(r2, res...)
 	}
 
-	return res, t, err
+	return r2, t, nil
 }
 
 func (d *driver) Query(ctx context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
@@ -500,19 +519,15 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	var dt interface{}
-	// There should be only 1 or 0 expression values
-	if len(data) > 1 {
-		return "", errors.New("too many dump results")
-	}
 
+	var dt []interface{}
 	for _, da := range data {
-		if len(data) > 1 {
+		if len(da.Expressions) > 1 {
 			return "", errors.New("too many expressions results")
 		}
 
 		for _, e := range da.Expressions {
-			dt = e.Value
+			dt = append(dt, e.Value)
 		}
 	}
 

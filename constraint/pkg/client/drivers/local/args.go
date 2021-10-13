@@ -12,8 +12,9 @@ type Arg func(*driver)
 
 func Defaults() Arg {
 	return func(d *driver) {
-		if d.compiler == nil {
-			d.compiler = ast.NewCompiler()
+		if len(d.compilers) == 0 {
+			d.compilers = make(map[string]*ast.Compiler)
+			d.compilers["default"] = ast.NewCompiler()
 		}
 
 		if d.modules == nil {

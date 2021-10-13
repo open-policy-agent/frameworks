@@ -448,7 +448,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
-			return e("Bad number of results", rsps)
+			return e(fmt.Sprintf("Bad number of results: %d", len(rsps.Results())), rsps)
 		}
 		for _, r := range rsps.ByTarget {
 			if r.Trace != nil {
