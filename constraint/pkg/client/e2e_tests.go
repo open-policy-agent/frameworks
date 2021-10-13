@@ -263,8 +263,6 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 		if len(rsps.ByTarget) == 0 {
 			return errors.New("no responses returned")
 		}
-		rspsJSON, _ := json.MarshalIndent(rsps, "", "  ")
-		fmt.Println(string(rspsJSON))
 		if len(rsps.Results()) != 2 {
 			return e("Bad number of results", rsps)
 		}
@@ -450,7 +448,7 @@ func addDenyAllE2ETests(nameSuffix string, rego string, libs ...string) {
 			return errors.New("no responses returned")
 		}
 		if len(rsps.Results()) != 1 {
-			return e(fmt.Sprintf("Bad number of results: %d", len(rsps.Results())), rsps)
+			return e("Bad number of results", rsps)
 		}
 		for _, r := range rsps.ByTarget {
 			if r.Trace != nil {

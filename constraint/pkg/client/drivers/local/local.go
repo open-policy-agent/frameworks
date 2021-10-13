@@ -258,6 +258,8 @@ func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []strin
 		}
 	}
 
+	fmt.Printf("Adding %d Modules for %q\n", len(insert), namePrefix)
+
 	_, err := d.alterModules(ctx, namePrefix, insert, remove)
 	return err
 }

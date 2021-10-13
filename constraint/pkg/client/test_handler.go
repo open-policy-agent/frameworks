@@ -34,7 +34,13 @@ autoreject_review[rejection] {
 }
 
 matching_constraints[constraint] {
+  input.review.ForConstraint != ""
 	constraint = {{.ConstraintsRoot}}[input.review.ForConstraint][_]
+}
+
+matching_constraints[constraint] {
+  input.review.ForConstraint == ""
+	constraint = {{.ConstraintsRoot}}[_][_]
 }
 
 matching_reviews_and_constraints[[review, constraint]] {
