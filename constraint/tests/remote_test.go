@@ -8,6 +8,8 @@ import (
 )
 
 func TestRemoteClientE2E(t *testing.T) {
+	t.Skip("test does not work yet")
+
 	d, err := remote.New(remote.URL("http://localhost:8181"), remote.Tracing(false))
 	if err != nil {
 		t.Fatal(err)
@@ -16,6 +18,7 @@ func TestRemoteClientE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for name, f := range p.TestFuncs() {
 		t.Run(name, func(t *testing.T) {
 			if err := f(); err != nil {
