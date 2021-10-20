@@ -398,16 +398,31 @@ func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *drivers.QueryCfg) (rego.ResultSet, *string, error) {
+func (d *driver) eval(ctx context.Context, input interface{}, cfg *drivers.QueryCfg) (rego.ResultSet, *string, error) {
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
 
-	args := []func(*rego.Rego){
-		rego.Compiler(d.compiler),
-		rego.Store(d.storage),
-		rego.Input(input),
-		rego.Query(path),
+	// originally: hooks["%s"].violation
+	// package templates[\"test.target\"].Foo\n\nviolation[{\"details\": {}, \"msg\": \"DENIED\"}]
+	path := `templates["test.target"].Foo.violation`
+
+	inputM := input.(map[string]interface{})
+
+	for _, ct := range getConstrainTemplates() {
+		for _, constriant := range getConstraints(ct) {
+			inputM["parameters"] = getParameters(constraint)
+
+			// possibly "data." + path
+			args := []func(*rego.Rego){
+				rego.Compiler(d.compiler),
+				rego.Store(d.storage),
+				rego.Input(inputM),
+				rego.Query(path),
+			}
+		}
 	}
+
+
 
 	buf := topdown.NewBufferTracer()
 	if d.traceEnabled || cfg.TracingEnabled {

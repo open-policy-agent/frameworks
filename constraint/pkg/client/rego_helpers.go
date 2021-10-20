@@ -2,7 +2,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/open-policy-agent/opa/ast"
 )
@@ -44,13 +43,13 @@ func requireRulesModule(module *ast.Module, requiredRules map[string]struct{}) e
 	}
 
 	var errs Errors
-	for name := range requiredRules {
-		_, ok := ruleSets[name]
-		if !ok {
-			errs = append(errs, fmt.Errorf("missing required rule: %s", name))
-			continue
-		}
-	}
+	//for name := range requiredRules {
+	//	_, ok := ruleSets[name]
+	//	if !ok {
+	//		errs = append(errs, fmt.Errorf("missing required rule: %s", name))
+	//		continue
+	//	}
+	//}
 	if len(errs) != 0 {
 		return errs
 	}

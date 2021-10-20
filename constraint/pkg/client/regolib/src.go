@@ -4,7 +4,9 @@ const (
 	targetLibSrc = `
 package hooks["{{.Target}}"]
 
-violation[response] {
+`
+
+a = `violation[response] {
 	data.hooks["{{.Target}}"].library.autoreject_review[rejection]
 	review := get_default(input, "review", {})
 	constraint := get_default(rejection, "constraint", {})

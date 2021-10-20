@@ -781,7 +781,7 @@ TargetLoop:
 			continue
 		}
 		input := map[string]interface{}{"review": review}
-		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].violation`, name), input, drivers.Tracing(cfg.enableTracing))
+		resp, err := c.backend.driver.Query(ctx, input, drivers.Tracing(cfg.enableTracing))
 		if err != nil {
 			errMap[name] = err
 			continue
