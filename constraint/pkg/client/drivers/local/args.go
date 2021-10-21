@@ -3,25 +3,20 @@ package local
 import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/storage/inmem"
 	opatypes "github.com/open-policy-agent/opa/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type Arg func(*driver)
 
 func Defaults() Arg {
 	return func(d *driver) {
-		if d.compiler == nil {
-			d.compiler = ast.NewCompiler()
+		if d.compilers == nil {
+			d.compilers = make(map[string]*ast.Compiler)
 		}
 
-		if d.modules == nil {
-			d.modules = make(map[string]*ast.Module)
-		}
-
-		if d.storage == nil {
-			d.storage = inmem.New()
+		if d.constraints == nil {
+			d.constraints = make(map[string][]*unstructured.Unstructured)
 		}
 
 		if d.capabilities == nil {
@@ -42,18 +37,6 @@ func Defaults() Arg {
 func Tracing(enabled bool) Arg {
 	return func(d *driver) {
 		d.traceEnabled = enabled
-	}
-}
-
-func Modules(modules map[string]*ast.Module) Arg {
-	return func(d *driver) {
-		d.modules = modules
-	}
-}
-
-func Storage(s storage.Store) Arg {
-	return func(d *driver) {
-		d.storage = s
 	}
 }
 

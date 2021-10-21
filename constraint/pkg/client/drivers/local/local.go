@@ -17,9 +17,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
-	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/topdown"
 	opatypes "github.com/open-policy-agent/opa/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
 )
 
@@ -28,12 +27,7 @@ const (
 	moduleSetSep    = "_idx_"
 )
 
-type module struct {
-	text   string
-	parsed *ast.Module
-}
-
-type insertParam map[string]*module
+type insertParam map[string]*ast.Module
 
 func (i insertParam) add(name string, src string) error {
 	m, err := ast.ParseModule(name, src)
@@ -41,7 +35,7 @@ func (i insertParam) add(name string, src string) error {
 		return fmt.Errorf("%w: %q: %v", ErrParse, name, err)
 	}
 
-	i[name] = &module{text: src, parsed: m}
+	i[name] = m
 	return nil
 }
 
@@ -53,18 +47,17 @@ func New(args ...Arg) drivers.Driver {
 
 	Defaults()(d)
 
-	d.compiler.WithCapabilities(d.capabilities)
-
 	return d
 }
 
 var _ drivers.Driver = &driver{}
 
 type driver struct {
-	modulesMux    sync.RWMutex
-	compiler      *ast.Compiler
-	modules       map[string]*ast.Module
-	storage       storage.Store
+	modulesMux sync.RWMutex
+
+	compilers   map[string]*ast.Compiler
+	constraints map[string][]*unstructured.Unstructured
+
 	capabilities  *ast.Capabilities
 	traceEnabled  bool
 	providerCache *externaldata.ProviderCache
@@ -169,233 +162,70 @@ func toModuleSetName(prefix string, idx int) string {
 }
 
 func (d *driver) PutModule(ctx context.Context, name string, src string) error {
-	if err := d.checkModuleName(name); err != nil {
-		return err
-	}
-
-	insert := insertParam{}
-	if err := insert.add(name, src); err != nil {
-		return err
-	}
-
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
-
-	_, err := d.alterModules(ctx, insert, nil)
-	return err
+	return nil
 }
 
 // PutModules implements drivers.Driver.
-func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
-	if err := d.checkModuleSetName(namePrefix); err != nil {
-		return err
+func (d *driver) PutModules(ctx context.Context, kind string, srcs []string) error {
+	insert := insertParam{}
+	if len(srcs) != 1 {
+		panic(len(srcs))
 	}
 
-	insert := insertParam{}
-
-	for idx, src := range srcs {
-		name := toModuleSetName(namePrefix, idx)
-		if err := insert.add(name, src); err != nil {
-			return err
-		}
+	err := insert.add(fmt.Sprintf("templates[%q]", kind), srcs[0])
+	if err != nil {
+		return err
 	}
 
 	d.modulesMux.Lock()
 	defer d.modulesMux.Unlock()
 
-	var remove []string
-	for _, name := range d.listModuleSet(namePrefix) {
-		if _, found := insert[name]; !found {
-			remove = append(remove, name)
-		}
-	}
-
-	_, err := d.alterModules(ctx, insert, remove)
+	_, err = d.alterModules(ctx, kind, insert, nil)
 	return err
 }
 
 // DeleteModule deletes a rule from OPA. Returns true if a rule was found and deleted, false
 // if a rule was not found, and any errors.
-func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
-	if err := d.checkModuleName(name); err != nil {
-		return false, err
-	}
-
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
-
-	if _, found := d.modules[name]; !found {
-		return false, nil
-	}
-
-	count, err := d.alterModules(ctx, nil, []string{name})
-
-	return count == 1, err
+func (d *driver) DeleteModule(_ context.Context, _ string) (bool, error) {
+	return false, nil
 }
 
 // alterModules alters the modules in the driver by inserting and removing
 // the provided modules then returns the count of modules removed.
 // alterModules expects that the caller is holding the modulesMux lock.
-func (d *driver) alterModules(ctx context.Context, insert insertParam, remove []string) (int, error) {
-	updatedModules := copyModules(d.modules)
-	for _, name := range remove {
-		delete(updatedModules, name)
-	}
+func (d *driver) alterModules(_ context.Context, kind string, insert insertParam, _ []string) (int, error) {
+	c := ast.NewCompiler().WithCapabilities(d.capabilities)
 
-	for name, mod := range insert {
-		updatedModules[name] = mod.parsed
-	}
-
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return 0, err
-	}
-
-	for _, name := range remove {
-		if err := d.storage.DeletePolicy(ctx, txn, name); err != nil {
-			d.storage.Abort(ctx, txn)
-			return 0, err
-		}
-	}
-
-	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn)).
-		WithCapabilities(d.capabilities)
-
-	if c.Compile(updatedModules); c.Failed() {
-		d.storage.Abort(ctx, txn)
+	if c.Compile(insert); c.Failed() {
 		return 0, fmt.Errorf("%w: %v", ErrCompile, c.Errors)
 	}
 
-	for name, mod := range insert {
-		if err := d.storage.UpsertPolicy(ctx, txn, name, []byte(mod.text)); err != nil {
-			d.storage.Abort(ctx, txn)
-			return 0, err
-		}
-	}
+	d.compilers[kind] = c
 
-	if err := d.storage.Commit(ctx, txn); err != nil {
-		return 0, err
-	}
-
-	d.compiler = c
-	d.modules = updatedModules
-
-	return len(remove), nil
+	return 0, nil
 }
 
 // DeleteModules implements drivers.Driver.
 func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, error) {
-	if err := d.checkModuleSetName(namePrefix); err != nil {
-		return 0, err
-	}
-
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
-
-	return d.alterModules(ctx, nil, d.listModuleSet(namePrefix))
+	return 0, nil
 }
 
 // listModuleSet returns the list of names corresponding to a given module
 // prefix.
 func (d *driver) listModuleSet(namePrefix string) []string {
-	prefix := toModuleSetPrefix(namePrefix)
-
-	var names []string
-	for name := range d.modules {
-		if strings.HasPrefix(name, prefix) {
-			names = append(names, name)
-		}
-	}
-
-	return names
+	return nil
 }
 
-func parsePath(path string) ([]string, error) {
-	p, ok := storage.ParsePathEscaped(path)
-	if !ok {
-		return nil, fmt.Errorf("%w: path must begin with '/': %q", ErrPathInvalid, path)
-	}
-	if len(p) == 0 {
-		return nil, fmt.Errorf("%w: path must contain at least one path element: %q", ErrPathInvalid, path)
-	}
-
-	return p, nil
-}
-
-func (d *driver) PutData(ctx context.Context, path string, data interface{}) error {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
-
-	p, err := parsePath(path)
-	if err != nil {
-		return err
-	}
-
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTransaction, err)
-	}
-
-	if _, err = d.storage.Read(ctx, txn, p); err != nil {
-		if storage.IsNotFound(err) {
-			if err = storage.MakeDir(ctx, d.storage, txn, p[:len(p)-1]); err != nil {
-				return fmt.Errorf("%w: unable to make directory: %v", ErrWrite, err)
-			}
-		} else {
-			d.storage.Abort(ctx, txn)
-			return fmt.Errorf("%w: %v", ErrRead, err)
-		}
-	}
-
-	if err = d.storage.Write(ctx, txn, storage.AddOp, p, data); err != nil {
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
-	}
-
-	// TODO: Determine if this can be removed. No tests exercise this path, and
-	//  as far as I can tell storage.MakeDir fails where this might return an error.
-	if errs := ast.CheckPathConflicts(d.compiler, storage.NonEmpty(ctx, d.storage, txn)); len(errs) > 0 {
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: %q conflicts with existing path: %v",
-			ErrPathConflict, path, errs)
-	}
-
-	err = d.storage.Commit(ctx, txn)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTransaction, err)
-	}
+func (d *driver) PutData(ctx context.Context, path string, data *unstructured.Unstructured) error {
+	kind := strings.ToLower(data.GetKind())
+	d.constraints[kind] = append(d.constraints[kind], data)
 	return nil
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
 func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
-
-	p, err := parsePath(path)
-	if err != nil {
-		return false, err
-	}
-
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
-	}
-
-	if err = d.storage.Write(ctx, txn, storage.RemoveOp, p, interface{}(nil)); err != nil {
-		d.storage.Abort(ctx, txn)
-		if storage.IsNotFound(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
-	}
-
-	if err = d.storage.Commit(ctx, txn); err != nil {
-		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
-	}
-
-	return true, nil
+	return false, nil
 }
 
 func (d *driver) eval(ctx context.Context, input interface{}, cfg *drivers.QueryCfg) (rego.ResultSet, *string, error) {
@@ -404,69 +234,67 @@ func (d *driver) eval(ctx context.Context, input interface{}, cfg *drivers.Query
 
 	// originally: hooks["%s"].violation
 	// package templates[\"test.target\"].Foo\n\nviolation[{\"details\": {}, \"msg\": \"DENIED\"}]
-	path := `templates["test.target"].Foo.violation`
+	inputM, ok := input.(map[string]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("got input type %T, want %T", input, map[string]interface{}{})
+	}
 
-	inputM := input.(map[string]interface{})
+	var results rego.ResultSet
 
-	for _, ct := range getConstrainTemplates() {
-		for _, constriant := range getConstraints(ct) {
-			inputM["parameters"] = getParameters(constraint)
+	for kind, compiler := range d.compilers {
+		path := fmt.Sprintf("data.%s.violation", kind)
+		for _, constraint := range d.constraints[kind] {
+			inputM["parameters"] = constraint.Object
 
-			// possibly "data." + path
 			args := []func(*rego.Rego){
-				rego.Compiler(d.compiler),
-				rego.Store(d.storage),
+				rego.Compiler(compiler),
 				rego.Input(inputM),
 				rego.Query(path),
+			}
+
+			r := rego.New(args...)
+			res, err := r.Eval(ctx)
+
+			results = append(results, res...)
+
+			if err != nil {
+				return nil, nil, err
 			}
 		}
 	}
 
-
-
-	buf := topdown.NewBufferTracer()
-	if d.traceEnabled || cfg.TracingEnabled {
-		args = append(args, rego.QueryTracer(buf))
-	}
-
-	r := rego.New(args...)
-	res, err := r.Eval(ctx)
-
-	var t *string
-	if d.traceEnabled || cfg.TracingEnabled {
-		b := &bytes.Buffer{}
-		topdown.PrettyTrace(b, *buf)
-		t = pointer.StringPtr(b.String())
-	}
-
-	return res, t, err
+	return results, nil, nil
 }
 
-func (d *driver) Query(ctx context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
+func (d *driver) Query(ctx context.Context, input interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	// Add a variable binding to the path.
-	path = fmt.Sprintf("data.%s[result]", path)
-
-	rs, trace, err := d.eval(ctx, path, input, cfg)
+	rs, trace, err := d.eval(ctx, input, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	var results []*types.Result
 	for _, r := range rs {
-		result := &types.Result{}
-		b, err := json.Marshal(r.Bindings["result"])
-		if err != nil {
-			return nil, err
+		for _, expr := range r.Expressions {
+			values, ok := expr.Value.([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("got expr.Value type %T, want %T", expr.Value, []string{})
+			}
+
+			for i, v := range values {
+				vs, ok := v.(string)
+				if !ok {
+					return nil, fmt.Errorf("got expr.Value[%d] type %T, want %T", i, v, "")
+				}
+				results = append(results, &types.Result{
+					Msg: vs,
+				})
+			}
 		}
-		if err := json.Unmarshal(b, result); err != nil {
-			return nil, err
-		}
-		results = append(results, result)
 	}
 
 	inp, err := json.MarshalIndent(input, "", "   ")
@@ -485,12 +313,7 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	d.modulesMux.RLock()
 	defer d.modulesMux.RUnlock()
 
-	mods := make(map[string]string, len(d.modules))
-	for k, v := range d.modules {
-		mods[k] = v.String()
-	}
-
-	data, _, err := d.eval(ctx, "data", nil, &drivers.QueryCfg{})
+	data, _, err := d.eval(ctx, "data", &drivers.QueryCfg{})
 	if err != nil {
 		return "", err
 	}
@@ -512,8 +335,7 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	resp := map[string]interface{}{
-		"modules": mods,
-		"data":    dt,
+		"data": dt,
 	}
 
 	b, err := json.MarshalIndent(resp, "", "   ")

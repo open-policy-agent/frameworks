@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type QueryCfg struct {
@@ -30,7 +31,7 @@ type Driver interface {
 	// result in 0, nil being returned.
 	DeleteModules(ctx context.Context, namePrefix string) (int, error)
 
-	PutData(ctx context.Context, path string, data interface{}) error
+	PutData(ctx context.Context, path string, data *unstructured.Unstructured) error
 	DeleteData(ctx context.Context, path string) (bool, error)
 
 	Query(ctx context.Context, input interface{}, opts ...QueryOpt) (*types.Response, error)
