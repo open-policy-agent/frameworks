@@ -9,22 +9,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-const (
-	Module string = `
-package foo
-
-violation[msg] {
-  input.object.foo == input.parameters.foo
-  msg := sprintf("input.foo is %v", [input.parameters.foo])
-}
-`
-)
-
 func makeModule(kind string) string {
 	return fmt.Sprintf(`package %s
 
 violation[msg] {
-  input.object.foo == input.parameters.foo
+  input.review.object.foo == input.parameters.foo
   msg := sprintf("input.foo is %%v", [input.parameters.foo])
 }`, kind)
 }
@@ -38,6 +27,16 @@ func makeConstraint(kind string) *unstructured.Unstructured {
 	}
 
 	return constraint
+}
+
+func makeInput() map[string]interface{} {
+	return map[string]interface{}{
+		"review": map[string]interface{}{
+			"object": map[string]interface{}{
+				"foo": "qux",
+			},
+		},
+	}
 }
 
 func TestDriver_Query(t *testing.T) {
@@ -58,11 +57,7 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results, err := d.Query(ctx, map[string]interface{}{
-		"object": map[string]interface{}{
-			"foo": "qux",
-		},
-	})
+	results, err := d.Query(ctx, makeInput())
 	if err != nil {
 		t.Fatal(err)
 	}

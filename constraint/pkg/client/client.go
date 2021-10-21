@@ -92,27 +92,7 @@ func createDataPath(target, subpath string) string {
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
-	resp := types.NewResponses()
-	errMap := make(ErrorMap)
-	for target, h := range c.targets {
-		handled, relPath, processedData, err := h.ProcessData(data)
-		if err != nil {
-			errMap[target] = err
-			continue
-		}
-		if !handled {
-			continue
-		}
-		if err := c.backend.driver.PutData(ctx, createDataPath(target, relPath), processedData); err != nil {
-			errMap[target] = err
-			continue
-		}
-		resp.Handled[target] = true
-	}
-	if len(errMap) == 0 {
-		return resp, nil
-	}
-	return resp, errMap
+	return nil, nil
 }
 
 // RemoveData removes data from OPA for every target that can handle the data.
@@ -140,11 +120,6 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		return resp, nil
 	}
 	return resp, errMap
-}
-
-// createTemplatePath returns the package path for a given template: templates.<target>.<name>.
-func createTemplatePath(target, name string) string {
-	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
 }
 
 // templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
@@ -266,7 +241,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, err
 	}
 
-	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
+	entryPointPath := templ.Spec.CRD.Spec.Names.Kind
 
 	return &basicCTArtifacts{
 		rawCTArtifacts: *rawArtifacts,
@@ -518,7 +493,7 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 		return nil, fmt.Errorf("kind missing from Constraint %q", constraint.GetName())
 	}
 	if constraint.GroupVersionKind().Group != constraintGroup {
-		return nil, fmt.Errorf("wrong API Group for Constraint %q", constraint.GetName())
+		return nil, fmt.Errorf("wrong API Group for Constraint %q, want %q", constraint.GetName(), constraintGroup)
 	}
 	if lock {
 		c.constraintsMux.RLock()
@@ -565,7 +540,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 			errMap[target] = err
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, relPath, constraint.Object); err != nil {
+		if err := c.backend.driver.PutData(ctx, relPath, constraint); err != nil {
 			errMap[target] = err
 			continue
 		}

@@ -17,7 +17,7 @@ func BenchmarkDriver_PutModule(b *testing.B) {
 
 				for j := 0; j < n; j++ {
 					name := fmt.Sprintf("foo-%d", j)
-					err := d.PutModules(ctx, name, []string{Module})
+					err := d.PutModules(ctx, name, []string{makeModule("foo")})
 					if err != nil {
 						b.Fatal(err)
 					}
@@ -46,11 +46,7 @@ func BenchmarkDriver_Query(b *testing.B) {
 				}
 			}
 
-			obj := map[string]interface{}{
-				"object": map[string]interface{}{
-					"foo": "qux",
-				},
-			}
+			obj := makeInput()
 
 			b.ResetTimer()
 

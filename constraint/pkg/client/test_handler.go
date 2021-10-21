@@ -1,7 +1,6 @@
 package client
 
 import (
-	"encoding/json"
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -27,14 +26,9 @@ func (h *handler) Library() *template.Template {
 }
 
 func (h *handler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
-	switch data := obj.(type) {
-	case targetData:
-		return true, data.Name, &data, nil
-	case *targetData:
-		return true, data.Name, data, nil
-	}
-
-	return false, "", nil, nil
+	return true, "", map[string]interface{}{
+		"object": obj,
+	}, nil
 }
 
 func (h *handler) HandleReview(obj interface{}) (bool, interface{}, error) {
@@ -43,15 +37,7 @@ func (h *handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 }
 
 func (h *handler) HandleViolation(result *types.Result) error {
-	res, err := json.Marshal(result.Review)
-	if err != nil {
-		return err
-	}
-	d := &targetData{}
-	if err := json.Unmarshal(res, d); err != nil {
-		return err
-	}
-	result.Resource = d
+	result.Resource = result.Review
 	return nil
 }
 
@@ -66,9 +52,4 @@ func (h *handler) MatchSchema() apiextensions.JSONSchemaProps {
 
 func (h *handler) ValidateConstraint(u *unstructured.Unstructured) error {
 	return nil
-}
-
-type targetData struct {
-	Name          string
-	ForConstraint string
 }
