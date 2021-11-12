@@ -3,12 +3,9 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
@@ -19,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-var ctx = context.Background()
 
 const (
 	denied    = "DENIED"
@@ -51,10 +46,6 @@ func newConstraintTemplate(name, rego string, libs ...string) *templates.Constra
 			},
 		},
 	}
-}
-
-func e(s string, r *types.Responses) error {
-	return fmt.Errorf("%s\n%s", s, r.TraceDump())
 }
 
 func newConstraint(kind, name string, params map[string]string, enforcementAction *string) *unstructured.Unstructured {
@@ -131,6 +122,7 @@ func TestE2EAddTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatal(err)
@@ -147,6 +139,7 @@ func TestE2EDenyAll(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -183,6 +176,7 @@ func TestE2EAudit(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -197,22 +191,20 @@ func TestE2EAudit(t *testing.T) {
 			}
 			rsps, err := c.Audit(ctx)
 			if err != nil {
-				t.Fatalf("got Audit: %v", err)
+				t.Fatalf("got Audit error: %v, want nil", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Constraint, cstr) {
-				t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-			}
-			if rsps.Results()[0].Msg != denied {
-				t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Resource, obj) {
-				t.Fatal(e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps))
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        cstr,
+				Msg:               denied,
+				EnforcementAction: "deny",
+				Resource:          obj,
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review")); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -226,6 +218,7 @@ func TestE2EAuditX2(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -246,19 +239,21 @@ func TestE2EAuditX2(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Audit: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 2 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			for _, r := range rsps.Results() {
-				if !reflect.DeepEqual(r.Constraint, cstr) {
-					t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-				}
-				if r.Msg != denied {
-					t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps))
-				}
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        cstr,
+				EnforcementAction: "deny",
+				Msg:               denied,
+			}, {
+				Constraint:        cstr,
+				EnforcementAction: "deny",
+				Msg:               denied,
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review", "Resource")); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -272,7 +267,7 @@ func TestE2EAutoreject(t *testing.T) {
 				t.Fatal(err)
 			}
 
-
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -317,19 +312,21 @@ func TestE2EAutoreject(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 2 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if rsps.Results()[0].Msg != rejection && rsps.Results()[1].Msg != rejection {
-				t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted at least one REJECTION", rsps.Results()[0].Msg), rsps))
-			}
-			for _, r := range rsps.Results() {
-				if r.Msg == rejection && !reflect.DeepEqual(r.Constraint, u) {
-					t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(r.Constraint), spew.Sdump(u)), rsps))
-				}
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        u,
+				EnforcementAction: "deny",
+				Msg:               denied,
+			}, {
+				Constraint:        u,
+				EnforcementAction: "deny",
+				Msg:               rejection,
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review", "Resource")); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -343,7 +340,7 @@ func TestE2ERemoveConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 
-
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -360,20 +357,19 @@ func TestE2ERemoveConstraint(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Audit: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Constraint, cstr) {
-				t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-			}
-			if rsps.Results()[0].Msg != denied {
-				t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Resource, obj) {
-				t.Fatal(e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps))
+
+			got := rsps.Results()
+
+			want := []*types.Result{{
+				Constraint:        cstr,
+				EnforcementAction: "deny",
+				Msg:               denied,
+				Resource:          obj,
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review")); diff != "" {
+				t.Error(diff)
 			}
 
 			if _, err := c.RemoveConstraint(ctx, cstr); err != nil {
@@ -383,8 +379,12 @@ func TestE2ERemoveConstraint(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got AuditX2: %v", err)
 			}
-			if len(rsps2.Results()) != 0 {
-				t.Fatal(e("Responses returned", rsps2))
+
+			got2 := rsps2.Results()
+			var want2 []*types.Result
+
+			if diff := cmp.Diff(want2, got2); diff != "" {
+				t.Fatalf(diff)
 			}
 		})
 	}
@@ -398,6 +398,7 @@ func TestE2ERemoveTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			tmpl := newConstraintTemplate("Foo", denyTemplateRego)
 			_, err = c.AddTemplate(ctx, tmpl)
 			if err != nil {
@@ -415,20 +416,17 @@ func TestE2ERemoveTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Audit: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Constraint, cstr) {
-				t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-			}
-			if rsps.Results()[0].Msg != denied {
-				t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Resource, obj) {
-				t.Fatal(e(fmt.Sprintf("Resource %s != %s", spew.Sdump(rsps.Results()[0].Resource), spew.Sdump(obj)), rsps))
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        cstr,
+				EnforcementAction: "deny",
+				Msg:               denied,
+				Resource:          obj,
+			}}
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review")); diff != "" {
+				t.Error(diff)
 			}
 
 			if _, err := c.RemoveTemplate(ctx, tmpl); err != nil {
@@ -438,8 +436,12 @@ func TestE2ERemoveTemplate(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got AuditX2: %v", err)
 			}
-			if len(rsps2.Results()) != 0 {
-				t.Fatal(e("Responses returned", rsps2))
+
+			got2 := rsps2.Results()
+			var want2 []*types.Result
+
+			if diff := cmp.Diff(want2, got2); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -453,6 +455,7 @@ func TestE2ETracingOff(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -465,15 +468,13 @@ func TestE2ETracingOff(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
+
 			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
+				t.Fatal("got no results by target, want at least one")
 			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			for _, r := range rsps.ByTarget {
+			for key, r := range rsps.ByTarget {
 				if r.Trace != nil {
-					t.Fatal(e("Trace dump not nil", rsps))
+					t.Errorf("got Trace for %q, but want no trace: %v", key, r.Trace)
 				}
 			}
 		})
@@ -488,6 +489,7 @@ func TestE2ETracingOn(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -500,15 +502,13 @@ func TestE2ETracingOn(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
+
 			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
+				t.Fatal("got no results by target, want at least one")
 			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			for _, r := range rsps.ByTarget {
+			for key, r := range rsps.ByTarget {
 				if r.Trace == nil {
-					t.Fatal(e("Trace dump nil", rsps))
+					t.Errorf("got no Trace for: %q, but want trace", key)
 				}
 			}
 		})
@@ -523,6 +523,7 @@ func TestE2EAuditTracingOn(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -543,15 +544,13 @@ func TestE2EAuditTracingOn(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Audit: %v", err)
 			}
+
 			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
+				t.Fatal("got no results by target, want at least one")
 			}
-			if len(rsps.Results()) != 2 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			for _, r := range rsps.ByTarget {
+			for key, r := range rsps.ByTarget {
 				if r.Trace == nil {
-					t.Fatal(e("Trace dump nil", rsps))
+					t.Errorf("got no Trace for: %q, but want trace", key)
 				}
 			}
 		})
@@ -566,6 +565,7 @@ func TestE2EAuditTracingOff(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -586,15 +586,13 @@ func TestE2EAuditTracingOff(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Audit: %v", err)
 			}
+
 			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
+				t.Fatal("got no results by target, want at least one")
 			}
-			if len(rsps.Results()) != 2 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			for _, r := range rsps.ByTarget {
+			for key, r := range rsps.ByTarget {
 				if r.Trace != nil {
-					t.Fatal(e("Trace dump not nil", rsps))
+					t.Errorf("got Trace for %q, but want no trace: %v", key, r.Trace)
 				}
 			}
 		})
@@ -609,6 +607,7 @@ func TestE2EDryrunAll(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 violation[{"msg": "DRYRUN", "details": {}}] {
 	"always" == "always"
@@ -625,17 +624,17 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Constraint, cstr) {
-				t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-			}
-			if rsps.Results()[0].EnforcementAction != testEnforcementAction {
-				t.Fatal(e(fmt.Sprintf("res.EnforcementAction = %s; wanted default value dryrun", rsps.Results()[0].EnforcementAction), rsps))
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        cstr,
+				EnforcementAction: testEnforcementAction,
+				Msg:               "DRYRUN",
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review", "Resource")); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -649,6 +648,7 @@ func TestE2EDenyByParameter(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 violation[{"msg": "DENIED", "details": {}}] {
 	input.parameters.name == input.review.Name
@@ -664,28 +664,30 @@ violation[{"msg": "DENIED", "details": {}}] {
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
-			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned")
-			}
-			if len(rsps.Results()) != 1 {
-				t.Fatal(e("Bad number of results", rsps))
-			}
-			if !reflect.DeepEqual(rsps.Results()[0].Constraint, cstr) {
-				t.Fatal(e(fmt.Sprintf("Constraint %s != %s", spew.Sdump(rsps.Results()[0].Constraint), spew.Sdump(cstr)), rsps))
-			}
-			if rsps.Results()[0].Msg != denied {
-				t.Fatal(e(fmt.Sprintf("res.Msg = %s; wanted DENIED", rsps.Results()[0].Msg), rsps))
+
+			got := rsps.Results()
+			want := []*types.Result{{
+				Constraint:        cstr,
+				EnforcementAction: "deny",
+				Msg:               denied,
+			}}
+
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
+				"Metadata", "Review", "Resource")); diff != "" {
+				t.Error(diff)
 			}
 
 			rsps, err = c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
+
 			if len(rsps.ByTarget) == 0 {
-				t.Fatal("no responses returned for second test")
+				t.Fatal("got no responses")
 			}
-			if len(rsps.Results()) != 0 {
-				t.Fatal(e("Expected no results", rsps))
+			results := rsps.Results()
+			if len(results) != 0 {
+				t.Fatalf("got results, want none: %v", results)
 			}
 		})
 	}
