@@ -9,7 +9,20 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 )
 
-var nTemplates = []int{1, 2, 5, 10, 20, 50, 100, 200}
+var (
+	nTemplates = []int{1, 2, 5, 10, 20, 50, 100, 200}
+
+	modules = []struct {
+		name       string
+		makeModule func(i int) string
+	}{{
+		name:       "Simple",
+		makeModule: makeModuleSimple,
+	}, {
+		name:       "Complex",
+		makeModule: makeModuleComplex,
+	}}
+)
 
 func makeKind(i int) string {
 	return fmt.Sprintf("foo%d", i)
@@ -58,17 +71,6 @@ func makeConstraintTemplate(i int, makeModule func(i int) string) *templates.Con
 }
 
 func BenchmarkClient_AddTemplate(b *testing.B) {
-	modules := []struct {
-		name       string
-		makeModule func(i int) string
-	}{{
-		name:       "Simple",
-		makeModule: makeModuleSimple,
-	}, {
-		name:       "Complex",
-		makeModule: makeModuleComplex,
-	}}
-
 	for _, tc := range modules {
 		b.Run(tc.name, func(b *testing.B) {
 			for _, n := range nTemplates {
