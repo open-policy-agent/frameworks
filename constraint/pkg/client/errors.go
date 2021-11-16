@@ -6,8 +6,11 @@ import (
 )
 
 var (
-	errCreatingBackend = errors.New("unable to create backend")
-	errCreatingClient  = errors.New("unable to create client")
+	errCreatingBackend           = errors.New("unable to create backend")
+	errCreatingClient            = errors.New("unable to create client")
+	errInvalidConstraintTemplate = errors.New("invalid ConstraintTemplate")
+	errInvalidConstraint         = errors.New("invalid Constraint")
+	errInvalidModule             = errors.New("invalid module")
 )
 
 type UnrecognizedConstraintError struct {
@@ -25,11 +28,6 @@ func IsUnrecognizedConstraintError(e error) bool {
 
 func NewUnrecognizedConstraintError(text string) error {
 	return &UnrecognizedConstraintError{text}
-}
-
-func IsMissingConstraintError(e error) bool {
-	_, ok := e.(*MissingConstraintError)
-	return ok
 }
 
 type MissingConstraintError struct {
