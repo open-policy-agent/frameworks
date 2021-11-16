@@ -179,8 +179,8 @@ func TestAddData(t *testing.T) {
 			for _, v := range tt.ErroredBy {
 				expectedErr[v] = true
 			}
-			if e, ok := err.(ErrorMap); ok {
-				for k := range e {
+			if e, ok := err.(*ErrorMap); ok {
+				for k := range *e {
 					actualErr[k] = true
 				}
 			}
@@ -263,8 +263,8 @@ func TestRemoveData(t *testing.T) {
 			for _, v := range tt.ErroredBy {
 				expectedErr[v] = true
 			}
-			if e, ok := err.(ErrorMap); ok {
-				for k := range e {
+			if e, ok := err.(*ErrorMap); ok {
+				for k := range *e {
 					actualErr[k] = true
 				}
 			}

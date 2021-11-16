@@ -28,28 +28,26 @@ type Opt func(*Client) error
 
 // Client options
 
+// targetNameRegex defines allowable target names.
+// Does not match empty string.
 var targetNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9.]*$`)
 
+// Targets defines the targets Client will pass review requests to.
 func Targets(ts ...TargetHandler) Opt {
 	return func(c *Client) error {
-		var errs Errors
 		handlers := make(map[string]TargetHandler, len(ts))
 		for _, t := range ts {
 			name := t.GetName()
-			switch {
-			case name == "":
-				errs = append(errs, errors.New("invalid target: a target is returning an empty string for GetName()"))
-			case !targetNameRegex.MatchString(name):
-				errs = append(errs, fmt.Errorf("target name %q is not of the form %q", name, targetNameRegex.String()))
-			default:
-				handlers[name] = t
+
+			if !targetNameRegex.MatchString(name) {
+				return fmt.Errorf("%w: target name %q is not of the form %q",
+					errCreatingClient, name, targetNameRegex.String())
 			}
+
+			handlers[name] = t
 		}
 		c.targets = handlers
 
-		if len(errs) > 0 {
-			return errs
-		}
 		return nil
 	}
 }
@@ -112,7 +110,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 	if len(errMap) == 0 {
 		return resp, nil
 	}
-	return resp, errMap
+	return resp, &errMap
 }
 
 // RemoveData removes data from OPA for every target that can handle the data.
@@ -139,7 +137,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 	if len(errMap) == 0 {
 		return resp, nil
 	}
-	return resp, errMap
+	return resp, &errMap
 }
 
 // createTemplatePath returns the package path for a given template: templates.<target>.<name>.
@@ -575,7 +573,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
 		return resp, nil
 	}
-	return resp, errMap
+	return resp, &errMap
 }
 
 // RemoveConstraint removes a constraint from OPA. On error, the responses
@@ -616,7 +614,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 		delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
 		return resp, nil
 	}
-	return resp, errMap
+	return resp, &errMap
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.
@@ -798,7 +796,7 @@ TargetLoop:
 	if len(errMap) == 0 {
 		return responses, nil
 	}
-	return responses, errMap
+	return responses, &errMap
 }
 
 // Audit makes sure the cached state of the system satisfies all stored constraints.
@@ -831,7 +829,7 @@ TargetLoop:
 	if len(errMap) == 0 {
 		return responses, nil
 	}
-	return responses, errMap
+	return responses, &errMap
 }
 
 // Dump dumps the state of OPA to aid in debugging.

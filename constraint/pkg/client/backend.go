@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -37,7 +36,7 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 	}
 
 	if b.driver == nil {
-		return nil, errors.New("no driver supplied to the backend")
+		return nil, fmt.Errorf("%w: no driver supplied", errCreatingBackend)
 	}
 
 	return b, nil
@@ -46,7 +45,8 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 // NewClient creates a new client for the supplied backend.
 func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	if b.hasClient {
-		return nil, errors.New("currently only one client per backend is supported")
+		return nil, fmt.Errorf("%w: only one client per backend is allowed",
+			errCreatingClient)
 	}
 
 	var fields []string
@@ -61,24 +61,22 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 		allowedDataFields: fields,
 	}
 
-	var errs Errors
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
-			errs = append(errs, err)
+			return nil, err
 		}
-	}
-	if len(errs) > 0 {
-		return nil, errs
 	}
 
 	for _, field := range c.allowedDataFields {
 		if !validDataFields[field] {
-			return nil, fmt.Errorf("invalid data field %s", field)
+			return nil, fmt.Errorf("%w: invalid data field %q; allowed fields are: %v",
+				errCreatingClient, field, validDataFields)
 		}
 	}
 
 	if len(c.targets) == 0 {
-		return nil, errors.New("no targets registered: please register a target via client.Targets()")
+		return nil, fmt.Errorf("%w: must specify at least one target with client.Targets",
+			errCreatingClient)
 	}
 
 	if err := b.driver.Init(context.Background()); err != nil {

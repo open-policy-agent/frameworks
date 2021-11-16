@@ -43,16 +43,12 @@ func requireRulesModule(module *ast.Module, requiredRules map[string]struct{}) e
 		ruleSets[string(rule.Head.Name)] = struct{}{}
 	}
 
-	var errs Errors
 	for name := range requiredRules {
 		_, ok := ruleSets[name]
 		if !ok {
-			errs = append(errs, fmt.Errorf("missing required rule: %s", name))
-			continue
+			return fmt.Errorf("missing required rule: %s", name)
 		}
 	}
-	if len(errs) != 0 {
-		return errs
-	}
+
 	return nil
 }

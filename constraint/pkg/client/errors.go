@@ -1,34 +1,14 @@
 package client
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 )
 
-// Errors is a list of error.
-type Errors []error
-
-// Errors implements error.
-var _ error = Errors{}
-
-// Error implements error.
-func (errs Errors) Error() string {
-	s := make([]string, len(errs))
-	for _, e := range errs {
-		s = append(s, e.Error())
-	}
-	return strings.Join(s, "\n")
-}
-
-type ErrorMap map[string]error
-
-func (e ErrorMap) Error() string {
-	b := &strings.Builder{}
-	for k, v := range e {
-		_, _ = fmt.Fprintf(b, "%s: %s\n", k, v)
-	}
-	return b.String()
-}
+var (
+	errCreatingBackend = errors.New("unable to create backend")
+	errCreatingClient  = errors.New("unable to create client")
+)
 
 type UnrecognizedConstraintError struct {
 	s string
