@@ -662,7 +662,7 @@ func (c *Client) ValidateConstraint(ctx context.Context, constraint *unstructure
 }
 
 // init initializes the OPA backend for the client.
-func (c *Client) init(ctx context.Context) error {
+func (c *Client) init() error {
 	for _, t := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
 		templMap := map[string]string{"Target": t.GetName()}
@@ -673,7 +673,7 @@ func (c *Client) init(ctx context.Context) error {
 		}
 
 		builtinPath := fmt.Sprintf("%s.hooks_builtin", hooks)
-		err := c.backend.driver.PutModule(ctx, builtinPath, libBuiltin.String())
+		err := c.backend.driver.PutModule(context.Background(), builtinPath, libBuiltin.String())
 		if err != nil {
 			return err
 		}
@@ -707,7 +707,8 @@ func (c *Client) init(ctx context.Context) error {
 
 		err = requireModuleRules(libModule, req)
 		if err != nil {
-			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
+			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%w",
+				t.GetName(), lib, err)
 		}
 
 		err = rewriteModulePackage(modulePath, libModule)
@@ -717,12 +718,14 @@ func (c *Client) init(ctx context.Context) error {
 
 		src, err := format.Ast(libModule)
 		if err != nil {
-			return fmt.Errorf("could not re-format Rego source: %v", err)
+			return fmt.Errorf("%w: could not re-format Rego source: %v",
+				errCreatingClient, err)
 		}
 
 		err = c.backend.driver.PutModule(ctx, modulePath, string(src))
 		if err != nil {
-			return fmt.Errorf("error %s from compiled source:\n%s", err, src)
+			return fmt.Errorf("%w: error %s from compiled source:\n%s",
+				errCreatingClient, err, src)
 		}
 	}
 
