@@ -2,62 +2,24 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 )
 
 var (
-	errCreatingBackend           = errors.New("unable to create backend")
-	errCreatingClient            = errors.New("unable to create client")
-	errInvalidConstraintTemplate = errors.New("invalid ConstraintTemplate")
-	errInvalidConstraint         = errors.New("invalid Constraint")
-	errInvalidModule             = errors.New("invalid module")
+	ErrCreatingBackend           = errors.New("unable to create backend")
+	ErrCreatingClient            = errors.New("unable to create client")
+	ErrInvalidConstraintTemplate = errors.New("invalid ConstraintTemplate")
+	ErrInvalidConstraint         = errors.New("invalid Constraint")
+	ErrMissingConstraintTemplate = errors.New("missing ConstraintTemplate")
+	ErrMissingConstraint         = errors.New("missing Constraint")
+	ErrInvalidModule             = errors.New("invalid module")
 )
 
-type UnrecognizedConstraintError struct {
-	s string
-}
-
-func (e *UnrecognizedConstraintError) Error() string {
-	return fmt.Sprintf("Constraint kind %s is not recognized", e.s)
-}
-
-func IsUnrecognizedConstraintError(e error) bool {
-	_, ok := e.(*UnrecognizedConstraintError)
-	return ok
-}
-
-func NewUnrecognizedConstraintError(text string) error {
-	return &UnrecognizedConstraintError{text}
-}
-
-type MissingConstraintError struct {
-	s string
-}
-
-func (e *MissingConstraintError) Error() string {
-	return fmt.Sprintf("Constraint kind %s is not recognized", e.s)
-}
-
-func NewMissingConstraintError(subPath string) error {
-	return &MissingConstraintError{subPath}
-}
-
-func IsMissingTemplateError(e error) bool {
-	_, ok := e.(*MissingTemplateError)
-	return ok
-}
-
-type MissingTemplateError struct {
-	s string
-}
-
-func (e *MissingTemplateError) Error() string {
-	return fmt.Sprintf("Constraint kind %s is not recognized", e.s)
-}
-
-func NewMissingTemplateError(mapKey string) error {
-	return &MissingTemplateError{mapKey}
+// IsUnrecognizedConstraintError returns true if err is an ErrMissingConstraint.
+//
+// Deprecated: Use errors.Is(err, ErrMissingConstraint) instead.
+func IsUnrecognizedConstraintError(err error) bool {
+	return errors.Is(err, ErrMissingConstraint)
 }
 
 // Errors is a list of error.

@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -330,7 +331,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 }
 
 // CreateCRD creates a CRD from template.
-func (c *Client) CreateCRD(ctx context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
+func (c *Client) CreateCRD(_ context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	artifacts, err := c.createTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
@@ -396,9 +397,9 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
 
-	template, err := c.getTemplateNoLock(ctx, rawArtifacts)
+	template, err := c.getTemplateNoLock(rawArtifacts.Key())
 	if err != nil {
-		if IsMissingTemplateError(err) {
+		if errors.Is(err, errMissingConstraintTemplate) {
 			return resp, nil
 		}
 		return resp, err
@@ -430,7 +431,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 }
 
 // GetTemplate gets the currently recognized template.
-func (c *Client) GetTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
+func (c *Client) GetTemplate(_ context.Context, templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
 	artifacts, err := c.createRawTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
@@ -438,13 +439,14 @@ func (c *Client) GetTemplate(ctx context.Context, templ *templates.ConstraintTem
 
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
-	return c.getTemplateNoLock(ctx, artifacts)
+	return c.getTemplateNoLock(artifacts.Key())
 }
 
-func (c *Client) getTemplateNoLock(ctx context.Context, artifacts keyableArtifact) (*templates.ConstraintTemplate, error) {
-	t, ok := c.templates[artifacts.Key()]
+func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTemplate, error) {
+	t, ok := c.templates[key]
 	if !ok {
-		return nil, NewMissingTemplateError(string(artifacts.Key()))
+		return nil, fmt.Errorf("%w: template for %q not found",
+			errMissingConstraintTemplate, key)
 	}
 	ret := t.template.DeepCopy()
 	return ret, nil
@@ -505,8 +507,8 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	}
 
 	if constraint.GroupVersionKind().Group != constraintGroup {
-		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q",
-			errInvalidConstraint, constraint.GetName())
+		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, need %q",
+			errInvalidConstraint, constraint.GetName(), constraintGroup)
 	}
 
 	if lock {
@@ -516,7 +518,13 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 
 	entry, ok := c.templates[templateKeyFromConstraint(constraint)]
 	if !ok {
-		return nil, NewUnrecognizedConstraintError(kind)
+		var known []string
+		for k := range c.templates {
+			known = append(known, string(k))
+		}
+
+		return nil, fmt.Errorf("%w: Constraint kind %q is not recognized, known kinds %v",
+			errMissingConstraintTemplate, kind, known)
 	}
 
 	return entry, nil
@@ -541,7 +549,8 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	// return immediately if no change
-	if cached, err := c.getConstraintNoLock(ctx, constraint); err == nil && constraintlib.SemanticEqual(cached, constraint) {
+	cached, err := c.getConstraintNoLock(constraint)
+	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
 		for _, target := range entry.Targets {
 			resp.Handled[target] = true
 		}
@@ -616,24 +625,26 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.
-func (c *Client) getConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
 		return nil, err
 	}
 
-	cstr, ok := c.constraints[constraint.GroupVersionKind().GroupKind()][subPath]
+	gk := constraint.GroupVersionKind().GroupKind()
+	cstr, ok := c.constraints[gk][subPath]
 	if !ok {
-		return nil, NewMissingConstraintError(subPath)
+		return nil, fmt.Errorf("%w %v %q",
+			errMissingConstraint, gk, constraint.GetName())
 	}
 	return cstr.DeepCopy(), nil
 }
 
 // GetConstraint gets the currently recognized constraint.
-func (c *Client) GetConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+func (c *Client) GetConstraint(_ context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
-	return c.getConstraintNoLock(ctx, constraint)
+	return c.getConstraintNoLock(constraint)
 }
 
 // validateConstraint is an internal function that allows us to toggle whether we use a read lock
@@ -657,7 +668,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
 // the registered CRD for that constraint.
-func (c *Client) ValidateConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+func (c *Client) ValidateConstraint(_ context.Context, constraint *unstructured.Unstructured) error {
 	return c.validateConstraint(constraint, true)
 }
 

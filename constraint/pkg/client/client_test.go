@@ -858,42 +858,49 @@ func TestAddConstraint(t *testing.T) {
 
 func TestRemoveConstraint(t *testing.T) {
 	tc := []struct {
-		Name              string
-		Constraint        *unstructured.Unstructured
-		OmitTemplate      bool
-		ErrorExpected     bool
-		ExpectedErrorType string
+		name       string
+		template   *templates.ConstraintTemplate
+		constraint *unstructured.Unstructured
+		toRemove   *unstructured.Unstructured
+		wantError  error
 	}{
 		{
-			Name:       "Good Constraint",
-			Constraint: newConstraint("Foos", "foo", nil, nil),
+			name:       "Good Constraint",
+			template:   createTemplate(name("foos"), crdNames("Foos"), targets("h1")),
+			constraint: newConstraint("Foos", "foo", nil, nil),
+			toRemove:   newConstraint("Foos", "foo", nil, nil),
+			wantError:  nil,
 		},
 		{
-			Name:          "No Name",
-			Constraint:    newConstraint("Foos", "", nil, nil),
-			ErrorExpected: true,
+			name:       "No Name",
+			template:   createTemplate(name("foos"), crdNames("Foos"), targets("h1")),
+			constraint: newConstraint("Foos", "foo", nil, nil),
+			toRemove:   newConstraint("Foos", "", nil, nil),
+			wantError:  errInvalidConstraint,
 		},
 		{
-			Name:          "No Kind",
-			Constraint:    newConstraint("", "foo", nil, nil),
-			ErrorExpected: true,
+			name:       "No Kind",
+			template:   createTemplate(name("foos"), crdNames("Foos"), targets("h1")),
+			constraint: newConstraint("Foos", "foo", nil, nil),
+			toRemove:   newConstraint("", "foo", nil, nil),
+			wantError:  errInvalidConstraint,
 		},
 		{
-			Name:          "No Template",
-			Constraint:    newConstraint("Foo", "foo", nil, nil),
-			OmitTemplate:  true,
-			ErrorExpected: true,
+			name:      "No Template",
+			toRemove:  newConstraint("Foos", "foo", nil, nil),
+			wantError: errMissingConstraintTemplate,
 		},
 		{
-			Name:              "Unrecognized Constraint",
-			Constraint:        newConstraint("Bar", "bar", nil, nil),
-			OmitTemplate:      true,
-			ErrorExpected:     true,
-			ExpectedErrorType: "*client.UnrecognizedConstraintError",
+			name:      "No Constraint",
+			template:  createTemplate(name("foos"), crdNames("Foos"), targets("h1")),
+			toRemove:  newConstraint("Foos", "bar", nil, nil),
+			wantError: nil,
 		},
 	}
 	for _, tt := range tc {
-		t.Run(tt.Name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
 			d := local.New()
 			b, err := NewBackend(Driver(d))
 			if err != nil {
@@ -904,26 +911,31 @@ func TestRemoveConstraint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !tt.OmitTemplate {
-				tmpl := createTemplate(name("foos"), crdNames("Foos"), targets("h1"))
-				_, err := c.AddTemplate(context.Background(), tmpl)
+
+			if tt.template != nil {
+				_, err = c.AddTemplate(ctx, tt.template)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
-			r, err := c.RemoveConstraint(context.Background(), tt.Constraint)
-			if err != nil && !tt.ErrorExpected {
-				t.Errorf("err = %v; want nil", err)
+
+			if tt.constraint != nil {
+				_, err = c.AddConstraint(ctx, tt.constraint)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
-			if err == nil && tt.ErrorExpected {
-				t.Error("err = nil; want non-nil")
+
+			r, err := c.RemoveConstraint(context.Background(), tt.toRemove)
+
+			if !errors.Is(err, tt.wantError) {
+				t.Errorf("got RemoveConstraint error = %v, want %v",
+					err, tt.wantError)
 			}
-			if tt.ErrorExpected && tt.ExpectedErrorType != "" && reflect.TypeOf(err).String() != tt.ExpectedErrorType {
-				t.Errorf("err type = %s; want %s", reflect.TypeOf(err).String(), tt.ExpectedErrorType)
-			}
+
 			expectedCount := 0
 			expectedHandled := make(map[string]bool)
-			if !tt.ErrorExpected {
+			if tt.wantError == nil {
 				expectedCount = 1
 				expectedHandled = map[string]bool{"h1": true}
 			}
@@ -931,9 +943,11 @@ func TestRemoveConstraint(t *testing.T) {
 			if r == nil {
 				t.Fatal("got RemoveConstraint() == nil, want non-nil")
 			}
+
 			if r.HandledCount() != expectedCount {
 				t.Errorf("HandledCount() = %v; want %v", r.HandledCount(), expectedCount)
 			}
+
 			if !reflect.DeepEqual(r.Handled, expectedHandled) {
 				t.Errorf("r.Handled = %v; want %v", r.Handled, expectedHandled)
 			}
