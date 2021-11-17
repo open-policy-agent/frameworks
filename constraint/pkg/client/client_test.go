@@ -14,6 +14,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/pointer"
 )
 
 const badRego = `asd{`
@@ -43,8 +44,7 @@ matching_reviews_and_constraints[[r,c]] {r = data.r; c = data.c}`))
 }
 
 func (h *badHandler) MatchSchema() apiextensions.JSONSchemaProps {
-	trueBool := true
-	return apiextensions.JSONSchemaProps{XPreserveUnknownFields: &trueBool}
+	return apiextensions.JSONSchemaProps{XPreserveUnknownFields: pointer.Bool(true)}
 }
 
 func (h *badHandler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
