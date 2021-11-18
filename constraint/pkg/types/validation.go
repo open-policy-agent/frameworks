@@ -93,12 +93,15 @@ func (r *Responses) HandledCount() int {
 	if r == nil {
 		return 0
 	}
+
 	c := 0
 	for _, h := range r.Handled {
+		// TODO(now): Unit tests for Responses.
 		if h {
 			c++
 		}
 	}
+
 	return c
 }
 

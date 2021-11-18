@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -166,7 +167,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // createRawTemplateArtifacts creates the "free" artifacts for a template, avoiding more
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
-	if templ.ObjectMeta.Name == "" {
+	if templ.GetName() == "" {
 		return nil, fmt.Errorf("%w: missing name", ErrInvalidConstraintTemplate)
 	}
 
@@ -267,17 +268,18 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	}
 
 	libPrefix := templateLibPrefix(artifacts.targetHandler.GetName(), artifacts.crd.Spec.Names.Kind)
+
 	rr, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(libPrefix),
 		[]string{"data.lib"},
 		externs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating rego rewriter: %w", err)
 	}
 
 	entryPoint, err := parseModule(artifacts.namePrefix, artifacts.targetSpec.Rego)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
 	}
 
 	if entryPoint == nil {
@@ -285,20 +287,21 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 			ErrInvalidConstraintTemplate)
 	}
 
-	if err := rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
+	if err = rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
 		return nil, err
 	}
 
 	req := map[string]struct{}{"violation": {}}
 
-	if err := requireModuleRules(entryPoint, req); err != nil {
-		return nil, fmt.Errorf("invalid rego: %w", err)
+	if err = requireModuleRules(entryPoint, req); err != nil {
+		return nil, fmt.Errorf("%w: invalid rego: %v",
+			ErrInvalidConstraintTemplate, err)
 	}
 
 	rr.AddEntryPointModule(artifacts.namePrefix, entryPoint)
 	for idx, libSrc := range artifacts.targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
-		if err := rr.AddLib(libPath, libSrc); err != nil {
+		if err = rr.AddLib(libPath, libSrc); err != nil {
 			return nil, fmt.Errorf("%w: %v",
 				ErrInvalidConstraintTemplate, err)
 		}
@@ -364,8 +367,8 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 	c.constraintsMux.Lock()
 	defer c.constraintsMux.Unlock()
 
-	if err := c.backend.driver.PutModules(ctx, artifacts.namePrefix, artifacts.modules); err != nil {
-		return resp, err
+	if err = c.backend.driver.PutModules(ctx, artifacts.namePrefix, artifacts.modules); err != nil {
+		return resp, fmt.Errorf("%w: %v", local.ErrCompile, err)
 	}
 
 	cpy := templ.DeepCopy()
@@ -448,6 +451,7 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 		return nil, fmt.Errorf("%w: template for %q not found",
 			ErrMissingConstraintTemplate, key)
 	}
+
 	ret := t.template.DeepCopy()
 	return ret, nil
 }
@@ -545,7 +549,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
-		return resp, err
+		return resp, fmt.Errorf("creating Constraint subpath: %w", err)
 	}
 
 	// return immediately if no change
