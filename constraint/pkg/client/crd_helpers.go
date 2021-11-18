@@ -117,7 +117,7 @@ func (h *crdHelper) createCRD(
 			Validation: &apiextensions.CustomResourceValidation{
 				OpenAPIV3Schema: schema,
 			},
-			Scope:   "Cluster",
+			Scope:   apiextensions.ClusterScoped,
 			Version: v1beta1.SchemeGroupVersion.Version,
 			Subresources: &apiextensions.CustomResourceSubresources{
 				Status: &apiextensions.CustomResourceSubresourceStatus{},

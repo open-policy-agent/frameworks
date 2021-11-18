@@ -96,7 +96,6 @@ func (r *Responses) HandledCount() int {
 
 	c := 0
 	for _, h := range r.Handled {
-		// TODO(now): Unit tests for Responses.
 		if h {
 			c++
 		}
