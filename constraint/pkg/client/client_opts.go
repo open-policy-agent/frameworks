@@ -20,7 +20,7 @@ func Targets(ts ...TargetHandler) Opt {
 		invalid := validateTargetNames(ts)
 		if len(invalid) > 0 {
 			return fmt.Errorf("%w: target names %v are not of the form %q",
-				errCreatingClient, invalid, targetNameRegex.String())
+				ErrCreatingClient, invalid, targetNameRegex.String())
 		}
 
 		for _, t := range ts {

@@ -21,7 +21,7 @@ func parseModule(path, rego string) (*ast.Module, error) {
 
 	if module == nil {
 		return nil, fmt.Errorf("%w: module %q is empty",
-			errInvalidModule, path)
+			ErrInvalidModule, path)
 	}
 
 	return module, nil
@@ -59,7 +59,7 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 
 	if len(missing) > 0 {
 		return fmt.Errorf("%w: missing required rules: %v",
-			errInvalidModule, missing)
+			ErrInvalidModule, missing)
 	}
 
 	return nil

@@ -120,7 +120,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 
 	if len(templ.Spec.Targets) != 1 {
 		return nil, nil, fmt.Errorf("%w: expected exactly 1 item in targets, got %v",
-			errInvalidConstraintTemplate, templ.Spec.Targets)
+			ErrInvalidConstraintTemplate, templ.Spec.Targets)
 	}
 
 	targetSpec := &templ.Spec.Targets[0]
@@ -134,7 +134,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 
 	if !found {
 		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
-			errInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+			ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -167,7 +167,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.ObjectMeta.Name == "" {
-		return nil, fmt.Errorf("%w: missing name", errInvalidConstraintTemplate)
+		return nil, fmt.Errorf("%w: missing name", ErrInvalidConstraintTemplate)
 	}
 
 	return &rawCTArtifacts{template: templ}, nil
@@ -219,7 +219,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
 		return nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			errInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -238,7 +238,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}
 
 	if err = c.backend.crd.validateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", errInvalidConstraintTemplate, err)
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -282,7 +282,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 
 	if entryPoint == nil {
 		return nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			errInvalidConstraintTemplate)
+			ErrInvalidConstraintTemplate)
 	}
 
 	if err := rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
@@ -300,14 +300,14 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
 		if err := rr.AddLib(libPath, libSrc); err != nil {
 			return nil, fmt.Errorf("%w: %v",
-				errInvalidConstraintTemplate, err)
+				ErrInvalidConstraintTemplate, err)
 		}
 	}
 
 	sources, err := rr.Rewrite()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v",
-			errInvalidConstraintTemplate, err)
+			ErrInvalidConstraintTemplate, err)
 	}
 
 	var mods []string
@@ -321,7 +321,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v",
-			errInvalidConstraintTemplate, err)
+			ErrInvalidConstraintTemplate, err)
 	}
 
 	return &ctArtifacts{
@@ -399,7 +399,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 	template, err := c.getTemplateNoLock(rawArtifacts.Key())
 	if err != nil {
-		if errors.Is(err, errMissingConstraintTemplate) {
+		if errors.Is(err, ErrMissingConstraintTemplate) {
 			return resp, nil
 		}
 		return resp, err
@@ -446,7 +446,7 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 	t, ok := c.templates[key]
 	if !ok {
 		return nil, fmt.Errorf("%w: template for %q not found",
-			errMissingConstraintTemplate, key)
+			ErrMissingConstraintTemplate, key)
 	}
 	ret := t.template.DeepCopy()
 	return ret, nil
@@ -456,18 +456,18 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 // for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", errInvalidConstraint)
+		return "", fmt.Errorf("%w: missing name", ErrInvalidConstraint)
 	}
 
 	gvk := constraint.GroupVersionKind()
 	if gvk.Group == "" {
 		return "", fmt.Errorf("%w: empty group for constrant %q",
-			errInvalidConstraint, constraint.GetName())
+			ErrInvalidConstraint, constraint.GetName())
 	}
 
 	if gvk.Kind == "" {
 		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			errInvalidConstraint, constraint.GetName())
+			ErrInvalidConstraint, constraint.GetName())
 	}
 
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
@@ -503,12 +503,12 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	kind := constraint.GetKind()
 	if kind == "" {
 		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
-			errInvalidConstraint, constraint.GetName())
+			ErrInvalidConstraint, constraint.GetName())
 	}
 
 	if constraint.GroupVersionKind().Group != constraintGroup {
 		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, need %q",
-			errInvalidConstraint, constraint.GetName(), constraintGroup)
+			ErrInvalidConstraint, constraint.GetName(), constraintGroup)
 	}
 
 	if lock {
@@ -524,7 +524,7 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 		}
 
 		return nil, fmt.Errorf("%w: Constraint kind %q is not recognized, known kinds %v",
-			errMissingConstraintTemplate, kind, known)
+			ErrMissingConstraintTemplate, kind, known)
 	}
 
 	return entry, nil
@@ -635,7 +635,7 @@ func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*un
 	cstr, ok := c.constraints[gk][subPath]
 	if !ok {
 		return nil, fmt.Errorf("%w %v %q",
-			errMissingConstraint, gk, constraint.GetName())
+			ErrMissingConstraint, gk, constraint.GetName())
 	}
 	return cstr.DeepCopy(), nil
 }
@@ -692,7 +692,7 @@ func (c *Client) init() error {
 		libTempl := t.Library()
 		if libTempl == nil {
 			return fmt.Errorf("%w: target %q has no Rego library template",
-				errCreatingClient, t.GetName())
+				ErrCreatingClient, t.GetName())
 		}
 
 		libBuf := &bytes.Buffer{}
@@ -730,13 +730,13 @@ func (c *Client) init() error {
 		src, err := format.Ast(libModule)
 		if err != nil {
 			return fmt.Errorf("%w: could not re-format Rego source: %v",
-				errCreatingClient, err)
+				ErrCreatingClient, err)
 		}
 
 		err = c.backend.driver.PutModule(ctx, modulePath, string(src))
 		if err != nil {
 			return fmt.Errorf("%w: error %s from compiled source:\n%s",
-				errCreatingClient, err, src)
+				ErrCreatingClient, err, src)
 		}
 	}
 

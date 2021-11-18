@@ -28,18 +28,18 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 	targets := templ.Spec.Targets
 	if targets == nil {
 		return fmt.Errorf(`%w: field "targets" not specified in ConstraintTemplate spec`,
-			errInvalidConstraintTemplate)
+			ErrInvalidConstraintTemplate)
 	}
 
 	switch len(targets) {
 	case 0:
 		return fmt.Errorf("%w: no targets specified: ConstraintTemplate must specify one target",
-			errInvalidConstraintTemplate)
+			ErrInvalidConstraintTemplate)
 	case 1:
 		return nil
 	default:
 		return fmt.Errorf("%w: multi-target templates are not currently supported",
-			errInvalidConstraintTemplate)
+			ErrInvalidConstraintTemplate)
 	}
 }
 
@@ -181,23 +181,23 @@ func (h *crdHelper) validateCR(cr *unstructured.Unstructured, crd *apiextensions
 	}
 
 	if errs := apivalidation.IsDNS1123Subdomain(cr.GetName()); len(errs) != 0 {
-		return fmt.Errorf("%w: invalid Name: %q",
-			errInvalidConstraint, strings.Join(errs, "\n"))
+		return fmt.Errorf("%w: invalid name: %q",
+			ErrInvalidConstraint, strings.Join(errs, "\n"))
 	}
 
 	if cr.GetKind() != crd.Spec.Names.Kind {
 		return fmt.Errorf("%w: wrong kind %q for constraint %q; want %q",
-			errInvalidConstraint, cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
+			ErrInvalidConstraint, cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
 	}
 
 	if cr.GroupVersionKind().Group != constraintGroup {
 		return fmt.Errorf("%w: unsupported group %q for constraint %q; allowed group: %q",
-			errInvalidConstraint, cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
+			ErrInvalidConstraint, cr.GetName(), cr.GroupVersionKind().Group, constraintGroup)
 	}
 
 	if !supportedVersions[cr.GroupVersionKind().Version] {
 		return fmt.Errorf("%w: unsupported version %q for Constraint %q; supported versions: %v",
-			errInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
+			ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
 	}
 	return nil
 }

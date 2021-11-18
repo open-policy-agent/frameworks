@@ -438,7 +438,7 @@ func TestCRValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 		{
-			Name: "No Name",
+			Name: "No name",
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
