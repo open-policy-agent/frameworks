@@ -88,5 +88,7 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	if err := c.init(); err != nil {
 		return nil, err
 	}
+
+	b.hasClient = true
 	return c, nil
 }
