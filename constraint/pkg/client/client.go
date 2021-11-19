@@ -34,9 +34,12 @@ type templateEntry struct {
 type Client struct {
 	backend           *Backend
 	targets           map[string]TargetHandler
-	constraintsMux    sync.RWMutex
-	templates         map[templateKey]*templateEntry
+
+	// mtx guards access to both templates and constraints.
+	mtx       sync.RWMutex
+	templates map[templateKey]*templateEntry
 	constraints       map[schema.GroupKind]map[string]*unstructured.Unstructured
+
 	allowedDataFields []string
 }
 
@@ -369,8 +372,8 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 		return resp, err
 	}
 
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	if err = c.backend.driver.PutModules(ctx, artifacts.namePrefix, artifacts.modules); err != nil {
 		return resp, fmt.Errorf("%w: %v", local.ErrCompile, err)
@@ -402,8 +405,8 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	template, err := c.getTemplateNoLock(rawArtifacts.Key())
 	if err != nil {
@@ -445,8 +448,8 @@ func (c *Client) GetTemplate(_ context.Context, templ *templates.ConstraintTempl
 		return nil, err
 	}
 
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 	return c.getTemplateNoLock(artifacts.Key())
 }
 
@@ -521,8 +524,8 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	}
 
 	if lock {
-		c.constraintsMux.RLock()
-		defer c.constraintsMux.RUnlock()
+		c.mtx.RLock()
+		defer c.mtx.RUnlock()
 	}
 
 	entry, ok := c.templates[templateKeyFromConstraint(constraint)]
@@ -543,8 +546,9 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
-	c.constraintsMux.RLock()
-	defer c.constraintsMux.RUnlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
@@ -595,8 +599,9 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 // RemoveConstraint removes a constraint from OPA. On error, the responses
 // return value will still be populated so that partial results can be analyzed.
 func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
-	c.constraintsMux.RLock()
-	defer c.constraintsMux.RUnlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	return c.removeConstraintNoLock(ctx, constraint)
 }
 
@@ -651,8 +656,9 @@ func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*un
 
 // GetConstraint gets the currently recognized constraint.
 func (c *Client) GetConstraint(_ context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	return c.getConstraintNoLock(constraint)
 }
 
@@ -754,8 +760,9 @@ func (c *Client) init() error {
 
 // Reset the state of OPA.
 func (c *Client) Reset(ctx context.Context) error {
-	c.constraintsMux.Lock()
-	defer c.constraintsMux.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	for name := range c.targets {
 		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/external/%s", name)); err != nil {
 			return err
