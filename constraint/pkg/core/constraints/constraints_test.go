@@ -15,10 +15,10 @@ func TestSemanticEqual(t *testing.T) {
 	}{
 		{
 			name: "empty Constraints",
-			c1:   &unstructured.Unstructured{
+			c1: &unstructured.Unstructured{
 				Object: map[string]interface{}{},
 			},
-			c2:   &unstructured.Unstructured{
+			c2: &unstructured.Unstructured{
 				Object: map[string]interface{}{},
 			},
 			want: true,
@@ -30,7 +30,7 @@ func TestSemanticEqual(t *testing.T) {
 					"spec": "a",
 				},
 			},
-			c2:   &unstructured.Unstructured{
+			c2: &unstructured.Unstructured{
 				Object: map[string]interface{}{},
 			},
 			want: false,

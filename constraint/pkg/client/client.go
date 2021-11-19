@@ -119,11 +119,6 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 		return nil, nil, err
 	}
 
-	if len(templ.Spec.Targets) != 1 {
-		return nil, nil, fmt.Errorf("%w: expected exactly 1 item in targets, got %v",
-			ErrInvalidConstraintTemplate, templ.Spec.Targets)
-	}
-
 	targetSpec := &templ.Spec.Targets[0]
 	targetHandler, found := c.targets[targetSpec.Target]
 
@@ -218,6 +213,11 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}
 
 	kind := templ.Spec.CRD.Spec.Names.Kind
+	if kind == "" {
+		return nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
+			ErrInvalidConstraintTemplate, templ.GetName())
+	}
+
 	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
 		return nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
 			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
@@ -335,6 +335,11 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 
 // CreateCRD creates a CRD from template.
 func (c *Client) CreateCRD(_ context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
+	if templ == nil {
+		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
+			ErrInvalidConstraintTemplate)
+	}
+
 	artifacts, err := c.createTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
