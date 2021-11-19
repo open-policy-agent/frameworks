@@ -32,13 +32,13 @@ type templateEntry struct {
 }
 
 type Client struct {
-	backend           *Backend
-	targets           map[string]TargetHandler
+	backend *Backend
+	targets map[string]TargetHandler
 
 	// mtx guards access to both templates and constraints.
-	mtx       sync.RWMutex
-	templates map[templateKey]*templateEntry
-	constraints       map[schema.GroupKind]map[string]*unstructured.Unstructured
+	mtx         sync.RWMutex
+	templates   map[templateKey]*templateEntry
+	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 
 	allowedDataFields []string
 }
