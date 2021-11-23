@@ -125,13 +125,9 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 	targetSpec := &templ.Spec.Targets[0]
 	targetHandler, found := c.targets[targetSpec.Target]
 
-	var knownTargets []string
-	for known := range c.targets {
-		knownTargets = append(knownTargets, known)
-	}
-	sort.Strings(knownTargets)
-
 	if !found {
+		knownTargets := c.knownTargets()
+
 		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
 			ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
@@ -861,4 +857,15 @@ TargetLoop:
 // Dump dumps the state of OPA to aid in debugging.
 func (c *Client) Dump(ctx context.Context) (string, error) {
 	return c.backend.driver.Dump(ctx)
+}
+
+// knownTargets returns a sorted list of currently-known target names.
+func (c *Client) knownTargets() []string {
+	var knownTargets []string
+	for known := range c.targets {
+		knownTargets = append(knownTargets, known)
+	}
+	sort.Strings(knownTargets)
+
+	return knownTargets
 }
