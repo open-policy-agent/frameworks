@@ -11,12 +11,8 @@ import (
 // constraint is enforced. It is assumed that the author is comparing
 // two constraints with the same GVK/namespace/name.
 func SemanticEqual(c1 *unstructured.Unstructured, c2 *unstructured.Unstructured) bool {
-	if c1 == c2 {
-		return true
-	}
-
-	if (c1 == nil) != (c2 == nil) {
-		return false
+	if c1 == nil || c2 == nil {
+		return c1 == c2
 	}
 
 	s1 := c1.Object["spec"]
