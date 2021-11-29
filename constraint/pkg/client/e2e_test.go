@@ -20,6 +20,7 @@ import (
 const (
 	denied    = "DENIED"
 	rejection = "REJECTION"
+	dryRun    = "DRYRUN"
 )
 
 func newConstraintTemplate(name, rego string, libs ...string) *templates.ConstraintTemplate {
@@ -260,6 +261,14 @@ func TestE2EAuditX2(t *testing.T) {
 }
 
 func TestE2EAutoreject(t *testing.T) {
+	// Autorejection is when we short-circuit the logic which runs Constraints,
+	// exiting early in certain circumstances. In this instance, the Constraint
+	// specifies a NamespaceSelector, but the client does not have any Namespaces
+	// cached. Thus, it is impossible for this Constraint to run properly as it
+	// cannot determine if the object's Namespace matches the selector or not.
+	//
+	// This differs from a normal "DENIED" as we were unable to even run the
+	// Constraint.
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
 			c, err := newTestClient()
@@ -305,9 +314,11 @@ func TestE2EAutoreject(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Unable to parse constraint JSON: %v", err)
 			}
+
 			if _, err := c.AddConstraint(ctx, u); err != nil {
 				t.Fatalf("got AddConstraint: %v", err)
 			}
+
 			rsps, err := c.Review(ctx, targetData{Name: "Sara", ForConstraint: "Foo"})
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
@@ -629,7 +640,7 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 			want := []*types.Result{{
 				Constraint:        cstr,
 				EnforcementAction: testEnforcementAction,
-				Msg:               "DRYRUN",
+				Msg:               dryRun,
 			}}
 
 			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{},
