@@ -20,23 +20,6 @@ import (
 
 const badRego = `asd{`
 
-func TestClientE2E(t *testing.T) {
-	d := local.New()
-
-	p, err := NewProbe(d)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for name, f := range p.TestFuncs() {
-		t.Run(name, func(t *testing.T) {
-			if err := f(); err != nil {
-				t.Fatal(err)
-			}
-		})
-	}
-}
-
 var _ TargetHandler = &badHandler{}
 
 type badHandler struct {

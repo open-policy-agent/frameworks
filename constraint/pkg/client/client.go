@@ -744,7 +744,7 @@ func (c *Client) init() error {
 				ErrCreatingClient, err)
 		}
 
-		err = c.backend.driver.PutModule(ctx, modulePath, string(src))
+		err = c.backend.driver.PutModule(context.TODO(), modulePath, string(src))
 		if err != nil {
 			return fmt.Errorf("%w: error %s from compiled source:\n%s",
 				ErrCreatingClient, err, src)
