@@ -45,7 +45,7 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 }
 
 // NewClient creates a new client for the supplied backend.
-func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
+func (b *Backend) NewClient(ctx context.Context, opts ...Opt) (*Client, error) {
 	if b.hasClient {
 		return nil, fmt.Errorf("%w: only one client per backend is allowed",
 			ErrCreatingClient)
@@ -81,11 +81,11 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 			ErrCreatingClient)
 	}
 
-	if err := b.driver.Init(context.Background()); err != nil {
+	if err := b.driver.Init(ctx); err != nil {
 		return nil, err
 	}
 
-	if err := c.init(); err != nil {
+	if err := c.init(ctx); err != nil {
 		return nil, err
 	}
 

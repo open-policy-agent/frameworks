@@ -106,24 +106,25 @@ var denyAllCases = []struct {
 	libs: []string{denyTemplateWithLibLib},
 }}
 
-func newTestClient() (*Client, error) {
+func newTestClient(ctx context.Context) (*Client, error) {
 	d := local.New()
 	b, err := NewBackend(Driver(d))
 	if err != nil {
 		return nil, err
 	}
-	return b.NewClient(Targets(&handler{}))
+	return b.NewClient(ctx, Targets(&handler{}))
 }
 
 func TestE2EAddTemplate(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatal(err)
@@ -135,12 +136,13 @@ func TestE2EAddTemplate(t *testing.T) {
 func TestE2EDenyAll(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -172,12 +174,13 @@ func TestE2EDenyAll(t *testing.T) {
 func TestE2EAudit(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -214,12 +217,13 @@ func TestE2EAudit(t *testing.T) {
 func TestE2EAuditX2(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -271,12 +275,13 @@ func TestE2EAutoreject(t *testing.T) {
 	// Constraint.
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -346,12 +351,13 @@ func TestE2EAutoreject(t *testing.T) {
 func TestE2ERemoveConstraint(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -404,12 +410,13 @@ func TestE2ERemoveConstraint(t *testing.T) {
 func TestE2ERemoveTemplate(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			tmpl := newConstraintTemplate("Foo", denyTemplateRego)
 			_, err = c.AddTemplate(ctx, tmpl)
 			if err != nil {
@@ -461,12 +468,13 @@ func TestE2ERemoveTemplate(t *testing.T) {
 func TestE2ETracingOff(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", denyTemplateRego))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -495,12 +503,13 @@ func TestE2ETracingOff(t *testing.T) {
 func TestE2ETracingOn(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -529,12 +538,13 @@ func TestE2ETracingOn(t *testing.T) {
 func TestE2EAuditTracingOn(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -571,12 +581,13 @@ func TestE2EAuditTracingOn(t *testing.T) {
 func TestE2EAuditTracingOff(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", tc.rego, tc.libs...))
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
@@ -613,12 +624,13 @@ func TestE2EAuditTracingOff(t *testing.T) {
 func TestE2EDryrunAll(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 violation[{"msg": "DRYRUN", "details": {}}] {
 	"always" == "always"
@@ -654,12 +666,13 @@ violation[{"msg": "DRYRUN", "details": {}}] {
 func TestE2EDenyByParameter(t *testing.T) {
 	for _, tc := range denyAllCases {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := newTestClient()
+			ctx := context.Background()
+
+			c, err := newTestClient(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			ctx := context.Background()
 			_, err = c.AddTemplate(ctx, newConstraintTemplate("Foo", `package foo
 violation[{"msg": "DENIED", "details": {}}] {
 	input.parameters.name == input.review.Name

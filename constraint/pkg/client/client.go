@@ -684,7 +684,7 @@ func (c *Client) ValidateConstraint(_ context.Context, constraint *unstructured.
 }
 
 // init initializes the OPA backend for the client.
-func (c *Client) init() error {
+func (c *Client) init(ctx context.Context) error {
 	for _, t := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
 		templMap := map[string]string{"Target": t.GetName()}

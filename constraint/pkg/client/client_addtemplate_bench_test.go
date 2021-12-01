@@ -92,7 +92,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 							b.Fatal(err)
 						}
 
-						c, err := backend.NewClient(targets)
+						c, err := backend.NewClient(ctx, targets)
 						if err != nil {
 							b.Fatal(err)
 						}

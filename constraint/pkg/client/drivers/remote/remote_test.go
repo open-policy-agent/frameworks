@@ -76,8 +76,10 @@ const response = `
 
 func TestQuery(t *testing.T) {
 	t.Run("Parse Response", func(t *testing.T) {
+		ctx := context.Background()
+
 		d := driver{opa: newTestClient(response)}
-		res, err := d.Query(context.Background(), "random", nil)
+		res, err := d.Query(ctx, "random", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
