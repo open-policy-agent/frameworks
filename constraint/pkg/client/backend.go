@@ -1,7 +1,7 @@
 package client
 
 import (
-	"context"
+	"errors"
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -23,10 +23,8 @@ func Driver(d drivers.Driver) BackendOpt {
 	}
 }
 
-// NewBackend creates a new backend. A backend could be a connection to a remote
-// server or a new local OPA instance.
-//
-// A BackendOpt setting driver, such as Driver() must be passed.
+// NewBackend creates a new backend. A backend could be a connection to a remote server or
+// a new local OPA instance.
 func NewBackend(opts ...BackendOpt) (*Backend, error) {
 	helper, err := newCRDHelper()
 	if err != nil {
@@ -38,17 +36,16 @@ func NewBackend(opts ...BackendOpt) (*Backend, error) {
 	}
 
 	if b.driver == nil {
-		return nil, fmt.Errorf("%w: no driver supplied", ErrCreatingBackend)
+		return nil, errors.New("no driver supplied to the backend")
 	}
 
 	return b, nil
 }
 
 // NewClient creates a new client for the supplied backend.
-func (b *Backend) NewClient(ctx context.Context, opts ...Opt) (*Client, error) {
+func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 	if b.hasClient {
-		return nil, fmt.Errorf("%w: only one client per backend is allowed",
-			ErrCreatingClient)
+		return nil, errors.New("currently only one client per backend is supported")
 	}
 
 	var fields []string
@@ -63,32 +60,32 @@ func (b *Backend) NewClient(ctx context.Context, opts ...Opt) (*Client, error) {
 		allowedDataFields: fields,
 	}
 
+	var errs Errors
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
-			return nil, err
+			errs = append(errs, err)
 		}
+	}
+	if len(errs) > 0 {
+		return nil, errs
 	}
 
 	for _, field := range c.allowedDataFields {
 		if !validDataFields[field] {
-			return nil, fmt.Errorf("%w: invalid data field %q; allowed fields are: %v",
-				ErrCreatingClient, field, validDataFields)
+			return nil, fmt.Errorf("invalid data field %s", field)
 		}
 	}
 
 	if len(c.targets) == 0 {
-		return nil, fmt.Errorf("%w: must specify at least one target with client.Targets",
-			ErrCreatingClient)
+		return nil, errors.New("no targets registered: please register a target via client.Targets()")
 	}
 
-	if err := b.driver.Init(ctx); err != nil {
+	if err := b.driver.Init(); err != nil {
 		return nil, err
 	}
 
-	if err := c.init(ctx); err != nil {
+	if err := c.init(); err != nil {
 		return nil, err
 	}
-
-	b.hasClient = true
 	return c, nil
 }

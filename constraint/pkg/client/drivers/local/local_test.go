@@ -88,7 +88,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 			switch a.Op {
 			case addModule:
 				for _, r := range a.Rules {
-					err := d.PutModule(ctx, r.Path, r.Content)
+					err := d.PutModule(r.Path, r.Content)
 					if (err == nil) && a.ErrorExpected {
 						t.Fatalf("PUT err = nil; want non-nil")
 					}
@@ -99,7 +99,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 
 			case deleteModule:
 				for _, r := range a.Rules {
-					b, err := d.DeleteModule(ctx, r.Path)
+					b, err := d.DeleteModule(r.Path)
 					if (err == nil) && a.ErrorExpected {
 						t.Fatalf("DELETE err = nil; want non-nil")
 					}
@@ -112,7 +112,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case putModules:
-				err := d.PutModules(ctx, a.RuleNamePrefix, a.Rules.srcs())
+				err := d.PutModules(a.RuleNamePrefix, a.Rules.srcs())
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("PutModules err = nil; want non-nil")
 				}
@@ -121,7 +121,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case deleteModules:
-				count, err := d.DeleteModules(ctx, a.RuleNamePrefix)
+				count, err := d.DeleteModules(a.RuleNamePrefix)
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("DeleteModules err = nil; want non-nil")
 				}
@@ -407,9 +407,7 @@ func TestPutModule(t *testing.T) {
 			}
 
 			for _, r := range tt.Rules {
-				ctx := context.Background()
-
-				err := d.PutModule(ctx, r.Path, r.Content)
+				err := d.PutModule(r.Path, r.Content)
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}
@@ -687,7 +685,7 @@ func TestQuery(t *testing.T) {
 			}
 		}
 
-		if err := d.PutModule(ctx, "test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
+		if err := d.PutModule("test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
 			t.Fatal(err)
 		}
 		res, err := d.Query(ctx, "hooks.violation", nil)

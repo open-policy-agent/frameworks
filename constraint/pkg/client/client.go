@@ -6,12 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"sort"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -25,6 +24,46 @@ import (
 
 const constraintGroup = "constraints.gatekeeper.sh"
 
+type Opt func(*Client) error
+
+// Client options
+
+var targetNameRegex = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9.]*$`)
+
+func Targets(ts ...TargetHandler) Opt {
+	return func(c *Client) error {
+		var errs Errors
+		handlers := make(map[string]TargetHandler, len(ts))
+		for _, t := range ts {
+			name := t.GetName()
+			switch {
+			case name == "":
+				errs = append(errs, errors.New("invalid target: a target is returning an empty string for GetName()"))
+			case !targetNameRegex.MatchString(name):
+				errs = append(errs, fmt.Errorf("target name %q is not of the form %q", name, targetNameRegex.String()))
+			default:
+				handlers[name] = t
+			}
+		}
+		c.targets = handlers
+
+		if len(errs) > 0 {
+			return errs
+		}
+		return nil
+	}
+}
+
+// AllowedDataFields sets the fields under `data` that Rego in ConstraintTemplates
+// can access. If unset, all fields can be accessed. Only fields recognized by
+// the system can be enabled.
+func AllowedDataFields(fields ...string) Opt {
+	return func(c *Client) error {
+		c.allowedDataFields = fields
+		return nil
+	}
+}
+
 type templateEntry struct {
 	template *templates.ConstraintTemplate
 	CRD      *apiextensions.CustomResourceDefinition
@@ -32,14 +71,11 @@ type templateEntry struct {
 }
 
 type Client struct {
-	backend *Backend
-	targets map[string]TargetHandler
-
-	// mtx guards access to both templates and constraints.
-	mtx         sync.RWMutex
-	templates   map[templateKey]*templateEntry
-	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
-
+	backend           *Backend
+	targets           map[string]TargetHandler
+	constraintsMux    sync.RWMutex
+	templates         map[templateKey]*templateEntry
+	constraints       map[schema.GroupKind]map[string]*unstructured.Unstructured
 	allowedDataFields []string
 }
 
@@ -76,7 +112,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 	if len(errMap) == 0 {
 		return resp, nil
 	}
-	return resp, &errMap
+	return resp, errMap
 }
 
 // RemoveData removes data from OPA for every target that can handle the data.
@@ -103,7 +139,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 	if len(errMap) == 0 {
 		return resp, nil
 	}
-	return resp, &errMap
+	return resp, errMap
 }
 
 // createTemplatePath returns the package path for a given template: templates.<target>.<name>.
@@ -122,14 +158,14 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 		return nil, nil, err
 	}
 
+	if len(templ.Spec.Targets) != 1 {
+		return nil, nil, fmt.Errorf("expected exactly 1 item in targets, got %v", templ.Spec.Targets)
+	}
+
 	targetSpec := &templ.Spec.Targets[0]
 	targetHandler, found := c.targets[targetSpec.Target]
-
 	if !found {
-		knownTargets := c.knownTargets()
-
-		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
-			ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+		return nil, nil, fmt.Errorf("target %s not recognized", targetSpec.Target)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -161,10 +197,9 @@ func (a *rawCTArtifacts) Key() templateKey {
 // createRawTemplateArtifacts creates the "free" artifacts for a template, avoiding more
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
-	if templ.GetName() == "" {
-		return nil, fmt.Errorf("%w: missing name", ErrInvalidConstraintTemplate)
+	if templ.ObjectMeta.Name == "" {
+		return nil, errors.New("invalid Template: missing name")
 	}
-
 	return &rawCTArtifacts{template: templ}, nil
 }
 
@@ -210,16 +245,8 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	if err != nil {
 		return nil, err
 	}
-
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	if kind == "" {
-		return nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			ErrInvalidConstraintTemplate, templ.GetName())
-	}
-
-	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
-		return nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+	if !strings.EqualFold(templ.ObjectMeta.Name, templ.Spec.CRD.Spec.Names.Kind) {
+		return nil, fmt.Errorf("the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q", templ.ObjectMeta.Name, strings.ToLower(templ.Spec.CRD.Spec.Names.Kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -231,14 +258,12 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	if err != nil {
 		return nil, err
 	}
-
 	crd, err := c.backend.crd.createCRD(templ, sch)
 	if err != nil {
 		return nil, err
 	}
-
 	if err = c.backend.crd.validateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+		return nil, err
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -267,63 +292,55 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 	}
 
 	libPrefix := templateLibPrefix(artifacts.targetHandler.GetName(), artifacts.crd.Spec.Names.Kind)
-
 	rr, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(libPrefix),
 		[]string{"data.lib"},
 		externs)
 	if err != nil {
-		return nil, fmt.Errorf("creating rego rewriter: %w", err)
+		return nil, err
 	}
 
 	entryPoint, err := parseModule(artifacts.namePrefix, artifacts.targetSpec.Rego)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+		return nil, err
 	}
-
 	if entryPoint == nil {
-		return nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			ErrInvalidConstraintTemplate)
+		return nil, fmt.Errorf("failed to parse module for unknown reason")
 	}
 
-	if err = rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
+	if err := rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
 		return nil, err
 	}
 
 	req := map[string]struct{}{"violation": {}}
 
-	if err = requireModuleRules(entryPoint, req); err != nil {
-		return nil, fmt.Errorf("%w: invalid rego: %v",
-			ErrInvalidConstraintTemplate, err)
+	if err := requireRulesModule(entryPoint, req); err != nil {
+		return nil, fmt.Errorf("invalid rego: %s", err)
 	}
 
 	rr.AddEntryPointModule(artifacts.namePrefix, entryPoint)
 	for idx, libSrc := range artifacts.targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
-		if err = rr.AddLib(libPath, libSrc); err != nil {
-			return nil, fmt.Errorf("%w: %v",
-				ErrInvalidConstraintTemplate, err)
+		if err := rr.AddLib(libPath, libSrc); err != nil {
+			return nil, err
 		}
 	}
 
 	sources, err := rr.Rewrite()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
+		return nil, err
 	}
 
 	var mods []string
-	err = sources.ForEachModule(func(m *regorewriter.Module) error {
-		content, err2 := m.Content()
-		if err2 != nil {
-			return err2
+	if err := sources.ForEachModule(func(m *regorewriter.Module) error {
+		content, err := m.Content()
+		if err != nil {
+			return err
 		}
 		mods = append(mods, string(content))
 		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
+	}); err != nil {
+		return nil, err
 	}
 
 	return &ctArtifacts{
@@ -333,12 +350,7 @@ func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*
 }
 
 // CreateCRD creates a CRD from template.
-func (c *Client) CreateCRD(_ context.Context, templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
-	if templ == nil {
-		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
-			ErrInvalidConstraintTemplate)
-	}
-
+func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	artifacts, err := c.createTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
@@ -349,7 +361,7 @@ func (c *Client) CreateCRD(_ context.Context, templ *templates.ConstraintTemplat
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
 // schema validation on calls to AddConstraint. On error, the responses return value
 // will still be populated so that partial results can be analyzed.
-func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
+func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
 	basicArtifacts, err := c.createBasicTemplateArtifacts(templ)
@@ -358,7 +370,7 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 	}
 
 	// return immediately if no change
-	if cached, err := c.GetTemplate(ctx, templ); err == nil && cached.SemanticEqual(templ) {
+	if cached, err := c.GetTemplate(templ); err == nil && cached.SemanticEqual(templ) {
 		resp.Handled[basicArtifacts.targetHandler.GetName()] = true
 		return resp, nil
 	}
@@ -368,11 +380,11 @@ func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 		return resp, err
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
 
-	if err = c.backend.driver.PutModules(ctx, artifacts.namePrefix, artifacts.modules); err != nil {
-		return resp, fmt.Errorf("%w: %v", local.ErrCompile, err)
+	if err := c.backend.driver.PutModules(artifacts.namePrefix, artifacts.modules); err != nil {
+		return resp, err
 	}
 
 	cpy := templ.DeepCopy()
@@ -401,12 +413,12 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
 
-	template, err := c.getTemplateNoLock(rawArtifacts.Key())
+	template, err := c.getTemplateNoLock(rawArtifacts)
 	if err != nil {
-		if errors.Is(err, ErrMissingConstraintTemplate) {
+		if IsMissingTemplateError(err) {
 			return resp, nil
 		}
 		return resp, err
@@ -417,7 +429,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	if _, err := c.backend.driver.DeleteModules(ctx, artifacts.namePrefix); err != nil {
+	if _, err := c.backend.driver.DeleteModules(artifacts.namePrefix); err != nil {
 		return resp, err
 	}
 
@@ -438,24 +450,22 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 }
 
 // GetTemplate gets the currently recognized template.
-func (c *Client) GetTemplate(_ context.Context, templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
+func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
 	artifacts, err := c.createRawTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
 	}
 
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-	return c.getTemplateNoLock(artifacts.Key())
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
+	return c.getTemplateNoLock(artifacts)
 }
 
-func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTemplate, error) {
-	t, ok := c.templates[key]
+func (c *Client) getTemplateNoLock(artifacts keyableArtifact) (*templates.ConstraintTemplate, error) {
+	t, ok := c.templates[artifacts.Key()]
 	if !ok {
-		return nil, fmt.Errorf("%w: template for %q not found",
-			ErrMissingConstraintTemplate, key)
+		return nil, NewMissingTemplateError(string(artifacts.Key()))
 	}
-
 	ret := t.template.DeepCopy()
 	return ret, nil
 }
@@ -464,20 +474,15 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 // for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", ErrInvalidConstraint)
+		return "", errors.New("invalid Constraint: missing name")
 	}
-
 	gvk := constraint.GroupVersionKind()
 	if gvk.Group == "" {
-		return "", fmt.Errorf("%w: empty group for constrant %q",
-			ErrInvalidConstraint, constraint.GetName())
+		return "", fmt.Errorf("empty group for the constrant named %s", constraint.GetName())
 	}
-
 	if gvk.Kind == "" {
-		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			ErrInvalidConstraint, constraint.GetName())
+		return "", fmt.Errorf("empty kind for the constraint named %s", constraint.GetName())
 	}
-
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
 }
 
@@ -510,31 +515,19 @@ func constraintPathMerge(target, subpath string) string {
 func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
-		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
-			ErrInvalidConstraint, constraint.GetName())
+		return nil, fmt.Errorf("kind missing from Constraint %q", constraint.GetName())
 	}
-
 	if constraint.GroupVersionKind().Group != constraintGroup {
-		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, need %q",
-			ErrInvalidConstraint, constraint.GetName(), constraintGroup)
+		return nil, fmt.Errorf("wrong API Group for Constraint %q", constraint.GetName())
 	}
-
 	if lock {
-		c.mtx.RLock()
-		defer c.mtx.RUnlock()
+		c.constraintsMux.RLock()
+		defer c.constraintsMux.RUnlock()
 	}
-
 	entry, ok := c.templates[templateKeyFromConstraint(constraint)]
 	if !ok {
-		var known []string
-		for k := range c.templates {
-			known = append(known, string(k))
-		}
-
-		return nil, fmt.Errorf("%w: Constraint kind %q is not recognized, known kinds %v",
-			ErrMissingConstraintTemplate, kind, known)
+		return nil, NewUnrecognizedConstraintError(kind)
 	}
-
 	return entry, nil
 }
 
@@ -542,30 +535,25 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+	c.constraintsMux.RLock()
+	defer c.constraintsMux.RUnlock()
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
 	}
-
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
-		return resp, fmt.Errorf("creating Constraint subpath: %w", err)
+		return resp, err
 	}
-
 	// return immediately if no change
-	cached, err := c.getConstraintNoLock(constraint)
-	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
+	if cached, err := c.getConstraintNoLock(constraint); err == nil && constraintlib.SemanticEqual(cached, constraint) {
 		for _, target := range entry.Targets {
 			resp.Handled[target] = true
 		}
 		return resp, nil
 	}
-
 	if err := c.validateConstraint(constraint, false); err != nil {
 		return resp, err
 	}
@@ -583,21 +571,18 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		}
 		resp.Handled[target] = true
 	}
-
 	if len(errMap) == 0 {
 		c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
 		return resp, nil
 	}
-
-	return resp, &errMap
+	return resp, errMap
 }
 
 // RemoveConstraint removes a constraint from OPA. On error, the responses
 // return value will still be populated so that partial results can be analyzed.
 func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+	c.constraintsMux.RLock()
+	defer c.constraintsMux.RUnlock()
 	return c.removeConstraintNoLock(ctx, constraint)
 }
 
@@ -631,7 +616,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 		delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
 		return resp, nil
 	}
-	return resp, &errMap
+	return resp, errMap
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.
@@ -641,20 +626,17 @@ func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*un
 		return nil, err
 	}
 
-	gk := constraint.GroupVersionKind().GroupKind()
-	cstr, ok := c.constraints[gk][subPath]
+	cstr, ok := c.constraints[constraint.GroupVersionKind().GroupKind()][subPath]
 	if !ok {
-		return nil, fmt.Errorf("%w %v %q",
-			ErrMissingConstraint, gk, constraint.GetName())
+		return nil, NewMissingConstraintError(subPath)
 	}
 	return cstr.DeepCopy(), nil
 }
 
 // GetConstraint gets the currently recognized constraint.
-func (c *Client) GetConstraint(_ context.Context, constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
+func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
 	return c.getConstraintNoLock(constraint)
 }
 
@@ -679,12 +661,12 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
 // the registered CRD for that constraint.
-func (c *Client) ValidateConstraint(_ context.Context, constraint *unstructured.Unstructured) error {
+func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error {
 	return c.validateConstraint(constraint, true)
 }
 
 // init initializes the OPA backend for the client.
-func (c *Client) init(ctx context.Context) error {
+func (c *Client) init() error {
 	for _, t := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
 		templMap := map[string]string{"Target": t.GetName()}
@@ -694,18 +676,16 @@ func (c *Client) init(ctx context.Context) error {
 			return err
 		}
 
-		builtinPath := fmt.Sprintf("%s.hooks_builtin", hooks)
-		err := c.backend.driver.PutModule(context.Background(), builtinPath, libBuiltin.String())
+		moduleName := fmt.Sprintf("%s.hooks_builtin", hooks)
+		err := c.backend.driver.PutModule(moduleName, libBuiltin.String())
 		if err != nil {
 			return err
 		}
 
 		libTempl := t.Library()
 		if libTempl == nil {
-			return fmt.Errorf("%w: target %q has no Rego library template",
-				ErrCreatingClient, t.GetName())
+			return fmt.Errorf("target %q has no Rego library template", t.GetName())
 		}
-
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
 			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraintGroup),
@@ -713,41 +693,30 @@ func (c *Client) init(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
-
 		lib := libBuf.String()
 		req := map[string]struct{}{
 			"autoreject_review":                {},
 			"matching_reviews_and_constraints": {},
 			"matching_constraints":             {},
 		}
-
 		modulePath := fmt.Sprintf("%s.library", hooks)
 		libModule, err := parseModule(modulePath, lib)
 		if err != nil {
 			return fmt.Errorf("failed to parse module: %w", err)
 		}
-
-		err = requireModuleRules(libModule, req)
-		if err != nil {
-			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%w",
-				t.GetName(), lib, err)
+		if err := requireRulesModule(libModule, req); err != nil {
+			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%s", t.GetName(), lib, err)
 		}
-
 		err = rewriteModulePackage(modulePath, libModule)
 		if err != nil {
 			return err
 		}
-
 		src, err := format.Ast(libModule)
 		if err != nil {
-			return fmt.Errorf("%w: could not re-format Rego source: %v",
-				ErrCreatingClient, err)
+			return fmt.Errorf("could not re-format Rego source: %v", err)
 		}
-
-		err = c.backend.driver.PutModule(context.TODO(), modulePath, string(src))
-		if err != nil {
-			return fmt.Errorf("%w: error %s from compiled source:\n%s",
-				ErrCreatingClient, err, src)
+		if err := c.backend.driver.PutModule(modulePath, string(src)); err != nil {
+			return fmt.Errorf("error %s from compiled source:\n%s", err, src)
 		}
 	}
 
@@ -756,9 +725,8 @@ func (c *Client) init(ctx context.Context) error {
 
 // Reset the state of OPA.
 func (c *Client) Reset(ctx context.Context) error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+	c.constraintsMux.Lock()
+	defer c.constraintsMux.Unlock()
 	for name := range c.targets {
 		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/external/%s", name)); err != nil {
 			return err
@@ -769,7 +737,7 @@ func (c *Client) Reset(ctx context.Context) error {
 	}
 	for name, v := range c.templates {
 		for _, t := range v.Targets {
-			if _, err := c.backend.driver.DeleteModule(ctx, fmt.Sprintf(`templates["%s"]["%s"]`, t, name)); err != nil {
+			if _, err := c.backend.driver.DeleteModule(fmt.Sprintf(`templates["%s"]["%s"]`, t, name)); err != nil {
 				return err
 			}
 		}
@@ -777,6 +745,18 @@ func (c *Client) Reset(ctx context.Context) error {
 	c.templates = make(map[templateKey]*templateEntry)
 	c.constraints = make(map[schema.GroupKind]map[string]*unstructured.Unstructured)
 	return nil
+}
+
+type queryCfg struct {
+	enableTracing bool
+}
+
+type QueryOpt func(*queryCfg)
+
+func Tracing(enabled bool) QueryOpt {
+	return func(cfg *queryCfg) {
+		cfg.enableTracing = enabled
+	}
 }
 
 // Review makes sure the provided object satisfies all stored constraints.
@@ -818,7 +798,7 @@ TargetLoop:
 	if len(errMap) == 0 {
 		return responses, nil
 	}
-	return responses, &errMap
+	return responses, errMap
 }
 
 // Audit makes sure the cached state of the system satisfies all stored constraints.
@@ -851,21 +831,10 @@ TargetLoop:
 	if len(errMap) == 0 {
 		return responses, nil
 	}
-	return responses, &errMap
+	return responses, errMap
 }
 
 // Dump dumps the state of OPA to aid in debugging.
 func (c *Client) Dump(ctx context.Context) (string, error) {
 	return c.backend.driver.Dump(ctx)
-}
-
-// knownTargets returns a sorted list of currently-known target names.
-func (c *Client) knownTargets() []string {
-	var knownTargets []string
-	for known := range c.targets {
-		knownTargets = append(knownTargets, known)
-	}
-	sort.Strings(knownTargets)
-
-	return knownTargets
 }
