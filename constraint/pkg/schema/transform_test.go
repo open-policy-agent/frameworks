@@ -21,10 +21,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/utils/pointer"
 )
 
 func TestAddPreserveUnknownFields(t *testing.T) {
-	trueBool := true
 	testCases := []struct {
 		name  string
 		v     *apiextensionsv1.JSONSchemaProps
@@ -35,7 +35,7 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 			name: "no information",
 			v:    &apiextensionsv1.JSONSchemaProps{},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 			},
 		},
 		{
@@ -44,17 +44,17 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				Properties: nil,
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Properties:             nil,
 			},
 		},
 		{
 			name: "x-kubernetes-preserve-unknown-fields is present already and true",
 			v: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 			},
 		},
 		{
@@ -63,7 +63,7 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				Type: "object",
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Type:                   "object",
 			},
 		},
@@ -76,7 +76,7 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				Type: "array",
 				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
 					Schema: &apiextensionsv1.JSONSchemaProps{
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 					},
 				},
 			},
@@ -91,7 +91,7 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				Type: "array",
 				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
 					Schema: &apiextensionsv1.JSONSchemaProps{
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 					},
 				},
 			},
@@ -104,10 +104,10 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				},
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 					},
 				},
 			},
@@ -126,11 +126,11 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				},
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
 					Schema: &apiextensionsv1.JSONSchemaProps{
 						Type:                   "object",
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"key":          {Type: "string"},
 							"allowedRegex": {Type: "string"},
@@ -156,11 +156,11 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
 				Type:                   "object",
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type:                   "object",
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type: "string",
@@ -192,15 +192,15 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
 				Type:                   "object",
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Properties: map[string]apiextensionsv1.JSONSchemaProps{
 					"foo": {
 						Type:                   "object",
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 						Properties: map[string]apiextensionsv1.JSONSchemaProps{
 							"bar": {
 								Type:                   "object",
-								XPreserveUnknownFields: &trueBool,
+								XPreserveUnknownFields: pointer.Bool(true),
 								Properties: map[string]apiextensionsv1.JSONSchemaProps{
 									"burrito": {
 										Type: "string",
@@ -226,10 +226,10 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				},
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				Items: &apiextensionsv1.JSONSchemaPropsOrArray{
 					Schema: &apiextensionsv1.JSONSchemaProps{
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 						Items: &apiextensionsv1.JSONSchemaPropsOrArray{
 							Schema: &apiextensionsv1.JSONSchemaProps{
 								Type: "string",
@@ -280,10 +280,10 @@ func TestAddPreserveUnknownFields(t *testing.T) {
 				},
 			},
 			exp: &apiextensionsv1.JSONSchemaProps{
-				XPreserveUnknownFields: &trueBool,
+				XPreserveUnknownFields: pointer.Bool(true),
 				AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
 					Schema: &apiextensionsv1.JSONSchemaProps{
-						XPreserveUnknownFields: &trueBool,
+						XPreserveUnknownFields: pointer.Bool(true),
 						AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
 							Allows: false,
 						},

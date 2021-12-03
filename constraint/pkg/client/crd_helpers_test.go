@@ -11,6 +11,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/pointer"
 )
 
 // helpers for creating a ConstraintTemplate for test
@@ -84,8 +85,7 @@ func createTestTargetHandler(args ...targetHandlerArg) MatchSchemaProvider {
 	h := &testTargetHandler{}
 
 	// The default matchSchema is empty, and thus lacks type information
-	trueBool := true
-	h.matchSchema.XPreserveUnknownFields = &trueBool
+	h.matchSchema.XPreserveUnknownFields = pointer.Bool(true)
 
 	for _, arg := range args {
 		arg(h)
@@ -104,8 +104,7 @@ type propMap map[string]apiextensions.JSONSchemaProps
 // prop currently expects 0 or 1 prop map. More is unsupported.
 func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
 	if len(pm) == 0 {
-		trueBool := true
-		return apiextensions.JSONSchemaProps{XPreserveUnknownFields: &trueBool}
+		return apiextensions.JSONSchemaProps{XPreserveUnknownFields: pointer.Bool(true)}
 	}
 	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
 }
@@ -117,7 +116,6 @@ func tProp(t string) apiextensions.JSONSchemaProps {
 
 func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
 	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string"}
-	trueBool := true
 	p := prop(
 		propMap{
 			"metadata": prop(propMap{
@@ -127,7 +125,7 @@ func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
 				},
 			}),
 			"spec":   prop(pm),
-			"status": {XPreserveUnknownFields: &trueBool},
+			"status": {XPreserveUnknownFields: pointer.Bool(true)},
 		},
 	)
 	return &p
@@ -440,7 +438,7 @@ func TestCRValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 		{
-			Name: "No Name",
+			Name: "No name",
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),
