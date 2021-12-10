@@ -20,16 +20,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/onsi/gomega"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
 	"golang.org/x/net/context"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 )
 
 func TestStorageConstraintTemplate(t *testing.T) {
@@ -43,26 +42,51 @@ func TestStorageConstraintTemplate(t *testing.T) {
 			Name: "foo",
 		},
 	}
-	g := gomega.NewGomegaWithT(t)
 
 	// Test Create
 	fetched := &ConstraintTemplate{}
-	g.Expect(c.Create(ctx, created)).NotTo(gomega.HaveOccurred())
+	var err error
 
-	g.Expect(c.Get(ctx, key, fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fetched).To(gomega.Equal(created))
+	err = c.Create(ctx, created)
+	if err != nil {
+		t.Fatalf("got Create() error = %v, want nil", err)
+	}
+
+	err = c.Get(ctx, key, fetched)
+	if err != nil {
+		t.Fatalf("got Get() error = %v, want nil", err)
+	}
+
+	if diff := cmp.Diff(created, fetched); diff != "" {
+		t.Fatal(diff)
+	}
 
 	// Test Updating the Labels
 	updated := fetched.DeepCopy()
 	updated.Labels = map[string]string{"hello": "world"}
-	g.Expect(c.Update(ctx, updated)).NotTo(gomega.HaveOccurred())
+	err = c.Update(ctx, updated)
+	if err != nil {
+		t.Fatalf("got Update() error = %v, want nil", err)
+	}
 
-	g.Expect(c.Get(ctx, key, fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fetched).To(gomega.Equal(updated))
+	err = c.Get(ctx, key, fetched)
+	if err != nil {
+		t.Fatalf("got Get() error = %v, want nil", err)
+	}
+	if diff := cmp.Diff(updated, fetched); diff != "" {
+		t.Fatal(diff)
+	}
 
 	// Test Delete
-	g.Expect(c.Delete(ctx, fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(c.Get(ctx, key, fetched)).To(gomega.HaveOccurred())
+	err = c.Delete(ctx, fetched)
+	if err != nil {
+		t.Fatalf("got Delete() errror = %v, want nil", err)
+	}
+
+	err = c.Get(ctx, key, fetched)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("got Get() error = %v, want IsNotFound", err)
+	}
 }
 
 func TestTypeConversion(t *testing.T) {
@@ -141,6 +165,8 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	trueBool := true
+	falseBool := false
 	testCases := []struct {
 		name string
 		v    *Validation
@@ -149,22 +175,22 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    &trueBool,
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    &trueBool,
 				OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: schema.VersionlessSchema(),
 			},
 		},
@@ -180,24 +206,24 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    &trueBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema: pointer.Bool(true),
+				LegacySchema: &trueBool,
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					XPreserveUnknownFields: pointer.Bool(true),
+					XPreserveUnknownFields: &trueBool,
 				},
 			},
 		},
 		{
 			name: "Nil properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    &falseBool,
 				OpenAPIV3Schema: nil,
 			},
 		},

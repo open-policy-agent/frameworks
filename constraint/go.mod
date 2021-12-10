@@ -10,7 +10,6 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/onsi/gomega v1.13.0
 	github.com/open-policy-agent/opa v0.35.0
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
