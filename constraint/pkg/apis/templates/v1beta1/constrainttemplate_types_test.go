@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 func TestStorageConstraintTemplate(t *testing.T) {
@@ -165,8 +166,6 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	trueBool := true
-	falseBool := false
 	testCases := []struct {
 		name string
 		v    *Validation
@@ -175,22 +174,22 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    &trueBool,
+				LegacySchema:    pointer.Bool(true),
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    &trueBool,
+				LegacySchema:    pointer.Bool(true),
 				OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    &falseBool,
+				LegacySchema:    pointer.Bool(false),
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    &falseBool,
+				LegacySchema:    pointer.Bool(false),
 				OpenAPIV3Schema: schema.VersionlessSchema(),
 			},
 		},
@@ -206,24 +205,24 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    &trueBool,
+				LegacySchema:    pointer.Bool(true),
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema: &trueBool,
+				LegacySchema: pointer.Bool(true),
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					XPreserveUnknownFields: &trueBool,
+					XPreserveUnknownFields: pointer.Bool(true),
 				},
 			},
 		},
 		{
 			name: "Nil properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    &falseBool,
+				LegacySchema:    pointer.Bool(false),
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema:    &falseBool,
+				LegacySchema:    pointer.Bool(false),
 				OpenAPIV3Schema: nil,
 			},
 		},
