@@ -114,8 +114,6 @@ func TestDriver_PutModule(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New(Modules(tc.beforeModules))
 
 			dr, ok := d.(*driver)
@@ -124,7 +122,7 @@ func TestDriver_PutModule(t *testing.T) {
 					d, &driver{})
 			}
 
-			gotErr := d.PutModule(ctx, tc.moduleName, tc.moduleSrc)
+			gotErr := d.PutModule(tc.moduleName, tc.moduleSrc)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got PutModule() error = %v, want %v", gotErr, tc.wantErr)
 			}
@@ -243,12 +241,10 @@ func TestDriver_PutModules(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New()
 
 			for prefix, src := range tc.beforeModules {
-				err := d.PutModules(ctx, prefix, src)
+				err := d.PutModules(prefix, src)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -260,7 +256,7 @@ func TestDriver_PutModules(t *testing.T) {
 					d, &driver{})
 			}
 
-			gotErr := d.PutModules(ctx, tc.prefix, tc.srcs)
+			gotErr := d.PutModules(tc.prefix, tc.srcs)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got PutModules() error = %v, want %v", gotErr, tc.wantErr)
 			}
@@ -309,11 +305,9 @@ func TestDriver_PutModules_StorageErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New(Storage(tc.storage))
 
-			err := d.PutModule(ctx, "foo", Module)
+			err := d.PutModule("foo", Module)
 
 			if tc.wantErr && err == nil {
 				t.Fatalf("got PutModule() err %v, want error", nil)
@@ -383,12 +377,10 @@ func TestDriver_DeleteModule(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New()
 
 			for _, name := range tc.beforeModules {
-				err := d.PutModule(ctx, name, Module)
+				err := d.PutModule(name, Module)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -400,7 +392,7 @@ func TestDriver_DeleteModule(t *testing.T) {
 					d, &driver{})
 			}
 
-			gotDeleted, gotErr := d.DeleteModule(ctx, tc.moduleName)
+			gotDeleted, gotErr := d.DeleteModule(tc.moduleName)
 			if gotDeleted != tc.wantDeleted {
 				t.Errorf("got DeleteModule() = %t, want %t", gotDeleted, tc.wantDeleted)
 			}
@@ -443,16 +435,14 @@ func TestDriver_DeleteModule_StorageErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New(Storage(tc.storage))
 
-			err := d.PutModule(ctx, "foo", Module)
+			err := d.PutModule("foo", Module)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err = d.DeleteModule(ctx, "foo")
+			_, err = d.DeleteModule("foo")
 
 			if tc.wantErr && err == nil {
 				t.Fatalf("got DeleteModule() err %v, want error", nil)
@@ -543,8 +533,6 @@ func TestDriver_DeleteModules(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := New()
 
 			for prefix, count := range tc.beforeModules {
@@ -552,7 +540,7 @@ func TestDriver_DeleteModules(t *testing.T) {
 				for i := 0; i < count; i++ {
 					modules[i] = Module
 				}
-				err := d.PutModules(ctx, prefix, modules)
+				err := d.PutModules(prefix, modules)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -564,7 +552,7 @@ func TestDriver_DeleteModules(t *testing.T) {
 					d, &driver{})
 			}
 
-			gotDeleted, gotErr := d.DeleteModules(ctx, tc.prefix)
+			gotDeleted, gotErr := d.DeleteModules(tc.prefix)
 			if gotDeleted != tc.wantDeleted {
 				t.Errorf("got DeleteModules() = %v, want %v", gotDeleted, tc.wantDeleted)
 			}

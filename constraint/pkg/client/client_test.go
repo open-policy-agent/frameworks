@@ -379,7 +379,7 @@ some_rule[r] {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddTemplate(context.Background(), tc.template)
+			r, err := c.AddTemplate(tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -393,7 +393,7 @@ some_rule[r] {
 				t.Error(diff)
 			}
 
-			cached, err := c.GetTemplate(context.Background(), tc.template)
+			cached, err := c.GetTemplate(tc.template)
 			if tc.wantError != nil {
 				if err == nil {
 					t.Fatalf("got GetTemplate() error = %v, want non-nil", err)
@@ -418,7 +418,7 @@ some_rule[r] {
 				t.Error("more targets handled than expected")
 			}
 
-			if _, err := c.GetTemplate(context.Background(), tc.template); err == nil {
+			if _, err := c.GetTemplate(tc.template); err == nil {
 				t.Error("template not cleared from cache")
 			}
 		})
@@ -471,7 +471,7 @@ func TestRemoveTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(context.Background(), tc.template)
+			_, err = c.AddTemplate(tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -536,7 +536,7 @@ func TestRemoveTemplateByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(context.Background(), tc.template)
+			_, err = c.AddTemplate(tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -605,13 +605,13 @@ func TestGetTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(context.Background(), tc.wantTemplate)
+			_, err = c.AddTemplate(tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
 			}
 
-			gotTemplate, err := c.GetTemplate(context.Background(), tc.wantTemplate)
+			gotTemplate, err := c.GetTemplate(tc.wantTemplate)
 			if !errors.Is(err, tc.wantGetError) {
 				t.Fatalf("got GetTemplate() error = %v, want %v",
 					err, tc.wantGetError)
@@ -676,7 +676,7 @@ func TestGetTemplateByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(context.Background(), tc.wantTemplate)
+			_, err = c.AddTemplate(tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
@@ -685,7 +685,7 @@ func TestGetTemplateByNameOnly(t *testing.T) {
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tc.wantTemplate.Name
 
-			gotTemplate, err := c.GetTemplate(context.Background(), sparseTemplate)
+			gotTemplate, err := c.GetTemplate(sparseTemplate)
 			if !errors.Is(err, tc.wantGetError) {
 				t.Fatalf("Got GetTemplate() error = %v, want %v",
 					err, tc.wantGetError)
@@ -717,7 +717,7 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	}
 
 	templ := createTemplate(name("cascadingdelete"), crdNames("CascadingDelete"), targets("h1"))
-	if _, err = c.AddTemplate(context.Background(), templ); err != nil {
+	if _, err = c.AddTemplate(templ); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
@@ -732,7 +732,7 @@ func TestTemplateCascadingDelete(t *testing.T) {
 	}
 
 	template2 := createTemplate(name("stillpersists"), crdNames("StillPersists"), targets("h1"))
-	if _, err = c.AddTemplate(context.Background(), template2); err != nil {
+	if _, err = c.AddTemplate(template2); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
@@ -846,7 +846,7 @@ func TestAddConstraint(t *testing.T) {
 			}
 
 			if tc.template != nil {
-				_, err = c.AddTemplate(context.Background(), tc.template)
+				_, err = c.AddTemplate(tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -866,7 +866,7 @@ func TestAddConstraint(t *testing.T) {
 				t.Error(diff)
 			}
 
-			cached, err := c.GetConstraint(context.Background(), tc.constraint)
+			cached, err := c.GetConstraint(tc.constraint)
 			if !errors.Is(err, tc.wantGetConstraintError) {
 				t.Fatalf("got GetConstraint() error = %v, want %v",
 					err, tc.wantGetConstraintError)
@@ -893,7 +893,7 @@ func TestAddConstraint(t *testing.T) {
 				t.Error("more targets handled than expected")
 			}
 
-			if _, err := c.GetConstraint(context.Background(), tc.constraint); err == nil {
+			if _, err := c.GetConstraint(tc.constraint); err == nil {
 				t.Error("constraint not cleared from cache")
 			}
 		})
@@ -965,7 +965,7 @@ func TestRemoveConstraint(t *testing.T) {
 			}
 
 			if tc.template != nil {
-				_, err = c.AddTemplate(ctx, tc.template)
+				_, err = c.AddTemplate(tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1054,7 +1054,7 @@ violation[{"msg": "msg"}] {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddTemplate(context.Background(), tc.template)
+			r, err := c.AddTemplate(tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -1359,8 +1359,6 @@ violation[msg] {msg := "always"}`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d := local.New()
 
 			b, err := NewBackend(Driver(d))
@@ -1375,7 +1373,7 @@ violation[msg] {msg := "always"}`,
 
 			t.Log(c.targets)
 
-			got, err := c.CreateCRD(ctx, tc.template)
+			got, err := c.CreateCRD(tc.template)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got CreateTemplate() error = %v, want %v",

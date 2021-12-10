@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -82,7 +81,6 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
-						ctx := context.Background()
 						targets := Targets(&handler{})
 
 						d := local.New()
@@ -100,7 +98,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 						b.StartTimer()
 
 						for _, ct := range cts {
-							_, _ = c.AddTemplate(ctx, ct)
+							_, _ = c.AddTemplate(ct)
 						}
 					}
 				})

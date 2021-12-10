@@ -33,6 +33,8 @@ import (
 )
 
 func TestStorageConstraintTemplate(t *testing.T) {
+	ctx := context.Background()
+
 	key := types.NamespacedName{
 		Name: "foo",
 	}
@@ -45,22 +47,22 @@ func TestStorageConstraintTemplate(t *testing.T) {
 
 	// Test Create
 	fetched := &ConstraintTemplate{}
-	g.Expect(c.Create(context.TODO(), created)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Create(ctx, created)).NotTo(gomega.HaveOccurred())
 
-	g.Expect(c.Get(context.TODO(), key, fetched)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Get(ctx, key, fetched)).NotTo(gomega.HaveOccurred())
 	g.Expect(fetched).To(gomega.Equal(created))
 
 	// Test Updating the Labels
 	updated := fetched.DeepCopy()
 	updated.Labels = map[string]string{"hello": "world"}
-	g.Expect(c.Update(context.TODO(), updated)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Update(ctx, updated)).NotTo(gomega.HaveOccurred())
 
-	g.Expect(c.Get(context.TODO(), key, fetched)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Get(ctx, key, fetched)).NotTo(gomega.HaveOccurred())
 	g.Expect(fetched).To(gomega.Equal(updated))
 
 	// Test Delete
-	g.Expect(c.Delete(context.TODO(), fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(c.Get(context.TODO(), key, fetched)).To(gomega.HaveOccurred())
+	g.Expect(c.Delete(ctx, fetched)).NotTo(gomega.HaveOccurred())
+	g.Expect(c.Get(ctx, key, fetched)).To(gomega.HaveOccurred())
 }
 
 func TestTypeConversion(t *testing.T) {

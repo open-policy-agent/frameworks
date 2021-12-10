@@ -64,7 +64,7 @@ type driver struct {
 	traceEnabled bool
 }
 
-func (d *driver) Init(ctx context.Context) error {
+func (d *driver) Init() error {
 	return nil
 }
 
@@ -72,18 +72,18 @@ func (d *driver) addTrace(path string) string {
 	return path + "?explain=full&pretty=true"
 }
 
-func (d *driver) PutModule(ctx context.Context, name string, src string) error {
+func (d *driver) PutModule(name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
 // PutModules implements drivers.Driver.
-func (d *driver) PutModules(ctx context.Context, namePrefix string, srcs []string) error {
+func (d *driver) PutModules(namePrefix string, srcs []string) error {
 	panic("not implemented")
 }
 
 // DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
 // if a rule was not found, and any errors.
-func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
+func (d *driver) DeleteModule(name string) (bool, error) {
 	err := d.opa.DeletePolicy(name)
 	if err != nil {
 		e := &Error{}
@@ -97,17 +97,17 @@ func (d *driver) DeleteModule(ctx context.Context, name string) (bool, error) {
 }
 
 // DeleteModules implements drivers.Driver.
-func (d *driver) DeleteModules(ctx context.Context, namePrefix string) (int, error) {
+func (d *driver) DeleteModules(namePrefix string) (int, error) {
 	panic("not implemented")
 }
 
-func (d *driver) PutData(ctx context.Context, path string, data interface{}) error {
+func (d *driver) PutData(_ context.Context, path string, data interface{}) error {
 	return d.opa.PutData(path, data)
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) DeleteData(ctx context.Context, path string) (bool, error) {
+func (d *driver) DeleteData(_ context.Context, path string) (bool, error) {
 	err := d.opa.DeleteData(path)
 	if err != nil {
 		e := &Error{}
@@ -165,7 +165,7 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(ctx context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*ctypes.Response, error) {
+func (d *driver) Query(_ context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*ctypes.Response, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -213,7 +213,7 @@ func (d *driver) Query(ctx context.Context, path string, input interface{}, opts
 	return resp, nil
 }
 
-func (d *driver) Dump(ctx context.Context) (string, error) {
+func (d *driver) Dump(_ context.Context) (string, error) {
 	response, err := d.opa.Query("", nil)
 	if err != nil {
 		return "", err

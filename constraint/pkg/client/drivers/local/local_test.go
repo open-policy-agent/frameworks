@@ -84,10 +84,11 @@ func (tt *compositeTestCase) run(t *testing.T) {
 	for idx, a := range tt.Actions {
 		t.Run(fmt.Sprintf("action idx %d", idx), func(t *testing.T) {
 			ctx := context.Background()
+
 			switch a.Op {
 			case addModule:
 				for _, r := range a.Rules {
-					err := d.PutModule(ctx, r.Path, r.Content)
+					err := d.PutModule(r.Path, r.Content)
 					if (err == nil) && a.ErrorExpected {
 						t.Fatalf("PUT err = nil; want non-nil")
 					}
@@ -98,7 +99,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 
 			case deleteModule:
 				for _, r := range a.Rules {
-					b, err := d.DeleteModule(ctx, r.Path)
+					b, err := d.DeleteModule(r.Path)
 					if (err == nil) && a.ErrorExpected {
 						t.Fatalf("DELETE err = nil; want non-nil")
 					}
@@ -111,7 +112,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case putModules:
-				err := d.PutModules(ctx, a.RuleNamePrefix, a.Rules.srcs())
+				err := d.PutModules(a.RuleNamePrefix, a.Rules.srcs())
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("PutModules err = nil; want non-nil")
 				}
@@ -120,7 +121,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case deleteModules:
-				count, err := d.DeleteModules(ctx, a.RuleNamePrefix)
+				count, err := d.DeleteModules(a.RuleNamePrefix)
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("DeleteModules err = nil; want non-nil")
 				}
@@ -140,7 +141,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				evalPath = a.EvalPath
 			}
 
-			res, _, err := d.eval(context.Background(), evalPath, nil, &drivers.QueryCfg{})
+			res, _, err := d.eval(ctx, evalPath, nil, &drivers.QueryCfg{})
 			if err != nil {
 				t.Errorf("Eval error: %s", err)
 			}
@@ -397,6 +398,8 @@ func TestPutModule(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
 			d, ok := dr.(*driver)
 			if !ok {
@@ -404,7 +407,7 @@ func TestPutModule(t *testing.T) {
 			}
 
 			for _, r := range tt.Rules {
-				err := d.PutModule(context.Background(), r.Path, r.Content)
+				err := d.PutModule(r.Path, r.Content)
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}
@@ -412,7 +415,7 @@ func TestPutModule(t *testing.T) {
 					t.Fatalf("err = \"%s\"; want nil", err)
 				}
 			}
-			res, _, err := d.eval(context.Background(), "data.hello.r[a]", nil, &drivers.QueryCfg{})
+			res, _, err := d.eval(ctx, "data.hello.r[a]", nil, &drivers.QueryCfg{})
 			if err != nil {
 				t.Errorf("Eval error: %s", err)
 			}
@@ -502,6 +505,8 @@ func TestPutData(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
 			d, ok := dr.(*driver)
 			if !ok {
@@ -510,14 +515,14 @@ func TestPutData(t *testing.T) {
 
 			for _, data := range tt.Data {
 				for k, v := range data {
-					err := d.PutData(context.Background(), k, v)
+					err := d.PutData(ctx, k, v)
 					if (err == nil) && tt.ErrorExpected {
 						t.Fatalf("err = nil; want non-nil")
 					}
 					if (err != nil) && !tt.ErrorExpected {
 						t.Fatalf("err = \"%s\"; want nil", err)
 					}
-					res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+					res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 					if err != nil {
 						t.Errorf("Eval error: %s", err)
 					}
@@ -578,6 +583,8 @@ func TestDeleteData(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
 			d, ok := dr.(*driver)
 			if !ok {
@@ -589,14 +596,14 @@ func TestDeleteData(t *testing.T) {
 					for k, v := range data {
 						switch a.Op {
 						case addData:
-							err := d.PutData(context.Background(), k, v)
+							err := d.PutData(ctx, k, v)
 							if (err == nil) && a.ErrorExpected {
 								t.Fatalf("PUT err = nil; want non-nil")
 							}
 							if (err != nil) && !a.ErrorExpected {
 								t.Fatalf("PUT err = \"%s\"; want nil", err)
 							}
-							res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+							res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 							if err != nil {
 								t.Errorf("Eval error: %s", err)
 							}
@@ -607,7 +614,7 @@ func TestDeleteData(t *testing.T) {
 								t.Errorf("%v != %v", v, res[0].Expressions[0].Value)
 							}
 						case deleteData:
-							b, err := d.DeleteData(context.Background(), k)
+							b, err := d.DeleteData(ctx, k)
 							if (err == nil) && a.ErrorExpected {
 								t.Fatalf("DELETE err = nil; want non-nil")
 							}
@@ -617,7 +624,7 @@ func TestDeleteData(t *testing.T) {
 							if b != a.ExpectedBool {
 								t.Fatalf("DeleteModule(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
 							}
-							res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+							res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 							if err != nil {
 								t.Errorf("Eval error: %s", err)
 							}
@@ -668,18 +675,20 @@ func TestQuery(t *testing.T) {
 	}
 
 	t.Run("Parse Response", func(t *testing.T) {
+		ctx := context.Background()
+
 		d := New()
 
 		for i, v := range intResponses {
-			if err := d.PutData(context.Background(), fmt.Sprintf("/constraints/%d", i), v); err != nil {
+			if err := d.PutData(ctx, fmt.Sprintf("/constraints/%d", i), v); err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		if err := d.PutModule(context.Background(), "test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
+		if err := d.PutModule("test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
 			t.Fatal(err)
 		}
-		res, err := d.Query(context.Background(), "hooks.violation", nil)
+		res, err := d.Query(ctx, "hooks.violation", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
