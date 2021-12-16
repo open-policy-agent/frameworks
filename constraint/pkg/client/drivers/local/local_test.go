@@ -18,7 +18,6 @@ import (
 
 const (
 	addModule     = "addModule"
-	deleteModule  = "deleteModule"
 	putModules    = "putModules"
 	deleteModules = "deleteModules"
 	addData       = "addData"
@@ -94,20 +93,6 @@ func (tt *compositeTestCase) run(t *testing.T) {
 					}
 					if (err != nil) && !a.ErrorExpected {
 						t.Fatalf("PUT err = \"%s\"; want nil", err)
-					}
-				}
-
-			case deleteModule:
-				for _, r := range a.Rules {
-					b, err := d.DeleteModule(r.Path)
-					if (err == nil) && a.ErrorExpected {
-						t.Fatalf("DELETE err = nil; want non-nil")
-					}
-					if (err != nil) && !a.ErrorExpected {
-						t.Fatalf("DELETE err = \"%s\"; want nil", err)
-					}
-					if b != a.ExpectedBool {
-						t.Fatalf("DeleteModule(\"%s\") = %t; want %t", r.Path, b, a.ExpectedBool)
 					}
 				}
 
@@ -188,14 +173,6 @@ func TestModules(t *testing.T) {
 						{Content: `package foobar r[a] {a = "m"}`},
 					},
 					ExpectedVals: []string{"m"},
-				},
-				// attempt to interfere with modules/module stuff
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  false,
-					ExpectedVals:  []string{"m"},
 				},
 				{
 					Op:              deleteModules,
@@ -426,55 +403,6 @@ func TestPutModule(t *testing.T) {
 	}
 }
 
-func TestDeleteModule(t *testing.T) {
-	tc := []compositeTestCase{
-		{
-			Name: "Delete One Rule",
-			Actions: []*action{
-				{
-					Op:    addModule,
-					Rules: rules{{"test1", `package hello r[a] {a = "m"}`}},
-
-					ErrorExpected: false,
-					ExpectedVals:  []string{"m"},
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  true,
-				},
-			},
-		},
-		{
-			Name: "Delete One Rule Twice",
-			Actions: []*action{
-				{
-					Op:            addModule,
-					Rules:         rules{{"test1", `package hello r[a] {a = "m"}`}},
-					ErrorExpected: false,
-					ExpectedVals:  []string{"m"},
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  true,
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  false,
-				},
-			},
-		},
-	}
-	for _, tt := range tc {
-		t.Run(tt.Name, tt.run)
-	}
-}
-
 func makeDataPath(s string) string {
 	s = strings.ReplaceAll(s, "/", ".")
 	return "data." + s[1:]
@@ -622,7 +550,7 @@ func TestDeleteData(t *testing.T) {
 								t.Fatalf("DELETE err = \"%s\"; want nil", err)
 							}
 							if b != a.ExpectedBool {
-								t.Fatalf("DeleteModule(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
+								t.Fatalf("DeleteData(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
 							}
 							res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 							if err != nil {
