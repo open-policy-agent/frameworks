@@ -754,31 +754,6 @@ func (c *Client) init() error {
 	return nil
 }
 
-// Reset the state of OPA.
-func (c *Client) Reset(ctx context.Context) error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	for name := range c.targets {
-		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/external/%s", name)); err != nil {
-			return err
-		}
-		if _, err := c.backend.driver.DeleteData(ctx, fmt.Sprintf("/constraints/%s", name)); err != nil {
-			return err
-		}
-	}
-	for name, v := range c.templates {
-		for _, t := range v.Targets {
-			if _, err := c.backend.driver.DeleteModule(fmt.Sprintf(`templates["%s"]["%s"]`, t, name)); err != nil {
-				return err
-			}
-		}
-	}
-	c.templates = make(map[templateKey]*templateEntry)
-	c.constraints = make(map[schema.GroupKind]map[string]*unstructured.Unstructured)
-	return nil
-}
-
 // Review makes sure the provided object satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
