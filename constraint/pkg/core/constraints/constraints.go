@@ -24,7 +24,10 @@ func SemanticEqual(c1 *unstructured.Unstructured, c2 *unstructured.Unstructured)
 	return reflect.DeepEqual(s1, s2)
 }
 
-// Matcher matches objects.
+// Matcher matches object review requests.
 type Matcher interface {
-	Match(obj interface{}) (bool, error)
+	// Match returns true if the Matcher's Constraint should run against the
+	// passed review object.
+	// Note that this is the review object returned by HandleReview.
+	Match(review interface{}) (bool, error)
 }
