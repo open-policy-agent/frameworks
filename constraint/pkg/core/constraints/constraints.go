@@ -24,7 +24,7 @@ func SemanticEqual(c1 *unstructured.Unstructured, c2 *unstructured.Unstructured)
 	return reflect.DeepEqual(s1, s2)
 }
 
-// Matcher matches objects
+// Matcher matches objects.
 type Matcher interface {
 	Match(obj interface{}) (bool, error)
 }
