@@ -15,7 +15,16 @@ func SemanticEqual(c1 *unstructured.Unstructured, c2 *unstructured.Unstructured)
 		return c1 == c2
 	}
 
+	if c1.Object == nil || c2.Object == nil {
+		return (c1.Object == nil) == (c2.Object == nil)
+	}
+
 	s1 := c1.Object["spec"]
 	s2 := c2.Object["spec"]
 	return reflect.DeepEqual(s1, s2)
+}
+
+// Matcher matches objects
+type Matcher interface {
+	Match(obj interface{}) (bool, error)
 }

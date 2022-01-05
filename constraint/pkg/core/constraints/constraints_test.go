@@ -38,6 +38,26 @@ func TestSemanticEqual(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "nil objects",
+			c1: &unstructured.Unstructured{
+				Object: nil,
+			},
+			c2: &unstructured.Unstructured{
+				Object: nil,
+			},
+			want: true,
+		},
+		{
+			name: "nil and non-nil Object",
+			c1: &unstructured.Unstructured{
+				Object: map[string]interface{}{},
+			},
+			c2: &unstructured.Unstructured{
+				Object: nil,
+			},
+			want: false,
+		},
+		{
 			name: "one empty Constraint",
 			c1: &unstructured.Unstructured{
 				Object: map[string]interface{}{
