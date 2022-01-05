@@ -11,11 +11,9 @@ import (
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/format"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -111,11 +109,6 @@ func createTemplatePath(target, name string) string {
 	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
 }
 
-// templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
-func templateLibPrefix(target, name string) string {
-	return fmt.Sprintf("libs.%s.%s", target, name)
-}
-
 // validateTargets handles validating the targets section of the CT.
 func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
 	if err := validateTargets(templ); err != nil {
@@ -195,14 +188,6 @@ func (a *basicCTArtifacts) CRD() *apiextensions.CustomResourceDefinition {
 	return a.crd
 }
 
-// ctArtifacts are all artifacts created by processing a constraint template.
-type ctArtifacts struct {
-	basicCTArtifacts
-
-	// modules is the rewritten set of modules that the constraint template declares in Rego and Libs
-	modules []string
-}
-
 // createBasicTemplateArtifacts creates the low-cost artifacts for a template, avoiding more
 // complex tasks like rewriting Rego.
 func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplate) (*basicCTArtifacts, error) {
@@ -250,85 +235,6 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}, nil
 }
 
-// createTemplateArtifacts will validate the CT, create the CRD for the CT's constraints, then
-// validate and rewrite the rego sources specified in the CT.
-func (c *Client) createTemplateArtifacts(templ *templates.ConstraintTemplate) (*ctArtifacts, error) {
-	artifacts, err := c.createBasicTemplateArtifacts(templ)
-	if err != nil {
-		return nil, err
-	}
-
-	var externs []string
-	for _, field := range c.allowedDataFields {
-		externs = append(externs, fmt.Sprintf("data.%s", field))
-	}
-
-	libPrefix := templateLibPrefix(artifacts.targetHandler.GetName(), artifacts.crd.Spec.Names.Kind)
-
-	rr, err := regorewriter.New(
-		regorewriter.NewPackagePrefixer(libPrefix),
-		[]string{"data.lib"},
-		externs)
-	if err != nil {
-		return nil, fmt.Errorf("creating rego rewriter: %w", err)
-	}
-
-	entryPoint, err := parseModule(artifacts.namePrefix, artifacts.targetSpec.Rego)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
-	}
-
-	if entryPoint == nil {
-		return nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			ErrInvalidConstraintTemplate)
-	}
-
-	if err = rewriteModulePackage(artifacts.namePrefix, entryPoint); err != nil {
-		return nil, err
-	}
-
-	req := map[string]struct{}{"violation": {}}
-
-	if err = requireModuleRules(entryPoint, req); err != nil {
-		return nil, fmt.Errorf("%w: invalid rego: %v",
-			ErrInvalidConstraintTemplate, err)
-	}
-
-	rr.AddEntryPointModule(artifacts.namePrefix, entryPoint)
-	for idx, libSrc := range artifacts.targetSpec.Libs {
-		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
-		if err = rr.AddLib(libPath, libSrc); err != nil {
-			return nil, fmt.Errorf("%w: %v",
-				ErrInvalidConstraintTemplate, err)
-		}
-	}
-
-	sources, err := rr.Rewrite()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
-	}
-
-	var mods []string
-	err = sources.ForEachModule(func(m *regorewriter.Module) error {
-		content, err2 := m.Content()
-		if err2 != nil {
-			return err2
-		}
-		mods = append(mods, string(content))
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
-	}
-
-	return &ctArtifacts{
-		basicCTArtifacts: *artifacts,
-		modules:          mods,
-	}, nil
-}
-
 // CreateCRD creates a CRD from template.
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
@@ -336,7 +242,7 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 			ErrInvalidConstraintTemplate)
 	}
 
-	artifacts, err := c.createTemplateArtifacts(templ)
+	artifacts, err := c.createBasicTemplateArtifacts(templ)
 	if err != nil {
 		return nil, err
 	}
@@ -360,18 +266,20 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		return resp, nil
 	}
 
-	artifacts, err := c.createTemplateArtifacts(templ)
-	if err != nil {
-		return resp, err
-	}
-
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if err = c.backend.driver.PutModules(artifacts.namePrefix, artifacts.modules); err != nil {
-		return resp, fmt.Errorf("%w: %v", local.ErrCompile, err)
+	if d, ok := c.backend.driver.(interface{ AddExterns([]string) }); ok {
+		d.AddExterns(c.allowedDataFields)
+	}
+	if err = c.backend.driver.AddTemplate(templ); err != nil {
+		return resp, err
 	}
 
+	artifacts, err := c.createBasicTemplateArtifacts(templ)
+	if err != nil {
+		return resp, err
+	}
 	cpy := templ.DeepCopy()
 	cpy.Status = templates.ConstraintTemplateStatus{}
 	c.templates[artifacts.Key()] = &templateEntry{
@@ -414,7 +322,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	if _, err := c.backend.driver.DeleteModules(artifacts.namePrefix); err != nil {
+	if err := c.backend.driver.RemoveTemplate(ctx, templ); err != nil {
 		return resp, err
 	}
 

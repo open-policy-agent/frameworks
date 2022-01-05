@@ -8,9 +8,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -71,6 +75,7 @@ type driver struct {
 	printEnabled  bool
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
+	externs       []string
 }
 
 func (d *driver) Init() error {
@@ -497,4 +502,181 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// AddTemplate implements drivers.Driver.
+func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+	if err := validateTargets(templ); err != nil {
+		return nil
+	}
+	targetSpec := templ.Spec.Targets[0]
+	targetHandler := targetSpec.Target
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	libPrefix := templateLibPrefix(targetHandler, kind)
+
+	rr, err := regorewriter.New(
+		regorewriter.NewPackagePrefixer(libPrefix),
+		[]string{"data.lib"},
+		d.externs)
+	if err != nil {
+		return fmt.Errorf("creating rego rewriter: %w", err)
+	}
+
+	namePrefix := createTemplatePath(targetHandler, kind)
+	entryPoint, err := parseModule(namePrefix, templ.Spec.Targets[0].Rego)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+	}
+
+	if entryPoint == nil {
+		return fmt.Errorf("%w: failed to parse module for unknown reason",
+			ErrInvalidConstraintTemplate)
+	}
+
+	if err = rewriteModulePackage(namePrefix, entryPoint); err != nil {
+		return err
+	}
+
+	req := map[string]struct{}{"violation": {}}
+
+	if err = requireModuleRules(entryPoint, req); err != nil {
+		return fmt.Errorf("%w: invalid rego: %v",
+			ErrInvalidConstraintTemplate, err)
+	}
+
+	rr.AddEntryPointModule(namePrefix, entryPoint)
+	for idx, libSrc := range targetSpec.Libs {
+		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
+		if err = rr.AddLib(libPath, libSrc); err != nil {
+			return fmt.Errorf("%w: %v",
+				ErrInvalidConstraintTemplate, err)
+		}
+	}
+
+	sources, err := rr.Rewrite()
+	if err != nil {
+		return fmt.Errorf("%w: %v",
+			ErrInvalidConstraintTemplate, err)
+	}
+
+	var mods []string
+	err = sources.ForEachModule(func(m *regorewriter.Module) error {
+		content, err2 := m.Content()
+		if err2 != nil {
+			return err2
+		}
+		mods = append(mods, string(content))
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %v",
+			ErrInvalidConstraintTemplate, err)
+	}
+	if err = d.PutModules(namePrefix, mods); err != nil {
+		return fmt.Errorf("%w: %v", ErrCompile, err)
+	}
+	return nil
+}
+
+// RemoveTemplate implements driver.Driver.
+func (d *driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
+	if err := validateTargets(templ); err != nil {
+		return nil
+	}
+	targetHandler := templ.Spec.Targets[0].Target
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	namePrefix := createTemplatePath(targetHandler, kind)
+	_, err := d.DeleteModules(namePrefix)
+	return err
+}
+
+// templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
+func templateLibPrefix(target, name string) string {
+	return fmt.Sprintf("libs.%s.%s", target, name)
+}
+
+// createTemplatePath returns the package path for a given template: templates.<target>.<name>.
+func createTemplatePath(target, name string) string {
+	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
+}
+
+// parseModule parses the module and also fails empty modules.
+func parseModule(path, rego string) (*ast.Module, error) {
+	module, err := ast.ParseModule(path, rego)
+	if err != nil {
+		return nil, err
+	}
+
+	if module == nil {
+		return nil, fmt.Errorf("%w: module %q is empty",
+			ErrInvalidModule, path)
+	}
+
+	return module, nil
+}
+
+// rewriteModulePackage rewrites the module's package path to path.
+func rewriteModulePackage(path string, module *ast.Module) error {
+	pathParts, err := ast.ParseRef(path)
+	if err != nil {
+		return err
+	}
+
+	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
+	newPath := packageRef.Extend(pathParts)
+	module.Package.Path = newPath
+	return nil
+}
+
+// requireModuleRules makes sure the module contains all of the specified
+// requiredRules.
+func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) error {
+	ruleSets := make(map[string]struct{}, len(module.Rules))
+	for _, rule := range module.Rules {
+		ruleSets[string(rule.Head.Name)] = struct{}{}
+	}
+
+	var missing []string
+	for name := range requiredRules {
+		_, ok := ruleSets[name]
+		if !ok {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: missing required rules: %v",
+			ErrInvalidModule, missing)
+	}
+
+	return nil
+}
+
+// validateTargets ensures that the targets field has the appropriate values.
+func validateTargets(templ *templates.ConstraintTemplate) error {
+	targets := templ.Spec.Targets
+	if targets == nil {
+		return fmt.Errorf(`%w: field "targets" not specified in ConstraintTemplate spec`,
+			ErrInvalidConstraintTemplate)
+	}
+
+	switch len(targets) {
+	case 0:
+		return fmt.Errorf("%w: no targets specified: ConstraintTemplate must specify one target",
+			ErrInvalidConstraintTemplate)
+	case 1:
+		return nil
+	default:
+		return fmt.Errorf("%w: multi-target templates are not currently supported",
+			ErrInvalidConstraintTemplate)
+	}
+}
+
+func (d *driver) AddExterns(allowedDataFields []string) {
+	var externs []string
+	for _, field := range allowedDataFields {
+		externs = append(externs, fmt.Sprintf("data.%s", field))
+	}
+	d.externs = externs
 }

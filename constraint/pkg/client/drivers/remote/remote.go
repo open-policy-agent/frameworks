@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
@@ -98,6 +100,16 @@ func (d *driver) DeleteModule(name string) (bool, error) {
 
 // DeleteModules implements drivers.Driver.
 func (d *driver) DeleteModules(namePrefix string) (int, error) {
+	panic("not implemented")
+}
+
+// AddTemplate implements drivers.Driver.
+func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
+	panic("not implemented")
+}
+
+// RemoveTemplate implements driver.Driver.
+func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 

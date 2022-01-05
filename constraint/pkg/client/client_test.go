@@ -352,21 +352,21 @@ some_rule[r] {
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    badRegoTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No Rego",
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    emptyRegoTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Missing Rule",
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    missingRuleTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 	}
 
@@ -1033,7 +1033,7 @@ violation[{"msg": "msg"}] {
 			handler:       &badHandler{Name: "h1", HasLib: true},
 			template:      inventoryTempl,
 			wantHandled:   nil,
-			wantError:     ErrInvalidConstraintTemplate,
+			wantError:     local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:          "Inventory used and allowed",
