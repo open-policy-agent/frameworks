@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
@@ -244,6 +246,9 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 
 	artifacts, err := c.createBasicTemplateArtifacts(templ)
 	if err != nil {
+		return nil, err
+	}
+	if _, _, err = local.MapModules(templ, c.allowedDataFields); err != nil {
 		return nil, err
 	}
 	return artifacts.crd, nil

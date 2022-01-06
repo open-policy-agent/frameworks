@@ -504,10 +504,9 @@ func (d *driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
-// AddTemplate implements drivers.Driver.
-func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+func MapModules(templ *templates.ConstraintTemplate, extern []string) (string, []string, error) {
 	if err := validateTargets(templ); err != nil {
-		return nil
+		return "", nil, err
 	}
 	targetSpec := templ.Spec.Targets[0]
 	targetHandler := targetSpec.Target
@@ -517,30 +516,30 @@ func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	rr, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(libPrefix),
 		[]string{"data.lib"},
-		d.externs)
+		allowedDataFields(extern))
 	if err != nil {
-		return fmt.Errorf("creating rego rewriter: %w", err)
+		return "", nil, fmt.Errorf("creating rego rewriter: %w", err)
 	}
 
 	namePrefix := createTemplatePath(targetHandler, kind)
 	entryPoint, err := parseModule(namePrefix, templ.Spec.Targets[0].Rego)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+		return "", nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
 	}
 
 	if entryPoint == nil {
-		return fmt.Errorf("%w: failed to parse module for unknown reason",
+		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
 			ErrInvalidConstraintTemplate)
 	}
 
 	if err = rewriteModulePackage(namePrefix, entryPoint); err != nil {
-		return err
+		return "", nil, err
 	}
 
 	req := map[string]struct{}{"violation": {}}
 
 	if err = requireModuleRules(entryPoint, req); err != nil {
-		return fmt.Errorf("%w: invalid rego: %v",
+		return "", nil, fmt.Errorf("%w: invalid rego: %v",
 			ErrInvalidConstraintTemplate, err)
 	}
 
@@ -548,14 +547,14 @@ func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	for idx, libSrc := range targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
 		if err = rr.AddLib(libPath, libSrc); err != nil {
-			return fmt.Errorf("%w: %v",
+			return "", nil, fmt.Errorf("%w: %v",
 				ErrInvalidConstraintTemplate, err)
 		}
 	}
 
 	sources, err := rr.Rewrite()
 	if err != nil {
-		return fmt.Errorf("%w: %v",
+		return "", nil, fmt.Errorf("%w: %v",
 			ErrInvalidConstraintTemplate, err)
 	}
 
@@ -569,8 +568,17 @@ func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %v",
+		return "", nil, fmt.Errorf("%w: %v",
 			ErrInvalidConstraintTemplate, err)
+	}
+	return namePrefix, mods, nil
+}
+
+// AddTemplate implements drivers.Driver.
+func (d *driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+	namePrefix, mods, err := MapModules(templ, d.externs)
+	if err != nil {
+		return err
 	}
 	if err = d.PutModules(namePrefix, mods); err != nil {
 		return fmt.Errorf("%w: %v", ErrCompile, err)
@@ -673,10 +681,14 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 	}
 }
 
-func (d *driver) AddExterns(allowedDataFields []string) {
+func (d *driver) AddExterns(fields []string) {
+	d.externs = fields
+}
+
+func allowedDataFields(fields []string) []string {
 	var externs []string
-	for _, field := range allowedDataFields {
+	for _, field := range fields {
 		externs = append(externs, fmt.Sprintf("data.%s", field))
 	}
-	d.externs = externs
+	return externs
 }
