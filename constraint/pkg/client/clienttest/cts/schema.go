@@ -25,8 +25,8 @@ func ExpectedSchema(pm PropMap) *apiextensions.JSONSchemaProps {
 }
 
 // Prop constructs an Object schema node with the passed property map.
-func Prop(pm map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
-	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm}
+func Prop(properties map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
+	return apiextensions.JSONSchemaProps{Type: "object", Properties: properties}
 }
 
 // PropUnstructured constructs a schema node with no specified underlying structure.
@@ -35,6 +35,6 @@ func PropUnstructured() apiextensions.JSONSchemaProps {
 }
 
 // PropTyped creates a typed property with no subfields.
-func PropTyped(t string) apiextensions.JSONSchemaProps {
-	return apiextensions.JSONSchemaProps{Type: t}
+func PropTyped(propType string) apiextensions.JSONSchemaProps {
+	return apiextensions.JSONSchemaProps{Type: propType}
 }

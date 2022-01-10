@@ -16,4 +16,5 @@ type Object struct {
 
 	// Data is checked by "CheckData" templates.
 	Data string `json:"data"`
+	Root interface{} `json:"root"`
 }
