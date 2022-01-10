@@ -15,6 +15,6 @@ type Object struct {
 	Namespace string `json:"namespace"`
 
 	// Data is checked by "CheckData" templates.
-	Data string `json:"data"`
+	Data string      `json:"data"`
 	Root interface{} `json:"root"`
 }

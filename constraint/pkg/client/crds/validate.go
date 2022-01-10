@@ -34,6 +34,7 @@ func ValidateTargets(templ *templates.ConstraintTemplate) error {
 			ErrInvalidConstraintTemplate)
 	}
 }
+
 // ValidateCRD calls the CRD package's validation on an internal representation of the CRD.
 func ValidateCRD(crd *apiextensions.CustomResourceDefinition) error {
 	errs := apiextensionsvalidation.ValidateCustomResourceDefinition(crd, apiextensionsv1.SchemeGroupVersion)
