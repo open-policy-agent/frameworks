@@ -116,10 +116,10 @@ func TestDriver_PutModule(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := New(Modules(tc.beforeModules))
 
-			dr, ok := d.(*driver)
+			dr, ok := d.(*Driver)
 			if !ok {
 				t.Fatalf("got New() type = %T, want %T",
-					d, &driver{})
+					d, &Driver{})
 			}
 
 			gotErr := d.PutModule(tc.moduleName, tc.moduleSrc)
@@ -242,21 +242,18 @@ func TestDriver_PutModules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			d := New()
-
+			dr, ok := d.(*Driver)
+			if !ok {
+				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			}
 			for prefix, src := range tc.beforeModules {
-				err := d.PutModules(prefix, src)
+				err := dr.putModules(prefix, src)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			dr, ok := d.(*driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T",
-					d, &driver{})
-			}
-
-			gotErr := d.PutModules(tc.prefix, tc.srcs)
+			gotErr := dr.putModules(tc.prefix, tc.srcs)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got PutModules() error = %v, want %v", gotErr, tc.wantErr)
 			}
@@ -315,10 +312,10 @@ func TestDriver_PutModules_StorageErrors(t *testing.T) {
 				t.Fatalf("got PutModule() err %v, want %v", err, nil)
 			}
 
-			dr, ok := d.(*driver)
+			dr, ok := d.(*Driver)
 			if !ok {
 				t.Fatalf("got New() type = %T, want %T",
-					d, &driver{})
+					d, &Driver{})
 			}
 
 			gotModules := getModules(dr)
@@ -399,25 +396,23 @@ func TestDriver_DeleteModules(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			d := New()
-
+			dr, ok := d.(*Driver)
+			if !ok {
+				t.Fatalf("got New() type = %T, want %T",
+					d, &Driver{})
+			}
 			for prefix, count := range tc.beforeModules {
 				modules := make([]string, count)
 				for i := 0; i < count; i++ {
 					modules[i] = Module
 				}
-				err := d.PutModules(prefix, modules)
+				err := dr.putModules(prefix, modules)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			dr, ok := d.(*driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T",
-					d, &driver{})
-			}
-
-			gotDeleted, gotErr := d.DeleteModules(tc.prefix)
+			gotDeleted, gotErr := dr.deleteModules(tc.prefix)
 			if gotDeleted != tc.wantDeleted {
 				t.Errorf("got DeleteModules() = %v, want %v", gotDeleted, tc.wantDeleted)
 			}
@@ -730,7 +725,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 	}
 }
 
-func getModules(dr *driver) []string {
+func getModules(dr *Driver) []string {
 	result := make([]string, len(dr.modules))
 
 	idx := 0

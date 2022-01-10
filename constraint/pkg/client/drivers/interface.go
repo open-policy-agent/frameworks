@@ -23,13 +23,7 @@ func Tracing(enabled bool) QueryOpt {
 type Driver interface {
 	Init() error
 	PutModule(name string, src string) error
-	// PutModules upserts a number of modules under a given prefix.
-	PutModules(namePrefix string, srcs []string) error
 
-	// DeleteModules deletes all modules under a given prefix and returns the
-	// count of modules deleted.  Deletion of non-existing prefix will
-	// result in 0, nil being returned.
-	DeleteModules(namePrefix string) (int, error)
 	// AddTemplate adds the template source code to OPA
 	AddTemplate(ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the template source code from OPA

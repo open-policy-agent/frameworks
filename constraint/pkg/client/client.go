@@ -248,9 +248,6 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 	if err != nil {
 		return nil, err
 	}
-	if _, _, err = local.MapModules(templ, c.allowedDataFields); err != nil {
-		return nil, err
-	}
 	return artifacts.crd, nil
 }
 
@@ -274,9 +271,6 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if d, ok := c.backend.driver.(interface{ AddExterns([]string) }); ok {
-		d.AddExterns(c.allowedDataFields)
-	}
 	if err = c.backend.driver.AddTemplate(templ); err != nil {
 		return resp, err
 	}
@@ -660,7 +654,15 @@ func (c *Client) init() error {
 				ErrCreatingClient, err, src)
 		}
 	}
-
+	if d, ok := c.backend.driver.(*local.Driver); ok {
+		var externs []string
+		for _, field := range c.allowedDataFields {
+			externs = append(externs, fmt.Sprintf("data.%s", field))
+		}
+		d.SetExterns(externs)
+	} else {
+		return fmt.Errorf("%w: driver %T is not supported", ErrCreatingClient, c.backend.driver)
+	}
 	return nil
 }
 

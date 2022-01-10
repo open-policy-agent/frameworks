@@ -1230,49 +1230,6 @@ violation[msg] {msg := "always"}`,
 			wantErr: ErrInvalidConstraintTemplate,
 		},
 		{
-			name:    "no rego",
-			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: "handler",
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: local.ErrInvalidConstraintTemplate,
-		},
-		{
-			name:    "empty rego package",
-			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: "handler",
-						Rego:   `package foo`,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: local.ErrInvalidConstraintTemplate,
-		},
-		{
 			name: "multiple targets",
 			targets: []TargetHandler{
 				&badHandler{Name: "handler", HasLib: true},
