@@ -838,6 +838,18 @@ func TestAddConstraint(t *testing.T) {
 			wantAddConstraintError: client.ErrMissingConstraintTemplate,
 			wantGetConstraintError: client.ErrMissingConstraint,
 		},
+		{
+			name:     "No Group",
+			template: cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"kind": "Foos",
+				},
+			},
+			wantHandled:            nil,
+			wantAddConstraintError: crds.ErrInvalidConstraint,
+			wantGetConstraintError: crds.ErrInvalidConstraint,
+		},
 	}
 
 	for _, tc := range tcs {
@@ -1493,7 +1505,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: ErrInvalidConstraintTemplate,
+			wantErr: local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "multiple targets",
@@ -1546,7 +1558,7 @@ violation[msg] {msg := "always"}`,
 		},
 		{
 			name:    "empty rego package",
-			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
+			targets: []client.TargetHandler{&badHandler{Name: "handler", HasLib: true}},
 			template: &templates.ConstraintTemplate{
 				ObjectMeta: v1.ObjectMeta{Name: "foo"},
 				Spec: templates.ConstraintTemplateSpec{
@@ -1645,5 +1657,38 @@ violation[msg] {msg := "always"}`,
 					err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestClient_AddTemplate_Duplicate(t *testing.T) {
+	d := local.New()
+
+	b, err := client.NewBackend(client.Driver(d))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := b.NewClient(client.Targets(&clienttest.Handler{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t1 := clienttest.TemplateCheckData()
+	t2 := clienttest.TemplateCheckData()
+
+	_, err = c.AddTemplate(t1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.AddTemplate(t2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t3, err := c.GetTemplate(cts.New(cts.OptName(t1.Name)))
+
+	if diff := cmp.Diff(t1, t3); diff != "" {
+		t.Fatal(diff)
 	}
 }
