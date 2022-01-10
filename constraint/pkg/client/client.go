@@ -37,7 +37,7 @@ type Client struct {
 	// mtx guards access to both templates and constraints.
 	mtx         sync.RWMutex
 	templates   map[templateKey]*templateEntry
-	Constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
+	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 
 	AllowedDataFields []string
 }
@@ -309,8 +309,8 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		Targets:  []string{basicArtifacts.targetHandler.GetName()},
 	}
 
-	if _, ok := c.Constraints[basicArtifacts.gk]; !ok {
-		c.Constraints[basicArtifacts.gk] = make(map[string]*unstructured.Unstructured)
+	if _, ok := c.constraints[basicArtifacts.gk]; !ok {
+		c.constraints[basicArtifacts.gk] = make(map[string]*unstructured.Unstructured)
 	}
 	resp.Handled[basicArtifacts.targetHandler.GetName()] = true
 	return resp, nil
@@ -348,12 +348,12 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	for _, cstr := range c.Constraints[artifacts.gk] {
+	for _, cstr := range c.constraints[artifacts.gk] {
 		if r, err := c.removeConstraintNoLock(ctx, cstr); err != nil {
 			return r, err
 		}
 	}
-	delete(c.Constraints, artifacts.gk)
+	delete(c.constraints, artifacts.gk)
 	// Also clean up root path to avoid memory leaks
 	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
 	if _, err := c.backend.driver.DeleteData(ctx, constraintRoot); err != nil {
@@ -513,7 +513,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	if len(errMap) == 0 {
-		c.Constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
+		c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
 		return resp, nil
 	}
 
@@ -556,7 +556,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 	if len(errMap) == 0 {
 		// If we ever create multi-target constraints we will need to handle this more cleverly.
 		// the short-circuiting question, cleanup, etc.
-		delete(c.Constraints[constraint.GroupVersionKind().GroupKind()], subPath)
+		delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
 		return resp, nil
 	}
 	return resp, &errMap
@@ -570,7 +570,7 @@ func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*un
 	}
 
 	gk := constraint.GroupVersionKind().GroupKind()
-	cstr, ok := c.Constraints[gk][subPath]
+	cstr, ok := c.constraints[gk][subPath]
 	if !ok {
 		return nil, fmt.Errorf("%w %v %q",
 			ErrMissingConstraint, gk, constraint.GetName())

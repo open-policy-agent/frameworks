@@ -775,8 +775,24 @@ func TestTemplateCascadingDelete(t *testing.T) {
 		t.Error("could not remove template")
 	}
 
-	if len(c.Constraints) != 1 {
-		t.Errorf("constraint cache expected to have only 1 entry: %+v", c.Constraints)
+	_, err = c.GetConstraint(cst1)
+	if !errors.Is(err, client.ErrMissingConstraint) {
+		t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
+	}
+
+	_, err = c.GetConstraint(cst2)
+	if !errors.Is(err, client.ErrMissingConstraint) {
+		t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
+	}
+
+	_, err = c.GetConstraint(cst3)
+	if err != nil {
+		t.Errorf("did not find constraint %v %v: %v", cst3.GroupVersionKind(), cst3.GetName(), err)
+	}
+
+	_, err = c.GetConstraint(cst4)
+	if err != nil {
+		t.Errorf("did not find constraint %v %v: %v", cst4.GroupVersionKind(), cst4.GetName(), err)
 	}
 
 	s, err := c.Dump(context.Background())

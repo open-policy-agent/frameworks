@@ -52,7 +52,7 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 
 	c := &Client{
 		backend:           b,
-		Constraints:       make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
+		constraints:       make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
 		templates:         make(map[templateKey]*templateEntry),
 		AllowedDataFields: fields,
 	}
