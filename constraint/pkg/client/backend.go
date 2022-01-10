@@ -10,7 +10,6 @@ import (
 
 type Backend struct {
 	driver    drivers.Driver
-	crd       *crdHelper
 	hasClient bool
 }
 
@@ -27,11 +26,7 @@ func Driver(d drivers.Driver) BackendOpt {
 //
 // A BackendOpt setting driver, such as Driver() must be passed.
 func NewBackend(opts ...BackendOpt) (*Backend, error) {
-	helper, err := newCRDHelper()
-	if err != nil {
-		return nil, err
-	}
-	b := &Backend{crd: helper}
+	b := &Backend{}
 	for _, opt := range opts {
 		opt(b)
 	}
@@ -57,9 +52,9 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 
 	c := &Client{
 		backend:           b,
-		constraints:       make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
+		Constraints:       make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
 		templates:         make(map[templateKey]*templateEntry),
-		allowedDataFields: fields,
+		AllowedDataFields: fields,
 	}
 
 	for _, opt := range opts {
@@ -68,14 +63,14 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 		}
 	}
 
-	for _, field := range c.allowedDataFields {
+	for _, field := range c.AllowedDataFields {
 		if !validDataFields[field] {
 			return nil, fmt.Errorf("%w: invalid data field %q; allowed fields are: %v",
 				ErrCreatingClient, field, validDataFields)
 		}
 	}
 
-	if len(c.targets) == 0 {
+	if len(c.Targets) == 0 {
 		return nil, fmt.Errorf("%w: must specify at least one target with client.Targets",
 			ErrCreatingClient)
 	}

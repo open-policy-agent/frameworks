@@ -1,33 +1,35 @@
-package client
+package client_test
 
 import (
 	"errors"
 	"testing"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 )
 
 func TestNewBackend(t *testing.T) {
 	testCases := []struct {
 		name      string
-		opts      []BackendOpt
+		opts      []client.BackendOpt
 		wantError error
 	}{
 		{
 			name:      "no args",
 			opts:      nil,
-			wantError: ErrCreatingBackend,
+			wantError: client.ErrCreatingBackend,
 		},
 		{
 			name:      "good",
-			opts:      []BackendOpt{Driver(local.New())},
+			opts:      []client.BackendOpt{client.Driver(local.New())},
 			wantError: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, gotErr := NewBackend(tc.opts...)
+			_, gotErr := client.NewBackend(tc.opts...)
 
 			if !errors.Is(gotErr, tc.wantError) {
 				t.Fatalf("got NewBackent() error = %v, want %v",
@@ -40,30 +42,30 @@ func TestNewBackend(t *testing.T) {
 func TestBackend_NewClient(t *testing.T) {
 	testCases := []struct {
 		name        string
-		backendOpts []BackendOpt
-		clientOpts  []Opt
+		backendOpts []client.BackendOpt
+		clientOpts  []client.Opt
 		wantError   error
 	}{
 		{
 			name:        "no opts",
 			backendOpts: nil,
 			clientOpts:  nil,
-			wantError:   ErrCreatingClient,
+			wantError:   client.ErrCreatingClient,
 		},
 		{
 			name:        "with handler",
 			backendOpts: nil,
-			clientOpts:  []Opt{Targets(&handler{})},
+			clientOpts:  []client.Opt{client.Targets(&clienttest.Handler{})},
 			wantError:   nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := []BackendOpt{Driver(local.New())}
+			opts := []client.BackendOpt{client.Driver(local.New())}
 			opts = append(opts, tc.backendOpts...)
 
-			backend, err := NewBackend(opts...)
+			backend, err := client.NewBackend(opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,19 +80,19 @@ func TestBackend_NewClient(t *testing.T) {
 }
 
 func TestBackend_NewClient2(t *testing.T) {
-	backend, err := NewBackend(Driver(local.New()))
+	backend, err := client.NewBackend(client.Driver(local.New()))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = backend.NewClient(Targets(&handler{}))
+	_, err = backend.NewClient(client.Targets(&clienttest.Handler{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = backend.NewClient(Targets(&handler{}))
-	if !errors.Is(err, ErrCreatingClient) {
+	_, err = backend.NewClient(client.Targets(&clienttest.Handler{}))
+	if !errors.Is(err, client.ErrCreatingClient) {
 		t.Fatalf("got NewClient() err = %v, want %v",
-			err, ErrCreatingClient)
+			err, client.ErrCreatingClient)
 	}
 }

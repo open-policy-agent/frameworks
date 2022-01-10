@@ -1,4 +1,4 @@
-package client
+package crds
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,64 +16,13 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// helpers for creating a ConstraintTemplate for test
-
-type tmplArg func(*templates.ConstraintTemplate)
-
-func name(name string) tmplArg {
-	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.ObjectMeta.Name = name
-	}
-}
-
-func crdNames(kind string) tmplArg {
-	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.Spec.CRD.Spec.Names = templates.Names{
-			Kind: kind,
-		}
-	}
-}
-
-func labels(labels map[string]string) tmplArg {
-	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.ObjectMeta.Labels = labels
-	}
-}
-
-func crdSchema(pm propMap) tmplArg {
-	p := prop(pm)
-	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
-		tmpl.Spec.CRD.Spec.Validation.OpenAPIV3Schema = &p
-	}
-}
-
-func targets(ts ...string) tmplArg {
-	targets := make([]templates.Target, len(ts))
-	for i, t := range ts {
-		targets[i] = templates.Target{Target: t, Rego: `package hello violation[{"msg": msg}] {msg = "hello"}`}
-	}
-
-	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.Spec.Targets = targets
-	}
-}
-
-func createTemplate(args ...tmplArg) *templates.ConstraintTemplate {
-	tmpl := &templates.ConstraintTemplate{}
-	for _, arg := range args {
-		arg(tmpl)
-	}
-	return tmpl
-}
-
 // Minimal implementation of a target handler needed for CRD helpers
 
 type targetHandlerArg func(*testTargetHandler)
 
-func matchSchema(pm propMap) targetHandlerArg {
+func matchSchema(pm cts.PropMap) targetHandlerArg {
 	return func(h *testTargetHandler) {
-		h.matchSchema = prop(pm)
+		h.matchSchema = cts.Prop(pm)
 	}
 }
 
@@ -99,38 +50,6 @@ func (h *testTargetHandler) MatchSchema() apiextensions.JSONSchemaProps {
 
 // schema Helpers
 
-type propMap map[string]apiextensions.JSONSchemaProps
-
-// prop currently expects 0 or 1 prop map. More is unsupported.
-func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
-	if len(pm) == 0 {
-		return apiextensions.JSONSchemaProps{XPreserveUnknownFields: pointer.Bool(true)}
-	}
-	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
-}
-
-// tProp creates a typed property.
-func tProp(t string) apiextensions.JSONSchemaProps {
-	return apiextensions.JSONSchemaProps{Type: t}
-}
-
-func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
-	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string"}
-	p := prop(
-		propMap{
-			"metadata": prop(propMap{
-				"name": apiextensions.JSONSchemaProps{
-					Type:      "string",
-					MaxLength: func(i int64) *int64 { return &i }(63),
-				},
-			}),
-			"spec":   prop(pm),
-			"status": {XPreserveUnknownFields: pointer.Bool(true)},
-		},
-	)
-	return &p
-}
-
 // Custom Resource Helpers
 
 type customResourceArg func(u *unstructured.Unstructured)
@@ -142,7 +61,7 @@ func gvk(group, version, kind string) customResourceArg {
 }
 
 func kind(kind string) customResourceArg {
-	return gvk(constraintGroup, "v1beta1", kind)
+	return gvk(constraints.Group, "v1beta1", kind)
 }
 
 func params(s string) customResourceArg {
@@ -206,26 +125,27 @@ func TestValidateTemplate(t *testing.T) {
 	tests := []crdTestCase{
 		{
 			Name:          "Valid Template",
-			Template:      createTemplate(targets("fooTarget")),
+			Template:      cts.New(cts.OptTargets("fooTarget")),
 			ErrorExpected: false,
 		},
 		{
 			Name:          "No Targets Fails",
-			Template:      createTemplate(),
+			Template:      cts.New(),
 			ErrorExpected: true,
 		},
 		{
 			Name:          "Two Targets Fails",
-			Template:      createTemplate(targets("fooTarget", "barTarget")),
+			Template:      cts.New(cts.OptTargets("fooTarget", "barTarget")),
 			ErrorExpected: true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			err := validateTargets(tc.Template)
+			err := ValidateTargets(tc.Template)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
+
 			if (err != nil) && !tc.ErrorExpected {
 				t.Errorf("err = \"%s\"; want nil", err)
 			}
@@ -237,52 +157,49 @@ func TestCreateSchema(t *testing.T) {
 	tests := []crdTestCase{
 		{
 			Name:           "Just EnforcementAction",
-			Template:       createTemplate(),
+			Template:       cts.New(),
 			Handler:        createTestTargetHandler(),
-			ExpectedSchema: expectedSchema(propMap{"match": prop()}),
+			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{"match": cts.PropUnstructured()}),
 		},
 		{
 			Name:     "Just Match",
-			Template: createTemplate(),
-			Handler:  createTestTargetHandler(matchSchema(propMap{"labels": prop()})),
-			ExpectedSchema: expectedSchema(propMap{
-				"match": prop(propMap{
-					"labels": prop(),
+			Template: cts.New(),
+			Handler:  createTestTargetHandler(matchSchema(cts.PropMap{"labels": cts.PropUnstructured()})),
+			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
+				"match": cts.Prop(cts.PropMap{
+					"labels": cts.PropUnstructured(),
 				}),
 			}),
 		},
 		{
 			Name:     "Just Parameters",
-			Template: createTemplate(crdSchema(propMap{"test": prop()})),
+			Template: cts.New(cts.OptCRDSchema(cts.PropMap{"test": cts.PropUnstructured()})),
 			Handler:  createTestTargetHandler(),
-			ExpectedSchema: expectedSchema(propMap{
-				"match": prop(),
-				"parameters": prop(propMap{
-					"test": prop(),
+			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
+				"match": cts.PropUnstructured(),
+				"parameters": cts.Prop(cts.PropMap{
+					"test": cts.PropUnstructured(),
 				}),
 			}),
 		},
 		{
 			Name:     "Match and Parameters",
-			Template: createTemplate(crdSchema(propMap{"dragon": prop()})),
-			Handler:  createTestTargetHandler(matchSchema(propMap{"fire": prop()})),
-			ExpectedSchema: expectedSchema(propMap{
-				"match": prop(propMap{
-					"fire": prop(),
+			Template: cts.New(cts.OptCRDSchema(cts.PropMap{"dragon": cts.PropUnstructured()})),
+			Handler:  createTestTargetHandler(matchSchema(cts.PropMap{"fire": cts.PropUnstructured()})),
+			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
+				"match": cts.Prop(cts.PropMap{
+					"fire": cts.PropUnstructured(),
 				}),
-				"parameters": prop(propMap{
-					"dragon": prop(),
+				"parameters": cts.Prop(cts.PropMap{
+					"dragon": cts.PropUnstructured(),
 				}),
 			}),
 		},
 	}
 	for _, tc := range tests {
-		h, err := newCRDHelper()
-		if err != nil {
-			t.Fatalf("Could not create CRD helper: %v", err)
-		}
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := h.createSchema(tc.Template, tc.Handler)
+			schema := CreateSchema(tc.Template, tc.Handler)
+
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
 				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
 			}
@@ -294,41 +211,41 @@ func TestCRDCreationAndValidation(t *testing.T) {
 	tests := []crdTestCase{
 		{
 			Name: "Most Basic Valid Template",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: false,
 		},
 		{
 			Name: "Most Basic Valid Template With Labels",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				labels(map[string]string{"horse": "smiley"}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptLabels(map[string]string{"horse": "smiley"}),
 			),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: false,
 		},
 		{
 			Name: "Validtemplate with trying to override system label",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				labels(map[string]string{"gatekeeper.sh/constraint": "no"}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptLabels(map[string]string{"gatekeeper.sh/constraint": "no"}),
 			),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: false,
 		},
 		{
 			Name: "Template With Parameter Schema",
-			Template: createTemplate(
-				name("morehorses"),
-				crdNames("Horse"),
-				crdSchema(propMap{
-					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
-					"speed": prop(),
+			Template: cts.New(
+				cts.OptName("morehorses"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{
+					"coat":  cts.Prop(cts.PropMap{"color": cts.PropUnstructured(), "clean": cts.PropUnstructured()}),
+					"speed": cts.PropUnstructured(),
 				}),
 			),
 			Handler:       createTestTargetHandler(),
@@ -336,36 +253,34 @@ func TestCRDCreationAndValidation(t *testing.T) {
 		},
 		{
 			Name: "Template With Parameter and Match Schema",
-			Template: createTemplate(
-				name("morehorses"),
-				crdNames("Horse"),
-				crdSchema(propMap{
-					"coat":  prop(propMap{"color": prop(), "clean": prop()}),
-					"speed": prop(),
+			Template: cts.New(
+				cts.OptName("morehorses"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{
+					"coat":  cts.Prop(cts.PropMap{"color": cts.PropUnstructured(), "clean": cts.PropUnstructured()}),
+					"speed": cts.PropUnstructured(),
 				}),
 			),
 			Handler: createTestTargetHandler(
-				matchSchema(propMap{
-					"namespace":     prop(),
-					"labelSelector": prop(propMap{"matchLabels": prop()}),
+				matchSchema(cts.PropMap{
+					"namespace":     cts.PropUnstructured(),
+					"labelSelector": cts.Prop(cts.PropMap{"matchLabels": cts.PropUnstructured()}),
 				})),
 			ErrorExpected: false,
 		},
 		{
 			Name:          "No Kind Fails",
-			Template:      createTemplate(),
+			Template:      cts.New(),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: true,
 		},
 	}
-	h, err := newCRDHelper()
-	if err != nil {
-		t.Fatalf("Could not create CRD helper: %v", err)
-	}
+
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := h.createSchema(tc.Template, tc.Handler)
-			crd, err := h.createCRD(tc.Template, schema)
+			schema := CreateSchema(tc.Template, tc.Handler)
+			crd, err := CreateCRD(tc.Template, schema)
+
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			} else if val, ok := crd.ObjectMeta.Labels["gatekeeper.sh/constraint"]; !ok || val != "yes" {
@@ -375,7 +290,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 				t.Errorf("Generated CRDs are expected to belong to constraint / constraints categories")
 			}
 
-			err = h.validateCRD(crd)
+			err = ValidateCRD(crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
@@ -390,9 +305,9 @@ func TestCRValidation(t *testing.T) {
 	tests := []crdTestCase{
 		{
 			Name: "Empty Schema and CR",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			CR:            createCR(crName("mycr"), kind("Horse")),
@@ -400,10 +315,10 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Correct Prop Type",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				crdSchema(propMap{"fast": tProp("boolean")}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{"fast": cts.PropTyped("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -415,13 +330,13 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Correct Prop And Match Type",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				crdSchema(propMap{"fast": tProp("boolean")}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{"fast": cts.PropTyped("boolean")}),
 			),
 			Handler: createTestTargetHandler(
-				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
+				matchSchema(cts.PropMap{"heavierThanLbs": cts.PropTyped("number")}),
 			),
 			CR: createCR(
 				crName("mycr"),
@@ -433,9 +348,9 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "No name",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			CR:            createCR(kind("Horse")),
@@ -443,9 +358,9 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Wrong Kind",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			CR:            createCR(crName("mycr"), kind("Cat")),
@@ -453,19 +368,19 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Wrong Version",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
-			CR:            createCR(crName("mycr"), gvk(constraintGroup, "badversion", "Horse")),
+			CR:            createCR(crName("mycr"), gvk(constraints.Group, "badversion", "Horse")),
 			ErrorExpected: true,
 		},
 		{
 			Name: "Wrong Group",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			CR:            createCR(crName("mycr"), gvk("badgroup", "v1alpha1", "Horse")),
@@ -473,10 +388,10 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Wrong Prop Type",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				crdSchema(propMap{"fast": tProp("boolean")}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{"fast": cts.PropTyped("boolean")}),
 			),
 			Handler: createTestTargetHandler(),
 			CR: createCR(
@@ -488,13 +403,13 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "Wrong Prop And Match Type",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
-				crdSchema(propMap{"fast": tProp("boolean")}),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+				cts.OptCRDSchema(cts.PropMap{"fast": cts.PropTyped("boolean")}),
 			),
 			Handler: createTestTargetHandler(
-				matchSchema(propMap{"heavierThanLbs": tProp("number")}),
+				matchSchema(cts.PropMap{"heavierThanLbs": cts.PropTyped("number")}),
 			),
 			CR: createCR(
 				crName("mycr"),
@@ -506,33 +421,34 @@ func TestCRValidation(t *testing.T) {
 		},
 		{
 			Name: "None default EnforcementAction",
-			Template: createTemplate(
-				name("SomeName"),
-				crdNames("Horse"),
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
 			),
 			Handler:       createTestTargetHandler(),
 			CR:            createCR(crName("mycr"), kind("Horse"), enforcementAction("dryrun")),
 			ErrorExpected: false,
 		},
 	}
-	h, err := newCRDHelper()
-	if err != nil {
-		t.Fatalf("could not create CRD helper: %v", err)
-	}
+
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := h.createSchema(tc.Template, tc.Handler)
-			crd, err := h.createCRD(tc.Template, schema)
+			schema := CreateSchema(tc.Template, tc.Handler)
+			crd, err := CreateCRD(tc.Template, schema)
+
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}
-			if err := h.validateCRD(crd); err != nil {
+
+			if err := ValidateCRD(crd); err != nil {
 				t.Errorf("Bad test setup: Bad CRD: %s", err)
 			}
-			err = h.validateCR(tc.CR, crd)
+
+			err = ValidateCR(tc.CR, crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
+
 			if (err != nil) && !tc.ErrorExpected {
 				t.Errorf("err = \"%s\"; want nil", err)
 			}

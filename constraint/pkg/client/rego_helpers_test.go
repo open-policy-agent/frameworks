@@ -1,7 +1,9 @@
-package client
+package client_test
 
 import (
 	"testing"
+
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 )
 
 type regoTestCase struct {
@@ -53,16 +55,16 @@ func TestRequireRules(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
-			mod, err := parseModule("foo", tt.Rego)
+			mod, err := client.ParseModule("foo", tt.Rego)
 			if err == nil {
-				err = requireModuleRules(mod, tt.RequiredRules)
+				err = client.RequireModuleRules(mod, tt.RequiredRules)
 			}
 
 			if (err == nil) && tt.ErrorExpected {
 				t.Fatalf("err = nil; want non-nil")
 			}
 			if (err != nil) && !tt.ErrorExpected {
-				t.Fatalf("err = \"%s\"; want nil", err)
+				t.Fatalf("err = %q; want nil", err)
 			}
 		})
 	}

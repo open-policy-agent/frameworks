@@ -26,7 +26,7 @@ func Targets(ts ...TargetHandler) Opt {
 		for _, t := range ts {
 			handlers[t.GetName()] = t
 		}
-		c.targets = handlers
+		c.Targets = handlers
 
 		return nil
 	}
@@ -53,7 +53,7 @@ func validateTargetNames(ts []TargetHandler) []string {
 // the system can be enabled.
 func AllowedDataFields(fields ...string) Opt {
 	return func(c *Client) error {
-		c.allowedDataFields = fields
+		c.AllowedDataFields = fields
 		return nil
 	}
 }
