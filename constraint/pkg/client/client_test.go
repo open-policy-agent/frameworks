@@ -1417,8 +1417,6 @@ violation[msg] {msg := "always"}`,
 				t.Fatal(err)
 			}
 
-			t.Log(c.Targets)
-
 			got, err := c.CreateCRD(tc.template)
 
 			if !errors.Is(err, tc.wantErr) {
