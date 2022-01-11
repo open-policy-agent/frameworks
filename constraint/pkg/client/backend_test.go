@@ -79,7 +79,7 @@ func TestBackend_NewClient(t *testing.T) {
 	}
 }
 
-func TestBackend_NewClient2(t *testing.T) {
+func TestBackend_NewClient_MultipleClients(t *testing.T) {
 	backend, err := client.NewBackend(client.Driver(local.New()))
 	if err != nil {
 		t.Fatal(err)

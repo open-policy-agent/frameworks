@@ -32,7 +32,7 @@ type templateEntry struct {
 
 type Client struct {
 	backend *Backend
-	Targets map[string]TargetHandler
+	targets map[string]TargetHandler
 
 	// mtx guards access to both templates and constraints.
 	mtx         sync.RWMutex
@@ -57,7 +57,7 @@ func createDataPath(target, subpath string) string {
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
-	for target, h := range c.Targets {
+	for target, h := range c.targets {
 		handled, relPath, processedData, err := h.ProcessData(data)
 		if err != nil {
 			errMap[target] = err
@@ -84,7 +84,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
 	errMap := make(ErrorMap)
-	for target, h := range c.Targets {
+	for target, h := range c.targets {
 		handled, relPath, _, err := h.ProcessData(data)
 		if err != nil {
 			errMap[target] = err
@@ -122,7 +122,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 	}
 
 	targetSpec := &templ.Spec.Targets[0]
-	targetHandler, found := c.Targets[targetSpec.Target]
+	targetHandler, found := c.targets[targetSpec.Target]
 
 	if !found {
 		knownTargets := c.knownTargets()
@@ -598,7 +598,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 	}
 
 	for _, target := range entry.Targets {
-		if err := c.Targets[target].ValidateConstraint(constraint); err != nil {
+		if err := c.targets[target].ValidateConstraint(constraint); err != nil {
 			return err
 		}
 	}
@@ -613,7 +613,7 @@ func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error
 
 // init initializes the OPA backend for the client.
 func (c *Client) init() error {
-	for _, t := range c.Targets {
+	for _, t := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
 		templMap := map[string]string{"Target": t.GetName()}
 
@@ -701,7 +701,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...QueryOpt) 
 	responses := types.NewResponses()
 	errMap := make(ErrorMap)
 TargetLoop:
-	for name, target := range c.Targets {
+	for name, target := range c.targets {
 		handled, review, err := target.HandleReview(obj)
 		// Short-circuiting question applies here as well
 		if err != nil {
@@ -743,7 +743,7 @@ func (c *Client) Audit(ctx context.Context, opts ...QueryOpt) (*types.Responses,
 	responses := types.NewResponses()
 	errMap := make(ErrorMap)
 TargetLoop:
-	for name, target := range c.Targets {
+	for name, target := range c.targets {
 		// Short-circuiting question applies here as well
 		resp, err := c.backend.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil, drivers.Tracing(cfg.enableTracing))
 		if err != nil {
@@ -773,7 +773,7 @@ func (c *Client) Dump(ctx context.Context) (string, error) {
 // knownTargets returns a sorted list of currently-known target names.
 func (c *Client) knownTargets() []string {
 	var knownTargets []string
-	for known := range c.Targets {
+	for known := range c.targets {
 		knownTargets = append(knownTargets, known)
 	}
 	sort.Strings(knownTargets)

@@ -70,7 +70,7 @@ func (b *Backend) NewClient(opts ...Opt) (*Client, error) {
 		}
 	}
 
-	if len(c.Targets) == 0 {
+	if len(c.targets) == 0 {
 		return nil, fmt.Errorf("%w: must specify at least one target with client.Targets",
 			ErrCreatingClient)
 	}

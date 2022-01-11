@@ -26,7 +26,7 @@ func Targets(ts ...TargetHandler) Opt {
 		for _, t := range ts {
 			handlers[t.GetName()] = t
 		}
-		c.Targets = handlers
+		c.targets = handlers
 
 		return nil
 	}

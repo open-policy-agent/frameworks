@@ -54,3 +54,10 @@ func WantData(data string) ConstraintArg {
 		return unstructured.SetNestedField(u.Object, data, "spec", "parameters", "wantData")
 	}
 }
+
+// EnforcementAction sets the action to be taken if the Constraint is violated.
+func EnforcementAction(action string) ConstraintArg {
+	return func(u *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(u.Object, action, "spec", "enforcementAction")
+	}
+}
