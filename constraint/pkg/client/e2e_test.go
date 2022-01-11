@@ -12,6 +12,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -452,8 +453,96 @@ func TestClient_Audit(t *testing.T) {
 
 			results := responses.Results()
 
-			if diff := cmp.Diff(tt.want, results, cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+			if diff := cmp.Diff(tt.want, results,
+				cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
 				t.Fatal(diff)
+			}
+		})
+	}
+}
+
+type appendingPrintHook struct {
+	printed *[]string
+}
+
+func (a appendingPrintHook) Print(_ print.Context, s string) error {
+	*a.printed = append(*a.printed, s)
+	return nil
+}
+
+func TestE2EPrint(t *testing.T) {
+	testCases := []struct {
+		name         string
+		printEnabled bool
+		wantResults  []*types.Result
+		wantPrint    []string
+	}{{
+		name:         "Print enabled",
+		printEnabled: true,
+		wantResults: []*types.Result{
+			{
+				Msg:               "denied",
+				Constraint:        clienttest.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
+				Resource:          &clienttest.Review{Object: clienttest.Object{Name: "hanna"}},
+				EnforcementAction: "deny",
+			},
+		},
+		wantPrint: []string{"denied!"},
+	}, {
+		name:         "Print disabled",
+		printEnabled: false,
+		wantResults: []*types.Result{
+			{
+				Msg:               "denied",
+				Constraint:        clienttest.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
+				Resource:          &clienttest.Review{Object: clienttest.Object{Name: "hanna"}},
+				EnforcementAction: "deny",
+			},
+		},
+		wantPrint: nil,
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			var printed []string
+			printHook := appendingPrintHook{printed: &printed}
+
+			d := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			b, err := client.NewBackend(client.Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c, err := b.NewClient(client.Targets(&clienttest.Handler{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddTemplate(clienttest.TemplateDenyPrint())
+			if err != nil {
+				t.Fatalf("got AddTemplate: %v", err)
+			}
+
+			cstr := clienttest.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint")
+			if _, err = c.AddConstraint(ctx, cstr); err != nil {
+				t.Fatalf("got AddConstraint: %v", err)
+			}
+
+			rsps, err := c.Review(ctx, clienttest.Review{Object: clienttest.Object{Name: "hanna"}})
+			if err != nil {
+				t.Fatalf("got Review: %v", err)
+			}
+
+			results := rsps.Results()
+			if diff := cmp.Diff(tc.wantResults, results,
+				cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+				t.Error(diff)
+			}
+
+			if diff := cmp.Diff(tc.wantPrint, printed); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}

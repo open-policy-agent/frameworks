@@ -8,6 +8,7 @@ import (
 const (
 	KindAllow      = "Allow"
 	KindDeny       = "Deny"
+	KindDenyPrint  = "DenyPrint"
 	KindDenyImport = "DenyImport"
 	KindCheckData  = "CheckData"
 )
@@ -67,6 +68,36 @@ func TemplateDeny() *templates.ConstraintTemplate {
 	ct.Spec.Targets = []templates.Target{{
 		Target: HandlerName,
 		Rego:   moduleDeny,
+	}}
+
+	return ct
+}
+
+const moduleDenyPrint = `
+package foo
+
+violation[{"msg": msg}] {
+  print("denied!")
+  true
+  msg := "denied"
+}
+`
+
+func TemplateDenyPrint() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("denyprint")
+
+	ct.Spec.CRD.Spec.Names.Kind = KindDenyPrint
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: HandlerName,
+		Rego:   moduleDenyPrint,
 	}}
 
 	return ct
