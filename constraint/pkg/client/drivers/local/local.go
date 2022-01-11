@@ -19,6 +19,7 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/topdown"
+	"github.com/open-policy-agent/opa/topdown/print"
 	opatypes "github.com/open-policy-agent/opa/types"
 	"k8s.io/utils/pointer"
 )
@@ -67,6 +68,8 @@ type driver struct {
 	storage       storage.Store
 	capabilities  *ast.Capabilities
 	traceEnabled  bool
+	printEnabled  bool
+	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
 }
 
@@ -243,7 +246,8 @@ func (d *driver) alterModules(insert insertParam, remove []string) (int, error) 
 	}
 
 	c := ast.NewCompiler().WithPathConflictsCheck(storage.NonEmpty(ctx, d.storage, txn)).
-		WithCapabilities(d.capabilities)
+		WithCapabilities(d.capabilities).
+		WithEnablePrintStatements(d.printEnabled)
 
 	if c.Compile(updatedModules); c.Failed() {
 		d.storage.Abort(ctx, txn)
@@ -391,6 +395,8 @@ func (d *driver) eval(ctx context.Context, path string, input interface{}, cfg *
 		rego.Store(d.storage),
 		rego.Input(input),
 		rego.Query(path),
+		rego.EnablePrintStatements(d.printEnabled),
+		rego.PrintHook(d.printHook),
 	}
 
 	buf := topdown.NewBufferTracer()

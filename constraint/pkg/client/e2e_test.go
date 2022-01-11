@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -458,6 +460,91 @@ func TestE2ERemoveTemplate(t *testing.T) {
 
 			if diff := cmp.Diff(want2, got2); diff != "" {
 				t.Error(diff)
+			}
+		})
+	}
+}
+
+type appendingPrintHook struct {
+	printed *[]string
+}
+
+func (a appendingPrintHook) Print(_ print.Context, s string) error {
+	*a.printed = append(*a.printed, s)
+	return nil
+}
+
+func TestE2EPrint(t *testing.T) {
+	testCases := []struct {
+		name         string
+		printEnabled bool
+		rego         string
+		wantMsg      string
+		wantPrint    []string
+	}{{
+		name:         "Print enabled",
+		printEnabled: true,
+		rego: `package foo
+		violation[{"msg": "deny with print"}] {
+			print("denied!")
+			1 == 1
+		}`,
+		wantMsg:   "deny with print",
+		wantPrint: []string{"denied!"},
+	}, {
+		name:         "Print disabled",
+		printEnabled: false,
+		rego: `package foo
+		violation[{"msg": "deny without print"}] {
+			print("denied!")
+			1 == 1
+		}`,
+		wantMsg:   "deny without print",
+		wantPrint: []string{},
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			var printed []string
+			printHook := appendingPrintHook{printed: &printed}
+
+			d := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c, err := b.NewClient(Targets(&handler{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddTemplate(newConstraintTemplate("Foo", tc.rego))
+			if err != nil {
+				t.Fatalf("got AddTemplate: %v", err)
+			}
+			cstr := newConstraint("Foo", "ph", nil, nil)
+			if _, err := c.AddConstraint(ctx, cstr); err != nil {
+				t.Fatalf("got AddConstraint: %v", err)
+			}
+
+			rsps, err := c.Review(ctx, targetData{Name: "Hanna", ForConstraint: "Foo"})
+			if err != nil {
+				t.Fatalf("got Review: %v", err)
+			}
+
+			results := rsps.Results()
+			if len(results) != 1 {
+				t.Errorf("expected 1 result, got %v", len(results))
+			}
+			if results[0].Msg != tc.wantMsg {
+				t.Errorf("expected msg %v, got %v", tc.wantMsg, results[0].Msg)
+			}
+
+			if len(tc.wantPrint)+len(printed) > 0 && !reflect.DeepEqual(tc.wantPrint, printed) {
+				t.Errorf("Wanted %v printed, got %v", tc.wantPrint, printed)
 			}
 		})
 	}
