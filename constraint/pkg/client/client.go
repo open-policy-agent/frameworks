@@ -197,23 +197,10 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	if err != nil {
 		return nil, err
 	}
-
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	if kind == "" {
-		return nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			ErrInvalidConstraintTemplate, templ.GetName())
-	}
-
-	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
-		return nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
-	}
-
-	targetSpec, targetHandler, err := c.validateTargets(templ)
+	targetSpec, targetHandler, err := c.ValidateConstraintTemplateBasic(templ)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate targets for template %s: %w", templ.Name, err)
+		return nil, err
 	}
-
 	sch := c.backend.crd.createSchema(templ, targetHandler)
 
 	crd, err := c.backend.crd.createCRD(templ, sch)
@@ -251,6 +238,40 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 	return artifacts.crd, nil
 }
 
+func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	if kind == "" {
+		return nil, nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
+			ErrInvalidConstraintTemplate, templ.GetName())
+	}
+
+	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
+		return nil, nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
+			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+	}
+
+	targetSpec, targetHandler, err := c.validateTargets(templ)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to validate targets for template %s: %w", templ.Name, err)
+	}
+	return targetSpec, targetHandler, nil
+}
+
+func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) error {
+	if templ == nil {
+		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
+			ErrInvalidConstraintTemplate)
+	}
+	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
+		return err
+	}
+	if dr, ok := c.backend.driver.(*local.Driver); ok {
+		_, _, err := dr.ValidateConstraintTemplate(templ)
+		return err
+	}
+	return fmt.Errorf("driver %T is not supported", c.backend.driver)
+}
+
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
 // schema validation on calls to AddConstraint. On error, the responses return value
 // will still be populated so that partial results can be analyzed.
@@ -274,22 +295,17 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	if err = c.backend.driver.AddTemplate(templ); err != nil {
 		return resp, err
 	}
-
-	artifacts, err := c.createBasicTemplateArtifacts(templ)
-	if err != nil {
-		return resp, err
-	}
 	cpy := templ.DeepCopy()
 	cpy.Status = templates.ConstraintTemplateStatus{}
-	c.templates[artifacts.Key()] = &templateEntry{
+	c.templates[basicArtifacts.Key()] = &templateEntry{
 		template: cpy,
-		CRD:      artifacts.crd,
-		Targets:  []string{artifacts.targetHandler.GetName()},
+		CRD:      basicArtifacts.crd,
+		Targets:  []string{basicArtifacts.targetHandler.GetName()},
 	}
-	if _, ok := c.constraints[artifacts.gk]; !ok {
-		c.constraints[artifacts.gk] = make(map[string]*unstructured.Unstructured)
+	if _, ok := c.constraints[basicArtifacts.gk]; !ok {
+		c.constraints[basicArtifacts.gk] = make(map[string]*unstructured.Unstructured)
 	}
-	resp.Handled[artifacts.targetHandler.GetName()] = true
+	resp.Handled[basicArtifacts.targetHandler.GetName()] = true
 	return resp, nil
 }
 

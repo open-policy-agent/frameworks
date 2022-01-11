@@ -31,7 +31,7 @@ import (
 const (
 	moduleSetPrefix = "__modset_"
 	moduleSetSep    = "_idx_"
-	libPrefix       = "data.lib"
+	libRoot         = "data.lib"
 	violation       = "violation"
 )
 
@@ -508,10 +508,11 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
-// AddTemplate implements drivers.Driver.
-func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+// ValidateConstraintTemplate validates the rego in template target by parsing
+// rego modules.
+func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) (string, []string, error) {
 	if err := validateTargets(templ); err != nil {
-		return err
+		return "", nil, err
 	}
 	targetSpec := templ.Spec.Targets[0]
 	targetHandler := targetSpec.Target
@@ -520,31 +521,31 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 
 	rr, err := regorewriter.New(
 		regorewriter.NewPackagePrefixer(pkgPrefix),
-		[]string{libPrefix},
+		[]string{libRoot},
 		d.externs)
 	if err != nil {
-		return fmt.Errorf("creating rego rewriter: %w", err)
+		return "", nil, fmt.Errorf("creating rego rewriter: %w", err)
 	}
 
 	namePrefix := createTemplatePath(targetHandler, kind)
 	entryPoint, err := parseModule(namePrefix, templ.Spec.Targets[0].Rego)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+		return "", nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
 	}
 
 	if entryPoint == nil {
-		return fmt.Errorf("%w: failed to parse module for unknown reason",
+		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
 			ErrInvalidConstraintTemplate)
 	}
 
 	if err = rewriteModulePackage(namePrefix, entryPoint); err != nil {
-		return err
+		return "", nil, err
 	}
 
 	req := map[string]struct{}{violation: {}}
 
 	if err = requireModuleRules(entryPoint, req); err != nil {
-		return fmt.Errorf("%w: invalid rego: %v",
+		return "", nil, fmt.Errorf("%w: invalid rego: %v",
 			ErrInvalidConstraintTemplate, err)
 	}
 
@@ -552,14 +553,14 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	for idx, libSrc := range targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, pkgPrefix, idx)
 		if err = rr.AddLib(libPath, libSrc); err != nil {
-			return fmt.Errorf("%w: %v",
+			return "", nil, fmt.Errorf("%w: %v",
 				ErrInvalidConstraintTemplate, err)
 		}
 	}
 
 	sources, err := rr.Rewrite()
 	if err != nil {
-		return fmt.Errorf("%w: %v",
+		return "", nil, fmt.Errorf("%w: %v",
 			ErrInvalidConstraintTemplate, err)
 	}
 
@@ -573,9 +574,15 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %v",
+		return "", nil, fmt.Errorf("%w: %v",
 			ErrInvalidConstraintTemplate, err)
 	}
+	return namePrefix, mods, nil
+}
+
+// AddTemplate implements drivers.Driver.
+func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+	namePrefix, mods, err := d.ValidateConstraintTemplate(templ)
 	if err != nil {
 		return err
 	}
@@ -662,6 +669,10 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 
 // validateTargets ensures that the targets field has the appropriate values.
 func validateTargets(templ *templates.ConstraintTemplate) error {
+	if templ == nil {
+		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
+			ErrInvalidConstraintTemplate)
+	}
 	targets := templ.Spec.Targets
 	if targets == nil {
 		return fmt.Errorf(`%w: field "targets" not specified in ConstraintTemplate spec`,

@@ -47,13 +47,13 @@ func Tracing(enabled bool) Arg {
 }
 
 func PrintEnabled(enabled bool) Arg {
-	return func(d *driver) {
+	return func(d *Driver) {
 		d.printEnabled = enabled
 	}
 }
 
 func PrintHook(hook print.Hook) Arg {
-	return func(d *driver) {
+	return func(d *Driver) {
 		d.printHook = hook
 	}
 }
