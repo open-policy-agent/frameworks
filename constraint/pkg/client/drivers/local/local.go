@@ -195,7 +195,7 @@ func (d *Driver) PutModule(name string, src string) error {
 	return err
 }
 
-// PutModules upserts a number of modules under a given prefix.
+// putModules upserts a number of modules under a given prefix.
 func (d *Driver) putModules(namePrefix string, srcs []string) error {
 	if err := d.checkModuleSetName(namePrefix); err != nil {
 		return err

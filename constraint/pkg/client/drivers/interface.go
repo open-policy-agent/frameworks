@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
 
