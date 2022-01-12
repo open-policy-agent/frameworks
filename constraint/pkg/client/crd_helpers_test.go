@@ -282,10 +282,7 @@ func TestCreateSchema(t *testing.T) {
 			t.Fatalf("Could not create CRD helper: %v", err)
 		}
 		t.Run(tc.Name, func(t *testing.T) {
-			schema, err := h.createSchema(tc.Template, tc.Handler)
-			if err != nil {
-				t.Errorf("error = %v; want nil", err)
-			}
+			schema := h.createSchema(tc.Template, tc.Handler)
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
 				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
 			}
@@ -367,10 +364,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema, err := h.createSchema(tc.Template, tc.Handler)
-			if err != nil {
-				t.Errorf("err = %v; want nil", err)
-			}
+			schema := h.createSchema(tc.Template, tc.Handler)
 			crd, err := h.createCRD(tc.Template, schema)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
@@ -527,10 +521,7 @@ func TestCRValidation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema, err := h.createSchema(tc.Template, tc.Handler)
-			if err != nil {
-				t.Errorf("err = %v; want nil", err)
-			}
+			schema := h.createSchema(tc.Template, tc.Handler)
 			crd, err := h.createCRD(tc.Template, schema)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)

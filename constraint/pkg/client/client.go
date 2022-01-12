@@ -227,10 +227,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, fmt.Errorf("failed to validate targets for template %s: %w", templ.Name, err)
 	}
 
-	sch, err := c.backend.crd.createSchema(templ, targetHandler)
-	if err != nil {
-		return nil, err
-	}
+	sch := c.backend.crd.createSchema(templ, targetHandler)
 
 	crd, err := c.backend.crd.createCRD(templ, sch)
 	if err != nil {
