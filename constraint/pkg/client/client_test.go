@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -27,6 +28,10 @@ type badHandler struct {
 	Errors      bool
 	HasLib      bool
 	HandlesData bool
+}
+
+func (h *badHandler) ToMatcher(_ *unstructured.Unstructured) (constraints.Matcher, error) {
+	return nil, errors.New("unimplemented")
 }
 
 func (h *badHandler) GetName() string {
