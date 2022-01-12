@@ -6,6 +6,7 @@ import (
 	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -133,4 +134,13 @@ func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {
 
 func (h *Handler) ValidateConstraint(_ *unstructured.Unstructured) error {
 	return nil
+}
+
+func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.Matcher, error) {
+	ns, _, err := unstructured.NestedString(constraint.Object, "spec", "matchNamespace")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get spec.matchNamespace: %w", err)
+	}
+
+	return Matcher{namespace: ns}, nil
 }
