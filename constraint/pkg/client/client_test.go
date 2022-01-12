@@ -1344,6 +1344,15 @@ violation[msg] {msg := "always"}`,
 					}, {
 						Name: "v1alpha1", Served: true,
 					}},
+					AdditionalPrinterColumns: []apiextensions.CustomResourceColumnDefinition{{
+						Name:     "enforcement-action",
+						Type:     "string",
+						JSONPath: ".spec.enforcementAction",
+					}, {
+						Name:     "total-violations",
+						Type:     "integer",
+						JSONPath: ".status.totalViolations",
+					}},
 					Conversion: &apiextensions.CustomResourceConversion{
 						Strategy: apiextensions.NoneConverter,
 					},
@@ -1381,7 +1390,8 @@ violation[msg] {msg := "always"}`,
 			}
 
 			if diff := cmp.Diff(tc.want, got,
-				cmpopts.IgnoreFields(apiextensions.CustomResourceDefinitionSpec{}, "Validation")); diff != "" {
+				cmpopts.IgnoreFields(apiextensions.CustomResourceDefinitionSpec{}, "Validation"),
+				cmpopts.IgnoreFields(apiextensions.CustomResourceColumnDefinition{}, "Description")); diff != "" {
 				t.Error(diff)
 			}
 		})
