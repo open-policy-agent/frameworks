@@ -99,7 +99,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 						b.StartTimer()
 
 						for _, ct := range cts {
-							_, _ = c.AddTemplate(ct)
+							_, err = c.AddTemplate(ct)
 							if err != nil {
 								b.Fatal(err)
 							}
