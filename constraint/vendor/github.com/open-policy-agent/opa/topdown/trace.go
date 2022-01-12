@@ -7,11 +7,11 @@ package topdown
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
+	iStrs "github.com/open-policy-agent/opa/internal/strings"
+
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/internal/lcss"
 	"github.com/open-policy-agent/opa/topdown/builtins"
 )
 
@@ -44,12 +44,20 @@ const (
 	// FailOp is emitted when an expression evaluates to false.
 	FailOp Op = "Fail"
 
+	// DuplicateOp is emitted when a query has produced a duplicate value. The search
+	// will stop at the point where the duplicate was emitted and backtrack.
+	DuplicateOp Op = "Duplicate"
+
 	// NoteOp is emitted when an expression invokes a tracing built-in function.
 	NoteOp Op = "Note"
 
 	// IndexOp is emitted during an expression evaluation to represent lookup
 	// matches.
 	IndexOp Op = "Index"
+
+	// WasmOp is emitted when resolving a ref using an external
+	// Resolver.
+	WasmOp Op = "Wasm"
 )
 
 // VarMetadata provides some user facing information about
@@ -69,6 +77,7 @@ type Event struct {
 	Locals        *ast.ValueMap           // Contains local variable bindings from the query context. Nil if variables were not included in the trace event.
 	LocalMetadata map[ast.Var]VarMetadata // Contains metadata for the local variable bindings. Nil if variables were not included in the trace event.
 	Message       string                  // Contains message for Note events.
+	Ref           *ast.Ref                // Identifies the subject ref for the event. Only applies to Index and Wasm operations.
 }
 
 // HasRule returns true if the Event contains an ast.Rule.
@@ -187,10 +196,7 @@ func NewBufferTracer() *BufferTracer {
 
 // Enabled always returns true if the BufferTracer is instantiated.
 func (b *BufferTracer) Enabled() bool {
-	if b == nil {
-		return false
-	}
-	return true
+	return b != nil
 }
 
 // Trace adds the event to the buffer.
@@ -238,16 +244,26 @@ func formatEvent(event *Event, depth int) string {
 	padding := formatEventPadding(event, depth)
 	if event.Op == NoteOp {
 		return fmt.Sprintf("%v%v %q", padding, event.Op, event.Message)
-	} else if event.Message != "" {
-		return fmt.Sprintf("%v%v %v %v", padding, event.Op, event.Node, event.Message)
-	} else {
-		switch node := event.Node.(type) {
-		case *ast.Rule:
-			return fmt.Sprintf("%v%v %v", padding, event.Op, node.Path())
-		default:
-			return fmt.Sprintf("%v%v %v", padding, event.Op, rewrite(event).Node)
-		}
 	}
+
+	var details interface{}
+	if node, ok := event.Node.(*ast.Rule); ok {
+		details = node.Path()
+	} else if event.Ref != nil {
+		details = event.Ref
+	} else {
+		details = rewrite(event).Node
+	}
+
+	template := "%v%v %v"
+	opts := []interface{}{padding, event.Op, details}
+
+	if event.Message != "" {
+		template += " %v"
+		opts = append(opts, event.Message)
+	}
+
+	return fmt.Sprintf(template, opts...)
 }
 
 func formatEventPadding(event *Event, depth int) string {
@@ -277,7 +293,7 @@ func getShortenedFileNames(trace []*Event) (map[string]string, int) {
 	// Get a deduplicated list of all file paths
 	// and the longest file path size
 	fpAliases := map[string]string{}
-	var canShorten [][]byte
+	var canShorten []string
 	longestLocation := 0
 	for _, event := range trace {
 		if event.Location != nil {
@@ -292,14 +308,7 @@ func getShortenedFileNames(trace []*Event) (map[string]string, int) {
 					continue
 				}
 
-				// Only try and shorten the middle parts of paths, ex: bundle1/.../a/b/policy.rego
-				path := filepath.Dir(event.Location.File)
-				path = strings.TrimPrefix(path, string(filepath.Separator))
-				firstSlash := strings.IndexRune(path, filepath.Separator)
-				if firstSlash > 0 {
-					path = path[firstSlash+1:]
-				}
-				canShorten = append(canShorten, []byte(path))
+				canShorten = append(canShorten, event.Location.File)
 
 				// Default to just alias their full path
 				fpAliases[event.Location.File] = event.Location.File
@@ -314,36 +323,7 @@ func getShortenedFileNames(trace []*Event) (map[string]string, int) {
 	}
 
 	if len(canShorten) > 0 && longestLocation > maxIdealLocationWidth {
-		// Find the longest common path segment..
-		var lcs string
-		if len(canShorten) > 1 {
-			lcs = string(lcss.LongestCommonSubstring(canShorten...))
-		} else {
-			lcs = string(canShorten[0])
-		}
-
-		// Don't just swap in the full LCSS, trim it down to be the least amount of
-		// characters to reach our "ideal" width boundary giving as much
-		// detail as possible without going too long.
-		diff := maxIdealLocationWidth - (longestLocation - len(lcs) + 3)
-		if diff > 0 {
-			if diff > len(lcs) {
-				lcs = ""
-			} else {
-				// Favor data on the right hand side of the path
-				lcs = lcs[:len(lcs)-diff]
-			}
-		}
-
-		// Swap in "..." for the longest common path, but if it makes things better
-		if len(lcs) > 3 {
-			for path := range fpAliases {
-				fpAliases[path] = strings.Replace(path, lcs, "...", 1)
-			}
-
-			// Drop the overall length down to match our substitution
-			longestLocation = longestLocation - (len(lcs) - 3)
-		}
+		fpAliases, longestLocation = iStrs.TruncateFilePaths(maxIdealLocationWidth, longestLocation, canShorten...)
 	}
 
 	return fpAliases, longestLocation
@@ -426,7 +406,7 @@ func rewrite(event *Event) *Event {
 		node = v.Copy()
 	}
 
-	ast.TransformVars(node, func(v ast.Var) (ast.Value, error) {
+	_, _ = ast.TransformVars(node, func(v ast.Var) (ast.Value, error) {
 		if meta, ok := cpy.LocalMetadata[v]; ok {
 			return meta.Name, nil
 		}

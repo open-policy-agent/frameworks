@@ -101,7 +101,8 @@ func builtinNetCIDRContains(a, b ast.Value) (ast.Value, error) {
 		return nil, fmt.Errorf("not a valid textual representation of an IP address or CIDR: %s", string(bStr))
 	}
 
-	// We can determine if cidr A contains cidr B iff A contains the starting address of B and the last address in B.
+	// We can determine if cidr A contains cidr B if and only if A contains
+	// the starting address of B and the last address in B.
 	cidrContained := false
 	if cidrnetA.Contains(cidrnetB.IP) {
 		// Only spend time calculating the last IP if the starting IP is already verified to be in cidr A
@@ -201,9 +202,11 @@ func builtinNetCIDRExpand(bctx BuiltinContext, operands []*ast.Term, iter func(*
 	for ip := ip.Mask(ipNet.Mask); ipNet.Contains(ip); incIP(ip) {
 
 		if bctx.Cancel != nil && bctx.Cancel.Cancelled() {
-			return &Error{
-				Code:    CancelErr,
-				Message: "net.cidr_expand: timed out before generating all IP addresses",
+			return Halt{
+				Err: &Error{
+					Code:    CancelErr,
+					Message: "net.cidr_expand: timed out before generating all IP addresses",
+				},
 			}
 		}
 

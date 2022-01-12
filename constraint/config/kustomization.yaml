@@ -1,9 +1,3 @@
-# create a multi-version CRD via kustomize because Kubebuilder v1 doesn't support multi-version
-# CRDs
-
 resources:
-- crds/templates_v1beta1_constrainttemplate.yaml
-
-patchesStrategicMerge:
-- crd_patch.yaml
-
+- crds/templates.gatekeeper.sh_constrainttemplates.yaml
+- crds/externaldata.gatekeeper.sh_providers.yaml

@@ -20,43 +20,74 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/onsi/gomega"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
 	"golang.org/x/net/context"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 func TestStorageConstraintTemplate(t *testing.T) {
+	ctx := context.Background()
+
 	key := types.NamespacedName{
 		Name: "foo",
 	}
 	created := &ConstraintTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
-		}}
-	g := gomega.NewGomegaWithT(t)
+		},
+	}
 
 	// Test Create
 	fetched := &ConstraintTemplate{}
-	g.Expect(c.Create(context.TODO(), created)).NotTo(gomega.HaveOccurred())
+	var err error
 
-	g.Expect(c.Get(context.TODO(), key, fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fetched).To(gomega.Equal(created))
+	err = c.Create(ctx, created)
+	if err != nil {
+		t.Fatalf("got Create() error = %v, want nil", err)
+	}
+
+	err = c.Get(ctx, key, fetched)
+	if err != nil {
+		t.Fatalf("got Get() error = %v, want nil", err)
+	}
+
+	if diff := cmp.Diff(created, fetched); diff != "" {
+		t.Fatal(diff)
+	}
 
 	// Test Updating the Labels
 	updated := fetched.DeepCopy()
 	updated.Labels = map[string]string{"hello": "world"}
-	g.Expect(c.Update(context.TODO(), updated)).NotTo(gomega.HaveOccurred())
+	err = c.Update(ctx, updated)
+	if err != nil {
+		t.Fatalf("got Update() error = %v, want nil", err)
+	}
 
-	g.Expect(c.Get(context.TODO(), key, fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(fetched).To(gomega.Equal(updated))
+	err = c.Get(ctx, key, fetched)
+	if err != nil {
+		t.Fatalf("got Get() error = %v, want nil", err)
+	}
+	if diff := cmp.Diff(updated, fetched); diff != "" {
+		t.Fatal(diff)
+	}
 
 	// Test Delete
-	g.Expect(c.Delete(context.TODO(), fetched)).NotTo(gomega.HaveOccurred())
-	g.Expect(c.Get(context.TODO(), key, fetched)).To(gomega.HaveOccurred())
+	err = c.Delete(ctx, fetched)
+	if err != nil {
+		t.Fatalf("got Delete() errror = %v, want nil", err)
+	}
+
+	err = c.Get(ctx, key, fetched)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("got Get() error = %v, want IsNotFound", err)
+	}
 }
 
 func TestTypeConversion(t *testing.T) {
@@ -81,17 +112,17 @@ func TestTypeConversion(t *testing.T) {
 						ShortNames: []string{"mhmc"},
 					},
 					Validation: &Validation{
-						OpenAPIV3Schema: &apiextensionsv1beta1.JSONSchemaProps{
-							Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+						OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+							Properties: map[string]apiextensionsv1.JSONSchemaProps{
 								"message": {
 									Type: "string",
 								},
 								"labels": {
 									Type: "array",
-									Items: &apiextensionsv1beta1.JSONSchemaPropsOrArray{
-										Schema: &apiextensionsv1beta1.JSONSchemaProps{
+									Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+										Schema: &apiextensionsv1.JSONSchemaProps{
 											Type: "object",
-											Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
+											Properties: map[string]apiextensionsv1.JSONSchemaProps{
 												"key":          {Type: "string"},
 												"allowedRegex": {Type: "string"},
 											},
@@ -124,7 +155,90 @@ func TestTypeConversion(t *testing.T) {
 	if err := scheme.Convert(unversioned, recast, nil); err != nil {
 		t.Fatalf("Conversion error: %v", err)
 	}
-	if !reflect.DeepEqual(versionedCopy, recast) {
-		t.Error(cmp.Diff(versionedCopy, recast))
+}
+
+// TestValidationVersionConversionAndTransformation confirms that our custom conversion
+// function works, and also that it adds in the x-kubernetes-preserve-unknown-fields information
+// that we require for v1 CRD support.
+func TestValidationVersionConversionAndTransformation(t *testing.T) {
+	// The scheme is responsible for defaulting
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		name string
+		v    *Validation
+		exp  *templates.Validation
+	}{
+		{
+			name: "Two deep properties, LegacySchema=true",
+			v: &Validation{
+				LegacySchema:    pointer.Bool(true),
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
+			},
+			exp: &templates.Validation{
+				LegacySchema:    pointer.Bool(true),
+				OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
+			},
+		},
+		{
+			name: "Two deep properties, LegacySchema=false",
+			v: &Validation{
+				LegacySchema:    pointer.Bool(false),
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
+			},
+			exp: &templates.Validation{
+				LegacySchema:    pointer.Bool(false),
+				OpenAPIV3Schema: schema.VersionlessSchema(),
+			},
+		},
+		{
+			name: "Two deep properties, LegacySchema=nil",
+			v: &Validation{
+				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
+			},
+			exp: &templates.Validation{
+				OpenAPIV3Schema: schema.VersionlessSchema(),
+			},
+		},
+		{
+			name: "Nil properties, LegacySchema=true",
+			v: &Validation{
+				LegacySchema:    pointer.Bool(true),
+				OpenAPIV3Schema: nil,
+			},
+			exp: &templates.Validation{
+				LegacySchema: pointer.Bool(true),
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					XPreserveUnknownFields: pointer.Bool(true),
+				},
+			},
+		},
+		{
+			name: "Nil properties, LegacySchema=false",
+			v: &Validation{
+				LegacySchema:    pointer.Bool(false),
+				OpenAPIV3Schema: nil,
+			},
+			exp: &templates.Validation{
+				LegacySchema:    pointer.Bool(false),
+				OpenAPIV3Schema: nil,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := &templates.Validation{}
+			if err := scheme.Convert(tc.v, out, nil); err != nil {
+				t.Fatalf("Conversion error: %v", err)
+			}
+
+			if !reflect.DeepEqual(out, tc.exp) {
+				t.Error(cmp.Diff(out, tc.exp))
+			}
+		})
 	}
 }

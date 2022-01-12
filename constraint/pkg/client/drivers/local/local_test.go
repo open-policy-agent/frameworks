@@ -11,13 +11,13 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 )
 
 const (
 	addModule     = "addModule"
-	deleteModule  = "deleteModule"
 	putModules    = "putModules"
 	deleteModules = "deleteModules"
 	addData       = "addData"
@@ -34,13 +34,13 @@ type testCase struct {
 	ExpectedVals  []string
 }
 
-// rule corresponds to a rego snippet from the constraint template or other
+// rule corresponds to a rego snippet from the constraint template or other.
 type rule struct {
 	Path    string
 	Content string
 }
 
-// rules is a list of rules
+// rules is a list of rules.
 type rules []rule
 
 func (r rules) srcs() []string {
@@ -53,13 +53,14 @@ func (r rules) srcs() []string {
 
 type data map[string]interface{}
 
-// compositeTestCase is a testcase that consists of one or more API calls
+// compositeTestCase is a testcase that consists of one or more API calls.
 type compositeTestCase struct {
-	Name    string
-	Actions []action
+	Name      string
+	Actions   []*action
+	driverArg []Arg
 }
 
-// action corresponds to a method call for compositeTestCase
+// action corresponds to a method call for compositeTestCase.
 type action struct {
 	Op              string
 	RuleNamePrefix  string // Used in PutModules/DeleteModules
@@ -73,15 +74,20 @@ type action struct {
 }
 
 func (tt *compositeTestCase) run(t *testing.T) {
-	dr := New()
-	d := dr.(*driver)
+	dr := New(tt.driverArg...)
+	d, ok := dr.(*driver)
+	if !ok {
+		t.Fatalf("got driver %T, want %T", dr, &driver{})
+	}
+
 	for idx, a := range tt.Actions {
 		t.Run(fmt.Sprintf("action idx %d", idx), func(t *testing.T) {
 			ctx := context.Background()
+
 			switch a.Op {
 			case addModule:
 				for _, r := range a.Rules {
-					err := d.PutModule(ctx, r.Path, r.Content)
+					err := d.PutModule(r.Path, r.Content)
 					if (err == nil) && a.ErrorExpected {
 						t.Fatalf("PUT err = nil; want non-nil")
 					}
@@ -90,22 +96,8 @@ func (tt *compositeTestCase) run(t *testing.T) {
 					}
 				}
 
-			case deleteModule:
-				for _, r := range a.Rules {
-					b, err := d.DeleteModule(ctx, r.Path)
-					if (err == nil) && a.ErrorExpected {
-						t.Fatalf("DELETE err = nil; want non-nil")
-					}
-					if (err != nil) && !a.ErrorExpected {
-						t.Fatalf("DELETE err = \"%s\"; want nil", err)
-					}
-					if b != a.ExpectedBool {
-						t.Fatalf("DeleteModule(\"%s\") = %t; want %t", r.Path, b, a.ExpectedBool)
-					}
-				}
-
 			case putModules:
-				err := d.PutModules(ctx, a.RuleNamePrefix, a.Rules.srcs())
+				err := d.PutModules(a.RuleNamePrefix, a.Rules.srcs())
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("PutModules err = nil; want non-nil")
 				}
@@ -114,7 +106,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case deleteModules:
-				count, err := d.DeleteModules(ctx, a.RuleNamePrefix)
+				count, err := d.DeleteModules(a.RuleNamePrefix)
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("DeleteModules err = nil; want non-nil")
 				}
@@ -134,7 +126,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				evalPath = a.EvalPath
 			}
 
-			res, _, err := d.eval(context.Background(), evalPath, nil, &drivers.QueryCfg{})
+			res, _, err := d.eval(ctx, evalPath, nil, &drivers.QueryCfg{})
 			if err != nil {
 				t.Errorf("Eval error: %s", err)
 			}
@@ -146,7 +138,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 }
 
 func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
-	ev := []string{}
+	var ev []string
 	for _, r := range res {
 		i, ok := r.Bindings["a"].(string)
 		if !ok {
@@ -167,10 +159,11 @@ func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
 }
 
 func TestModules(t *testing.T) {
+	providerCache := externaldata.NewCache()
 	tc := []compositeTestCase{
 		{
 			Name: "PutModules then DeleteModules",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -181,14 +174,6 @@ func TestModules(t *testing.T) {
 					},
 					ExpectedVals: []string{"m"},
 				},
-				// attempt to interfere with modules/module stuff
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  false,
-					ExpectedVals:  []string{"m"},
-				},
 				{
 					Op:              deleteModules,
 					RuleNamePrefix:  "test1",
@@ -198,7 +183,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules with invalid empty string name",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op: putModules,
 					Rules: rules{
@@ -211,7 +196,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules with invalid sequence",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1_idx_",
@@ -225,7 +210,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModule with invalid prefix",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addModule,
 					Rules:         rules{{"__modset_test1", `package hello r[a] {a = "m"}`}},
@@ -235,7 +220,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules twice, decrease src count",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -259,7 +244,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "PutModules twice, increase src count",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -283,7 +268,7 @@ func TestModules(t *testing.T) {
 		},
 		{
 			Name: "DeleteModules twice",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:             putModules,
 					RuleNamePrefix: "test1",
@@ -305,6 +290,61 @@ func TestModules(t *testing.T) {
 					WantDeleteCount: 0,
 				},
 			},
+		},
+		{
+			Name: "PutModule with valid builtin",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
+					},
+					ErrorExpected: false,
+				},
+			},
+		},
+		{
+			Name: "PutModule with invalid builtin",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = http.send({"method": "get", "url": "https://github.com/"})`},
+					},
+					ErrorExpected: true,
+				},
+			},
+			driverArg: []Arg{DisableBuiltins("http.send")},
+		},
+		{
+			Name: "PutModule with external data cache",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
+					},
+					ErrorExpected: false,
+				},
+			},
+			driverArg: []Arg{AddExternalDataProviderCache(providerCache)},
+		},
+		{
+			Name: "PutModule with external data disabled",
+			Actions: []*action{
+				{
+					Op:             putModules,
+					RuleNamePrefix: "test1",
+					Rules: rules{
+						{Content: `package hello  a = external_data({"provider": "my-provider", "keys": ["foo", 123]})`},
+					},
+					ErrorExpected: true,
+				},
+			},
+			driverArg: []Arg{DisableBuiltins("external_data")},
 		},
 	}
 	for _, tt := range tc {
@@ -335,10 +375,16 @@ func TestPutModule(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, r := range tt.Rules {
-				err := d.PutModule(context.Background(), r.Path, r.Content)
+				err := d.PutModule(r.Path, r.Content)
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}
@@ -346,7 +392,7 @@ func TestPutModule(t *testing.T) {
 					t.Fatalf("err = \"%s\"; want nil", err)
 				}
 			}
-			res, _, err := d.eval(context.Background(), "data.hello.r[a]", nil, &drivers.QueryCfg{})
+			res, _, err := d.eval(ctx, "data.hello.r[a]", nil, &drivers.QueryCfg{})
 			if err != nil {
 				t.Errorf("Eval error: %s", err)
 			}
@@ -357,57 +403,8 @@ func TestPutModule(t *testing.T) {
 	}
 }
 
-func TestDeleteModule(t *testing.T) {
-	tc := []compositeTestCase{
-		{
-			Name: "Delete One Rule",
-			Actions: []action{
-				{
-					Op:    addModule,
-					Rules: rules{{"test1", `package hello r[a] {a = "m"}`}},
-
-					ErrorExpected: false,
-					ExpectedVals:  []string{"m"},
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  true,
-				},
-			},
-		},
-		{
-			Name: "Delete One Rule Twice",
-			Actions: []action{
-				{
-					Op:            addModule,
-					Rules:         rules{{"test1", `package hello r[a] {a = "m"}`}},
-					ErrorExpected: false,
-					ExpectedVals:  []string{"m"},
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  true,
-				},
-				{
-					Op:            deleteModule,
-					Rules:         rules{{Path: "test1"}},
-					ErrorExpected: false,
-					ExpectedBool:  false,
-				},
-			},
-		},
-	}
-	for _, tt := range tc {
-		t.Run(tt.Name, tt.run)
-	}
-}
-
 func makeDataPath(s string) string {
-	s = strings.Replace(s, "/", ".", -1)
+	s = strings.ReplaceAll(s, "/", ".")
 	return "data." + s[1:]
 }
 
@@ -436,18 +433,24 @@ func TestPutData(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, data := range tt.Data {
 				for k, v := range data {
-					err := d.PutData(context.Background(), k, v)
+					err := d.PutData(ctx, k, v)
 					if (err == nil) && tt.ErrorExpected {
 						t.Fatalf("err = nil; want non-nil")
 					}
 					if (err != nil) && !tt.ErrorExpected {
 						t.Fatalf("err = \"%s\"; want nil", err)
 					}
-					res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+					res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 					if err != nil {
 						t.Errorf("Eval error: %s", err)
 					}
@@ -467,7 +470,7 @@ func TestDeleteData(t *testing.T) {
 	tc := []compositeTestCase{
 		{
 			Name: "Delete One Datum",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addData,
 					Data:          []data{{"/key": "my_value"}},
@@ -484,7 +487,7 @@ func TestDeleteData(t *testing.T) {
 		},
 		{
 			Name: "Delete Data Twice",
-			Actions: []action{
+			Actions: []*action{
 				{
 					Op:            addData,
 					Data:          []data{{"/key": "my_value"}},
@@ -508,21 +511,27 @@ func TestDeleteData(t *testing.T) {
 	}
 	for _, tt := range tc {
 		t.Run(tt.Name, func(t *testing.T) {
+			ctx := context.Background()
+
 			dr := New()
-			d := dr.(*driver)
+			d, ok := dr.(*driver)
+			if !ok {
+				t.Fatalf("got driver %T, want %T", dr, &driver{})
+			}
+
 			for _, a := range tt.Actions {
 				for _, data := range a.Data {
 					for k, v := range data {
 						switch a.Op {
 						case addData:
-							err := d.PutData(context.Background(), k, v)
+							err := d.PutData(ctx, k, v)
 							if (err == nil) && a.ErrorExpected {
 								t.Fatalf("PUT err = nil; want non-nil")
 							}
 							if (err != nil) && !a.ErrorExpected {
 								t.Fatalf("PUT err = \"%s\"; want nil", err)
 							}
-							res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+							res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 							if err != nil {
 								t.Errorf("Eval error: %s", err)
 							}
@@ -533,7 +542,7 @@ func TestDeleteData(t *testing.T) {
 								t.Errorf("%v != %v", v, res[0].Expressions[0].Value)
 							}
 						case deleteData:
-							b, err := d.DeleteData(context.Background(), k)
+							b, err := d.DeleteData(ctx, k)
 							if (err == nil) && a.ErrorExpected {
 								t.Fatalf("DELETE err = nil; want non-nil")
 							}
@@ -541,9 +550,9 @@ func TestDeleteData(t *testing.T) {
 								t.Fatalf("DELETE err = \"%s\"; want nil", err)
 							}
 							if b != a.ExpectedBool {
-								t.Fatalf("DeleteModule(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
+								t.Fatalf("DeleteData(\"%s\") = %t; want %t", k, b, a.ExpectedBool)
 							}
-							res, _, err := d.eval(context.Background(), makeDataPath(k), nil, &drivers.QueryCfg{})
+							res, _, err := d.eval(ctx, makeDataPath(k), nil, &drivers.QueryCfg{})
 							if err != nil {
 								t.Errorf("Eval error: %s", err)
 							}
@@ -594,18 +603,20 @@ func TestQuery(t *testing.T) {
 	}
 
 	t.Run("Parse Response", func(t *testing.T) {
+		ctx := context.Background()
+
 		d := New()
 
 		for i, v := range intResponses {
-			if err := d.PutData(context.Background(), fmt.Sprintf("/constraints/%d", i), v); err != nil {
+			if err := d.PutData(ctx, fmt.Sprintf("/constraints/%d", i), v); err != nil {
 				t.Fatal(err)
 			}
 		}
 
-		if err := d.PutModule(context.Background(), "test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
+		if err := d.PutModule("test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
 			t.Fatal(err)
 		}
-		res, err := d.Query(context.Background(), "hooks.violation", nil)
+		res, err := d.Query(ctx, "hooks.violation", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -618,6 +629,5 @@ func TestQuery(t *testing.T) {
 		if !reflect.DeepEqual(res.Results, responses) {
 			t.Errorf("%s != %s", spew.Sprint(res), spew.Sprint(responses))
 		}
-
 	})
 }

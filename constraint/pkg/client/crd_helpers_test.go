@@ -6,10 +6,12 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/pointer"
 )
 
 // helpers for creating a ConstraintTemplate for test
@@ -81,13 +83,17 @@ type testTargetHandler struct {
 
 func createTestTargetHandler(args ...targetHandlerArg) MatchSchemaProvider {
 	h := &testTargetHandler{}
+
+	// The default matchSchema is empty, and thus lacks type information
+	h.matchSchema.XPreserveUnknownFields = pointer.Bool(true)
+
 	for _, arg := range args {
 		arg(h)
 	}
 	return h
 }
 
-func (h testTargetHandler) MatchSchema() apiextensions.JSONSchemaProps {
+func (h *testTargetHandler) MatchSchema() apiextensions.JSONSchemaProps {
 	return h.matchSchema
 }
 
@@ -98,12 +104,12 @@ type propMap map[string]apiextensions.JSONSchemaProps
 // prop currently expects 0 or 1 prop map. More is unsupported.
 func prop(pm ...map[string]apiextensions.JSONSchemaProps) apiextensions.JSONSchemaProps {
 	if len(pm) == 0 {
-		return apiextensions.JSONSchemaProps{}
+		return apiextensions.JSONSchemaProps{XPreserveUnknownFields: pointer.Bool(true)}
 	}
-	return apiextensions.JSONSchemaProps{Properties: pm[0]}
+	return apiextensions.JSONSchemaProps{Type: "object", Properties: pm[0]}
 }
 
-// tProp creates a typed property
+// tProp creates a typed property.
 func tProp(t string) apiextensions.JSONSchemaProps {
 	return apiextensions.JSONSchemaProps{Type: t}
 }
@@ -118,7 +124,8 @@ func expectedSchema(pm propMap) *apiextensions.JSONSchemaProps {
 					MaxLength: func(i int64) *int64 { return &i }(63),
 				},
 			}),
-			"spec": prop(pm),
+			"spec":   prop(pm),
+			"status": {XPreserveUnknownFields: pointer.Bool(true)},
 		},
 	)
 	return &p
@@ -240,7 +247,9 @@ func TestCreateSchema(t *testing.T) {
 			Handler:  createTestTargetHandler(matchSchema(propMap{"labels": prop()})),
 			ExpectedSchema: expectedSchema(propMap{
 				"match": prop(propMap{
-					"labels": prop()})}),
+					"labels": prop(),
+				}),
+			}),
 		},
 		{
 			Name:     "Just Parameters",
@@ -275,7 +284,7 @@ func TestCreateSchema(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			schema := h.createSchema(tc.Template, tc.Handler)
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
-				t.Errorf("createSchema(%#v) = \n%#v; \nwant %#v", tc.Template, *schema, *tc.ExpectedSchema)
+				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
 			}
 		})
 	}
@@ -423,7 +432,7 @@ func TestCRValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 		{
-			Name: "No Name",
+			Name: "No name",
 			Template: createTemplate(
 				name("SomeName"),
 				crdNames("Horse"),

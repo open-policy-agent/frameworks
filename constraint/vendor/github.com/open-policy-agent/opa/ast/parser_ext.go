@@ -418,7 +418,14 @@ func ParseImports(input string) ([]*Import, error) {
 // For details on Module objects and their fields, see policy.go.
 // Empty input will return nil, nil.
 func ParseModule(filename, input string) (*Module, error) {
-	stmts, comments, err := ParseStatements(filename, input)
+	return ParseModuleWithOpts(filename, input, ParserOptions{})
+}
+
+// ParseModuleWithOpts returns a parsed Module object, and has an additional input ParserOptions
+// For details on Module objects and their fields, see policy.go.
+// Empty input will return nil, nil.
+func ParseModuleWithOpts(filename, input string, popts ParserOptions) (*Module, error) {
+	stmts, comments, err := ParseStatementsWithOpts(filename, input, popts)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +435,11 @@ func ParseModule(filename, input string) (*Module, error) {
 // ParseBody returns exactly one body.
 // If multiple bodies are parsed, an error is returned.
 func ParseBody(input string) (Body, error) {
-	stmts, _, err := ParseStatements("", input)
+	return ParseBodyWithOpts(input, ParserOptions{})
+}
+
+func ParseBodyWithOpts(input string, popts ParserOptions) (Body, error) {
+	stmts, _, err := ParseStatementsWithOpts("", input, popts)
 	if err != nil {
 		return nil, err
 	}
@@ -540,40 +551,30 @@ func ParseStatement(input string) (Statement, error) {
 	return stmts[0], nil
 }
 
-type commentKey struct {
-	File string
-	Row  int
-	Col  int
-}
-
-func (a commentKey) Compare(other commentKey) int {
-	if a.File < other.File {
-		return -1
-	} else if a.File > other.File {
-		return 1
-	} else if a.Row < other.Row {
-		return -1
-	} else if a.Row > other.Row {
-		return 1
-	} else if a.Col < other.Col {
-		return -1
-	} else if a.Col > other.Col {
-		return 1
-	}
-	return 0
-}
-
-// ParseStatements returns a slice of parsed statements.
-// This is the default return value from the parser.
+// ParseStatements is deprecated. Use ParseStatementWithOpts instead.
 func ParseStatements(filename, input string) ([]Statement, []*Comment, error) {
+	return ParseStatementsWithOpts(filename, input, ParserOptions{})
+}
 
-	stmts, comment, errs := NewParser().WithFilename(filename).WithReader(bytes.NewBufferString(input)).Parse()
+// ParseStatementsWithOpts returns a slice of parsed statements. This is the
+// default return value from the parser.
+func ParseStatementsWithOpts(filename, input string, popts ParserOptions) ([]Statement, []*Comment, error) {
+
+	parser := NewParser().
+		WithFilename(filename).
+		WithReader(bytes.NewBufferString(input)).
+		WithProcessAnnotation(popts.ProcessAnnotation).
+		WithFutureKeywords(popts.FutureKeywords...).
+		WithAllFutureKeywords(popts.AllFutureKeywords).
+		WithCapabilities(popts.Capabilities)
+
+	stmts, comments, errs := parser.Parse()
 
 	if len(errs) > 0 {
 		return nil, nil, errs
 	}
 
-	return stmts, comment, nil
+	return stmts, comments, nil
 }
 
 func parseModule(filename string, stmts []Statement, comments []*Comment) (*Module, error) {
@@ -586,7 +587,7 @@ func parseModule(filename string, stmts []Statement, comments []*Comment) (*Modu
 
 	_package, ok := stmts[0].(*Package)
 	if !ok {
-		loc := stmts[0].(Statement).Loc()
+		loc := stmts[0].Loc()
 		errs = append(errs, NewError(ParseErr, loc, "package expected"))
 	}
 
@@ -597,7 +598,7 @@ func parseModule(filename string, stmts []Statement, comments []*Comment) (*Modu
 	// The comments slice only holds comments that were not their own statements.
 	mod.Comments = append(mod.Comments, comments...)
 
-	for _, stmt := range stmts[1:] {
+	for i, stmt := range stmts[1:] {
 		switch stmt := stmt.(type) {
 		case *Import:
 			mod.Imports = append(mod.Imports, stmt)
@@ -610,20 +611,87 @@ func parseModule(filename string, stmts []Statement, comments []*Comment) (*Modu
 				errs = append(errs, NewError(ParseErr, stmt[0].Location, err.Error()))
 			} else {
 				mod.Rules = append(mod.Rules, rule)
+
+				// NOTE(tsandall): the statement should now be interpreted as a
+				// rule so update the statement list. This is important for the
+				// logic below that associates annotations with statements.
+				stmts[i+1] = rule
 			}
 		case *Package:
 			errs = append(errs, NewError(ParseErr, stmt.Loc(), "unexpected package"))
-		case *Comment: // Ignore comments, they're handled above.
+		case *Annotations:
+			mod.Annotations = append(mod.Annotations, stmt)
+		case *Comment:
+			// Ignore comments, they're handled above.
 		default:
 			panic("illegal value") // Indicates grammar is out-of-sync with code.
 		}
 	}
 
-	if len(errs) == 0 {
-		return mod, nil
+	if len(errs) > 0 {
+		return nil, errs
 	}
 
-	return nil, errs
+	// Find first non-annotation statement following each annotation and attach
+	// the annotation to that statement.
+	for _, a := range mod.Annotations {
+		for _, stmt := range stmts {
+			_, ok := stmt.(*Annotations)
+			if !ok {
+				if stmt.Loc().Row > a.Location.Row {
+					a.node = stmt
+					break
+				}
+			}
+		}
+
+		if a.Scope == "" {
+			switch a.node.(type) {
+			case *Rule:
+				a.Scope = annotationScopeRule
+			case *Package:
+				a.Scope = annotationScopePackage
+			case *Import:
+				a.Scope = annotationScopeImport
+			}
+		}
+
+		if err := validateAnnotationScopeAttachment(a); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return nil, errs
+	}
+
+	return mod, nil
+}
+
+func validateAnnotationScopeAttachment(a *Annotations) *Error {
+
+	switch a.Scope {
+	case annotationScopeRule, annotationScopeDocument:
+		if _, ok := a.node.(*Rule); ok {
+			return nil
+		}
+		return newScopeAttachmentErr(a, "rule")
+	case annotationScopePackage, annotationScopeSubpackages:
+		if _, ok := a.node.(*Package); ok {
+			return nil
+		}
+		return newScopeAttachmentErr(a, "package")
+	}
+
+	return NewError(ParseErr, a.Loc(), "invalid annotation scope '%v'", a.Scope)
+}
+
+func newScopeAttachmentErr(a *Annotations, want string) *Error {
+	var have string
+	if a.node != nil {
+		have = fmt.Sprintf(" (have %v)", TypeName(a.node))
+	}
+	return NewError(ParseErr, a.Loc(), "annotation scope '%v' must be applied to %v%v", a.Scope, want, have)
 }
 
 func setRuleModule(rule *Rule, module *Module) {
@@ -688,7 +756,11 @@ func newParserErrorDetail(bs []byte, offset int) *ParserErrorDetail {
 func (d ParserErrorDetail) Lines() []string {
 	line := strings.TrimLeft(d.Line, "\t") // remove leading tabs
 	tabCount := len(d.Line) - len(line)
-	return []string{line, strings.Repeat(" ", d.Idx-tabCount) + "^"}
+	indent := d.Idx - tabCount
+	if indent < 0 {
+		indent = 0
+	}
+	return []string{line, strings.Repeat(" ", indent) + "^"}
 }
 
 func isNewLineChar(b byte) bool {

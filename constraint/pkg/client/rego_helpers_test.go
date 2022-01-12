@@ -55,7 +55,7 @@ func TestRequireRules(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			mod, err := parseModule("foo", tt.Rego)
 			if err == nil {
-				err = requireRulesModule(mod, tt.RequiredRules)
+				err = requireModuleRules(mod, tt.RequiredRules)
 			}
 
 			if (err == nil) && tt.ErrorExpected {

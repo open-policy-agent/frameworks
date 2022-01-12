@@ -1,0 +1,12 @@
+resources:
+- templates.gatekeeper.sh_constrainttemplates.yaml
+- externaldata.gatekeeper.sh_providers.yaml
+
+patchesStrategicMerge:
+- |-
+  apiVersion: apiextensions.k8s.io/v1
+  kind: CustomResourceDefinition
+  metadata:
+    name: constrainttemplates.templates.gatekeeper.sh
+  spec:
+    preserveUnknownFields: false

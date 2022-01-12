@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -36,19 +37,19 @@ type Response struct {
 
 func (r *Response) TraceDump() string {
 	b := &strings.Builder{}
-	fmt.Fprintf(b, "Target: %s\n", r.Target)
+	_, _ = fmt.Fprintf(b, "Target: %s\n", r.Target)
 	if r.Input == nil {
-		fmt.Fprintf(b, "Input: TRACING DISABLED\n\n")
+		_, _ = fmt.Fprintf(b, "Input: TRACING DISABLED\n\n")
 	} else {
-		fmt.Fprintf(b, "Input:\n%s\n\n", *r.Input)
+		_, _ = fmt.Fprintf(b, "Input:\n%s\n\n", *r.Input)
 	}
 	if r.Trace == nil {
-		fmt.Fprintf(b, "Trace: TRACING DISABLED\n\n")
+		_, _ = fmt.Fprintf(b, "Trace: TRACING DISABLED\n\n")
 	} else {
-		fmt.Fprintf(b, "Trace:\n%s\n\n", *r.Trace)
+		_, _ = fmt.Fprintf(b, "Trace:\n%s\n\n", *r.Trace)
 	}
-	for i, r := range r.Results {
-		fmt.Fprintf(b, "Result(%d):\n%s\n\n", i, spew.Sdump(r))
+	for i, result := range r.Results {
+		_, _ = fmt.Fprintf(b, "Result(%d):\n%s\n\n", i, spew.Sdump(result))
 	}
 	return b.String()
 }
@@ -73,6 +74,18 @@ func (r *Responses) Results() []*Result {
 	for _, resp := range r.ByTarget {
 		res = append(res, resp.Results...)
 	}
+
+	// Make results more (but not completely) deterministic.
+	// After we shard Rego compilation environments, we will be able to tie
+	// responses to individual constraints. This is a stopgap to make tests easier
+	// to write until then.
+	sort.Slice(res, func(i, j int) bool {
+		if res[i].EnforcementAction != res[j].EnforcementAction {
+			return res[i].EnforcementAction < res[j].EnforcementAction
+		}
+		return res[i].Msg < res[j].Msg
+	})
+
 	return res
 }
 
@@ -80,20 +93,22 @@ func (r *Responses) HandledCount() int {
 	if r == nil {
 		return 0
 	}
+
 	c := 0
 	for _, h := range r.Handled {
 		if h {
 			c++
 		}
 	}
+
 	return c
 }
 
 func (r *Responses) TraceDump() string {
 	b := &strings.Builder{}
 	for _, resp := range r.ByTarget {
-		fmt.Fprintln(b, resp.TraceDump())
-		fmt.Fprintln(b, "")
+		_, _ = fmt.Fprintln(b, resp.TraceDump())
+		_, _ = fmt.Fprintln(b, "")
 	}
 	return b.String()
 }

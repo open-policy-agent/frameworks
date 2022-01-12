@@ -10,7 +10,8 @@ endif
 all: lint test
 
 # Run tests
-native-test: generate manifests
+# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, add `generate` back as a dependency target
+native-test: gen-dependencies manifests
 	go test ./pkg/... -coverprofile cover.out
 
 # Docker internal test
@@ -21,31 +22,77 @@ docker-internal-test:
 #	./tests/test_remote_driver.sh
 
 # Hook to run docker tests
-test: generate
-	docker build . -t constraint-test && docker run -t constraint-test
+test:
+	docker build . -t constraint-test && docker run -it constraint-test
 
 # Install CRDs into a cluster
 install: manifests
 	kubectl apply -f config/crds
 
+# Install the generation dependencies on the local machine
+gen-dependencies:
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.5.0
+	go install k8s.io/code-generator/cmd/conversion-gen@v0.21.3
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.21.3
+
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: buildutils
-	controller-gen all
-	kustomize build config -o deploy/crds.yaml
+manifests:
+	controller-gen \
+		crd:allowDangerousTypes="true" \
+		paths="./pkg/..." \
+		output:crd:artifacts:config=config/crds
+	kustomize build config/crds --output=deploy/crds.yaml
+	mkdir -p .staging/templatecrd
+	cp config/crds/* .staging/templatecrd
+	sed -i '/- externaldata.gatekeeper.sh_providers.yaml/d' .staging/templatecrd/kustomization.yaml
+	kustomize build .staging/templatecrd --output=.staging/templatecrd/crd.yaml
 
 lint:
 	golangci-lint -v run ./... --timeout 5m
 
 # Generate code
-generate: buildutils
-ifndef GOPATH
-	$(error GOPATH not defined, please define GOPATH. Run "go help gopath" to learn more about GOPATH)
-endif
-	export GOROOT=$(go env root)
-	GO111MODULE=off go generate ./pkg/...
+# Not working?  Try running `make gen-dependencies`
+generate: generate-defaults
+	controller-gen \
+		object:headerFile=./hack/boilerplate.go.txt \
+		paths="./pkg/..."
+	# This conversion-gen code is broken.  For some reason, it does not include functions
+	# for converting from v1beta JSONSchemaProps to apiextensions JSONSchemaProps, even though
+	# those functions exist and can be added manually to the conversion file.
+	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
+	# conversion-gen and get us back to running `make generate` in our CI pipeline
+	conversion-gen \
+		--input-dirs "./pkg/apis/templates/..." \
+		--go-header-file=./hack/boilerplate.go.txt \
+		--output-file-base=zz_generated.conversion \
+		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 
-# find or download controller-gen
-# download controller-gen if necessary
-.PHONY: buildutils
-buildutils:
-	cd buildutils && ./buildutils.sh
+CRD_SOURCE_FILE := deploy/crds.yaml
+FILE_STUB := "package schema\
+\n\
+\n// This file is generated from $(CRD_SOURCE_FILE) via \"make constraint-template-string-constant\"\
+\n// DO NOT MODIFY THIS FILE DIRECTLY!\
+\n\
+\nconst constraintTemplateCRDYaml = \`"
+
+YAML_CONSTANT_GOLANG_FILE := ./pkg/schema/yaml_constant.go
+
+constraint-template-string-constant: manifests
+	rm -rf $(YAML_CONSTANT_GOLANG_FILE)
+	bash -c 'echo -en ${FILE_STUB} >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'cat .staging/templatecrd/crd.yaml >> ${YAML_CONSTANT_GOLANG_FILE}'
+	bash -c 'echo "\`" >> ${YAML_CONSTANT_GOLANG_FILE}'
+	# Remove trailing spaces.  Double $ is to prevent variable expansion in make
+	sed -i "s/ $$//g" ${YAML_CONSTANT_GOLANG_FILE}
+	rm -rf .staging
+
+generate-defaults: constraint-template-string-constant
+	defaulter-gen \
+		--input-dirs "./pkg/apis/templates/..." \
+		--go-header-file=./hack/boilerplate.go.txt \
+		--output-file-base=zz_generated.defaults
+
+.PHONY: vendor
+vendor:
+	go mod vendor
+	go mod tidy

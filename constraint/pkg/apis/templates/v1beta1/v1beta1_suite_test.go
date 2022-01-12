@@ -27,12 +27,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var cfg *rest.Config
-var c client.Client
+var (
+	cfg *rest.Config
+	c   client.Client
+)
 
 func TestMain(m *testing.M) {
 	t := &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "deploy")},
+		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "deploy", "crds.yaml")},
 	}
 
 	err := SchemeBuilder.AddToScheme(scheme.Scheme)

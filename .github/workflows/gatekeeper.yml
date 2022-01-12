@@ -1,0 +1,34 @@
+name: gatekeeper_test
+on: [push, pull_request]
+
+jobs:
+  lint:
+    name: "Gatekeeper Test"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          path: go/src/github.com/open-policy-agent/frameworks
+
+      - name: Check out Gatekeeper default branch
+        uses: actions/checkout@v2
+        with:
+          repository: open-policy-agent/gatekeeper
+          path: go/src/github.com/open-policy-agent/gatekeeper
+
+      - name: Update Frameworks dependency in Gatekeeper
+        run: |
+          go mod edit -replace github.com/open-policy-agent/frameworks/constraint=${GITHUB_WORKSPACE}/go/src/github.com/open-policy-agent/frameworks/constraint
+          make vendor
+        working-directory: go/src/github.com/open-policy-agent/gatekeeper
+
+      - name: Make test
+        run: make test
+        working-directory: go/src/github.com/open-policy-agent/gatekeeper
