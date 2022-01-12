@@ -30,7 +30,7 @@ func makeKind(i int) string {
 func makeModuleSimple(i int) string {
 	kind := makeKind(i)
 	return fmt.Sprintf(`package %s
-violation[msg] {
+violation[{"msg": msg}] {
   input.review.object.foo == input.parameters.foo
   msg := sprintf("input.foo is %%v", [input.parameters.foo])
 }`, kind)
@@ -44,6 +44,7 @@ identical(obj, review) {
   obj.metadata.namespace == review.object.metadata.namespace
   obj.metadata.name == review.object.metadata.name
 }
+
 violation[{"msg": msg}] {
   input.review.kind.kind == "Ingress"
   re_match("^(extensions|networking.k8s.io)$", input.review.kind.group)
@@ -98,7 +99,10 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 						b.StartTimer()
 
 						for _, ct := range cts {
-							_, _ = c.AddTemplate(ct)
+							_, err = c.AddTemplate(ct)
+							if err != nil {
+								b.Fatal(err)
+							}
 						}
 					}
 				})
