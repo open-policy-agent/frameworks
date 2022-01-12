@@ -44,7 +44,7 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 }
 
 // createSchema combines the schema of the match target and the ConstraintTemplate parameters
-// to form the schema of the actual constraint resource
+// to form the schema of the actual constraint resource.
 func (h *crdHelper) createSchema(templ *templates.ConstraintTemplate, target MatchSchemaProvider) *apiextensions.JSONSchemaProps {
 	props := map[string]apiextensions.JSONSchemaProps{
 		"match":             target.MatchSchema(),
