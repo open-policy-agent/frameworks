@@ -65,6 +65,20 @@ func CreateCRD(templ *templates.ConstraintTemplate, schema *apiextensions.JSONSc
 					Served:  true,
 				},
 			},
+			AdditionalPrinterColumns: []apiextensions.CustomResourceColumnDefinition{
+				{
+					Name:        "enforcement-action",
+					Description: "Type of enforcement action",
+					JSONPath:    ".spec.enforcementAction",
+					Type:        "string",
+				},
+				{
+					Name:        "total-violations",
+					Description: "Total number of violations",
+					JSONPath:    ".status.totalViolations",
+					Type:        "integer",
+				},
+			},
 		},
 	}
 

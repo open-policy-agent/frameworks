@@ -13,7 +13,7 @@ var defaults = []client.Opt{
 
 // New constructs a new Client for testing with a default-constructed local driver
 // and no other Backend opts.
-func New(t *testing.T, opts ...client.Opt) *client.Client {
+func New(t testing.TB, opts ...client.Opt) *client.Client {
 	t.Helper()
 
 	backend, err := client.NewBackend(client.Driver(local.New()))

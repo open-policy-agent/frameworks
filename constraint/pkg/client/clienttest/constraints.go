@@ -9,7 +9,7 @@ import (
 )
 
 // MakeConstraint creates a new test Constraint.
-func MakeConstraint(t *testing.T, kind, name string, args ...ConstraintArg) *unstructured.Unstructured {
+func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *unstructured.Unstructured {
 	t.Helper()
 
 	u := &unstructured.Unstructured{Object: make(map[string]interface{})}

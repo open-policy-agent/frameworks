@@ -1,4 +1,4 @@
-package crds
+package crds_test
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,13 +27,13 @@ func matchSchema(pm cts.PropMap) targetHandlerArg {
 	}
 }
 
-var _ MatchSchemaProvider = &testTargetHandler{}
+var _ crds.MatchSchemaProvider = &testTargetHandler{}
 
 type testTargetHandler struct {
 	matchSchema apiextensions.JSONSchemaProps
 }
 
-func createTestTargetHandler(args ...targetHandlerArg) MatchSchemaProvider {
+func createTestTargetHandler(args ...targetHandlerArg) crds.MatchSchemaProvider {
 	h := &testTargetHandler{}
 
 	// The default matchSchema is empty, and thus lacks type information
@@ -115,7 +116,7 @@ func createCR(args ...customResourceArg) *unstructured.Unstructured {
 type crdTestCase struct {
 	Name           string
 	Template       *templates.ConstraintTemplate
-	Handler        MatchSchemaProvider
+	Handler        crds.MatchSchemaProvider
 	CR             *unstructured.Unstructured
 	ExpectedSchema *apiextensions.JSONSchemaProps
 	ErrorExpected  bool
@@ -141,7 +142,7 @@ func TestValidateTemplate(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			err := ValidateTargets(tc.Template)
+			err := crds.ValidateTargets(tc.Template)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
@@ -198,7 +199,7 @@ func TestCreateSchema(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := CreateSchema(tc.Template, tc.Handler)
+			schema := crds.CreateSchema(tc.Template, tc.Handler)
 
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
 				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
@@ -278,8 +279,8 @@ func TestCRDCreationAndValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := CreateSchema(tc.Template, tc.Handler)
-			crd, err := CreateCRD(tc.Template, schema)
+			schema := crds.CreateSchema(tc.Template, tc.Handler)
+			crd, err := crds.CreateCRD(tc.Template, schema)
 
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
@@ -290,7 +291,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 				t.Errorf("Generated CRDs are expected to belong to constraint / constraints categories")
 			}
 
-			err = ValidateCRD(crd)
+			err = crds.ValidateCRD(crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
@@ -433,18 +434,17 @@ func TestCRValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			schema := CreateSchema(tc.Template, tc.Handler)
-			crd, err := CreateCRD(tc.Template, schema)
-
+			schema := crds.CreateSchema(tc.Template, tc.Handler)
+			crd, err := crds.CreateCRD(tc.Template, schema)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}
 
-			if err := ValidateCRD(crd); err != nil {
+			if err := crds.ValidateCRD(crd); err != nil {
 				t.Errorf("Bad test setup: Bad CRD: %s", err)
 			}
 
-			err = ValidateCR(tc.CR, crd)
+			err = crds.ValidateCR(tc.CR, crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
