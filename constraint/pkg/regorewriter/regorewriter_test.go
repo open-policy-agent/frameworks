@@ -7,9 +7,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/open-policy-agent/opa/ast"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/open-policy-agent/opa/ast"
 )
 
 const regoSrcTemplateText = `

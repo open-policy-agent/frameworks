@@ -358,9 +358,6 @@ func (r *RegoRewriter) rewriteDataRef(ref ast.Ref) ast.Ref {
 // rewriteImportPath updates an import path to the new value.
 func (r *RegoRewriter) rewriteImportPath(path *ast.Term) error {
 	glog.V(vLogDetail).Infof("import: %s %#v", path, path)
-	for _, t := range path.Value.(ast.Ref) {
-		glog.V(vLogDetail).Infof("  term: %s %#v %#v", t, t, reflect.TypeOf(t.Value).String())
-	}
 	pathRef, ok := path.Value.(ast.Ref)
 	if !ok {
 		return fmt.Errorf("got reference of type %T, want %T", path.Value, ast.Ref{})
