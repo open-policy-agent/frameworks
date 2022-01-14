@@ -26,15 +26,15 @@ var libTempl = template.Must(template.New("library").Parse(`
 package foo
 
 autoreject_review[rejection] {
-	constraint := {{.ConstraintsRoot}}[_][_]
+  constraint := {{.ConstraintsRoot}}[_][_]
   constraint.spec.autoreject
   input.review.autoreject
 
-	rejection := {
-		"msg": "autoreject",
-		"details": {},
-		"constraint": constraint,
-	}
+  rejection := {
+    "msg": "autoreject",
+    "details": {},
+    "constraint": constraint,
+  }
 }
 
 matching_constraints[constraint] {
@@ -56,18 +56,18 @@ matches_namespace(matchNamespace) = true {
 
 # Cluster scope
 matching_reviews_and_constraints[[review, constraint]] {
-   review := {"object": {{.DataRoot}}.cluster[_]}
- 	matching_constraints[constraint] with input as {"review": review}
+  review := {"object": {{.DataRoot}}.cluster[_]}
+  matching_constraints[constraint] with input as {"review": review}
 }
 
 # Namespace scope
 matching_reviews_and_constraints[[review, constraint]] {
-   review := {"object": {{.DataRoot}}.namespace[_][_]}
- 	matching_constraints[constraint] with input as {"review": review}
+  review := {"object": {{.DataRoot}}.namespace[_][_]}
+  matching_constraints[constraint] with input as {"review": review}
 }
 
 has_field(object, field) = true {
-	object[field]
+  object[field]
 }
 
 has_field(object, field) = true {
