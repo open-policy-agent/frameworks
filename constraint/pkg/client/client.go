@@ -128,7 +128,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 		knownTargets := c.knownTargets()
 
 		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
-			crds.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+			local.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -161,7 +161,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.GetName() == "" {
-		return nil, fmt.Errorf("%w: missing name", crds.ErrInvalidConstraintTemplate)
+		return nil, fmt.Errorf("%w: missing name", local.ErrInvalidConstraintTemplate)
 	}
 
 	return &rawCTArtifacts{template: templ}, nil
@@ -215,7 +215,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}
 
 	if err = crds.ValidateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", crds.ErrInvalidConstraintTemplate, err)
+		return nil, fmt.Errorf("%w: %v", local.ErrInvalidConstraintTemplate, err)
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -234,7 +234,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
 		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
-			crds.ErrInvalidConstraintTemplate)
+			local.ErrInvalidConstraintTemplate)
 	}
 
 	artifacts, err := c.createBasicTemplateArtifacts(templ)
