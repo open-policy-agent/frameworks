@@ -414,15 +414,6 @@ func createConstraintGKPath(target string, gk schema.GroupKind) string {
 	return constraintPathMerge(target, createConstraintGKSubPath(gk))
 }
 
-// createConstraintPath returns the storage path for a given constraint: constraints.<target>.cluster.<group>.<kind>.<name>.
-func createConstraintPath(target string, constraint *unstructured.Unstructured) (string, error) {
-	p, err := createConstraintSubPath(constraint)
-	if err != nil {
-		return "", err
-	}
-	return constraintPathMerge(target, p), nil
-}
-
 // constraintPathMerge is a shared function for creating constraint paths to
 // ensure uniformity, it is not meant to be called directly.
 func constraintPathMerge(target, subpath string) string {
@@ -470,7 +461,6 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	defer c.mtx.Unlock()
 
 	resp := types.NewResponses()
-	errMap := make(clienterrors.ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
@@ -493,27 +483,14 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	if err := c.validateConstraint(constraint, false); err != nil {
 		return resp, err
 	}
+	if err := c.backend.driver.AddConstraint(ctx, constraint); err != nil {
+		return resp, err
+	}
 	for _, target := range entry.Targets {
-		relPath, err := createConstraintPath(target, constraint)
-		// If we ever create multi-target constraints we will need to handle this more cleverly.
-		// the short-circuiting question, cleanup, etc.
-		if err != nil {
-			errMap[target] = err
-			continue
-		}
-		if err := c.backend.driver.PutData(ctx, relPath, constraint.Object); err != nil {
-			errMap[target] = err
-			continue
-		}
 		resp.Handled[target] = true
 	}
-
-	if len(errMap) == 0 {
-		c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
-		return resp, nil
-	}
-
-	return resp, &errMap
+	c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
+	return resp, nil
 }
 
 // RemoveConstraint removes a constraint from OPA. On error, the responses
@@ -527,7 +504,6 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
-	errMap := make(clienterrors.ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
@@ -536,26 +512,14 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 	if err != nil {
 		return resp, err
 	}
+	if err := c.backend.driver.RemoveConstraint(ctx, constraint); err != nil {
+		return resp, err
+	}
 	for _, target := range entry.Targets {
-		relPath, err := createConstraintPath(target, constraint)
-		// If we ever create multi-target constraints we will need to handle this more cleverly.
-		// the short-circuiting question, cleanup, etc.
-		if err != nil {
-			errMap[target] = err
-			continue
-		}
-		if _, err := c.backend.driver.DeleteData(ctx, relPath); err != nil {
-			errMap[target] = err
-		}
 		resp.Handled[target] = true
 	}
-	if len(errMap) == 0 {
-		// If we ever create multi-target constraints we will need to handle this more cleverly.
-		// the short-circuiting question, cleanup, etc.
-		delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
-		return resp, nil
-	}
-	return resp, &errMap
+	delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
+	return resp, nil
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.

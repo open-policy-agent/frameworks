@@ -3,6 +3,8 @@ package drivers
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
@@ -27,6 +29,10 @@ type Driver interface {
 	AddTemplate(ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the template source code from OPA
 	RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error
+	// AddConstraint inserts validated constraint into OPA
+	AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
+	// RemoveConstraint removes a constraint from OPA
+	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 	PutData(ctx context.Context, path string, data interface{}) error
 	DeleteData(ctx context.Context, path string) (bool, error)
 	Query(ctx context.Context, path string, input interface{}, opts ...QueryOpt) (*types.Response, error)
