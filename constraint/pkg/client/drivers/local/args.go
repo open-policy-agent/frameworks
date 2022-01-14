@@ -21,7 +21,9 @@ func Defaults() Arg {
 		if d.modules == nil {
 			d.modules = make(map[string]*ast.Module)
 		}
-
+		if d.templateHandler == nil {
+			d.templateHandler = make(map[string][]string)
+		}
 		if d.storage == nil {
 			d.storage = inmem.New()
 		}
