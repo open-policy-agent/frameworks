@@ -75,9 +75,9 @@ type action struct {
 
 func (tt *compositeTestCase) run(t *testing.T) {
 	dr := New(tt.driverArg...)
-	d, ok := dr.(*driver)
+	d, ok := dr.(*Driver)
 	if !ok {
-		t.Fatalf("got driver %T, want %T", dr, &driver{})
+		t.Fatalf("got driver %T, want %T", dr, &Driver{})
 	}
 
 	for idx, a := range tt.Actions {
@@ -97,7 +97,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case putModules:
-				err := d.PutModules(a.RuleNamePrefix, a.Rules.srcs())
+				err := d.putModules(a.RuleNamePrefix, a.Rules.srcs())
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("PutModules err = nil; want non-nil")
 				}
@@ -106,7 +106,7 @@ func (tt *compositeTestCase) run(t *testing.T) {
 				}
 
 			case deleteModules:
-				count, err := d.DeleteModules(a.RuleNamePrefix)
+				count, err := d.deleteModules(a.RuleNamePrefix)
 				if (err == nil) && a.ErrorExpected {
 					t.Fatalf("DeleteModules err = nil; want non-nil")
 				}
@@ -378,9 +378,9 @@ func TestPutModule(t *testing.T) {
 			ctx := context.Background()
 
 			dr := New()
-			d, ok := dr.(*driver)
+			d, ok := dr.(*Driver)
 			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &driver{})
+				t.Fatalf("got driver %T, want %T", dr, &Driver{})
 			}
 
 			for _, r := range tt.Rules {
@@ -436,9 +436,9 @@ func TestPutData(t *testing.T) {
 			ctx := context.Background()
 
 			dr := New()
-			d, ok := dr.(*driver)
+			d, ok := dr.(*Driver)
 			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &driver{})
+				t.Fatalf("got driver %T, want %T", dr, &Driver{})
 			}
 
 			for _, data := range tt.Data {
@@ -514,9 +514,9 @@ func TestDeleteData(t *testing.T) {
 			ctx := context.Background()
 
 			dr := New()
-			d, ok := dr.(*driver)
+			d, ok := dr.(*Driver)
 			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &driver{})
+				t.Fatalf("got driver %T, want %T", dr, &Driver{})
 			}
 
 			for _, a := range tt.Actions {

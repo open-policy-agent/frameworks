@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
@@ -76,11 +78,6 @@ func (d *driver) PutModule(name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
 }
 
-// PutModules implements drivers.Driver.
-func (d *driver) PutModules(namePrefix string, srcs []string) error {
-	panic("not implemented")
-}
-
 // DeleteModule deletes a rule from OPA and returns true if a rule was found and deleted, false
 // if a rule was not found, and any errors.
 func (d *driver) DeleteModule(name string) (bool, error) {
@@ -96,8 +93,13 @@ func (d *driver) DeleteModule(name string) (bool, error) {
 	return err == nil, err
 }
 
-// DeleteModules implements drivers.Driver.
-func (d *driver) DeleteModules(namePrefix string) (int, error) {
+// AddTemplate implements drivers.Driver.
+func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
+	panic("not implemented")
+}
+
+// RemoveTemplate implements driver.Driver.
+func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 

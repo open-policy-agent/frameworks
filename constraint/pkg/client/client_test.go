@@ -352,21 +352,21 @@ some_rule[r] {
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    badRegoTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No Rego",
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    emptyRegoTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Missing Rule",
 			handler:     &badHandler{Name: "h1", HasLib: true},
 			template:    missingRuleTempl,
 			wantHandled: nil,
-			wantError:   ErrInvalidConstraintTemplate,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 	}
 
@@ -1033,7 +1033,7 @@ violation[{"msg": "msg"}] {
 			handler:       &badHandler{Name: "h1", HasLib: true},
 			template:      inventoryTempl,
 			wantHandled:   nil,
-			wantError:     ErrInvalidConstraintTemplate,
+			wantError:     local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:          "Inventory used and allowed",
@@ -1230,49 +1230,6 @@ violation[msg] {msg := "always"}`,
 			wantErr: ErrInvalidConstraintTemplate,
 		},
 		{
-			name:    "no rego",
-			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: "handler",
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: ErrInvalidConstraintTemplate,
-		},
-		{
-			name:    "empty rego package",
-			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: "handler",
-						Rego:   `package foo`,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: ErrInvalidConstraintTemplate,
-		},
-		{
 			name: "multiple targets",
 			targets: []TargetHandler{
 				&badHandler{Name: "handler", HasLib: true},
@@ -1398,6 +1355,250 @@ violation[msg] {msg := "always"}`,
 				cmpopts.IgnoreFields(apiextensions.CustomResourceDefinitionSpec{}, "Validation"),
 				cmpopts.IgnoreFields(apiextensions.CustomResourceColumnDefinition{}, "Description")); diff != "" {
 				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestClient_ValidateConstraintTemplate(t *testing.T) {
+	testCases := []struct {
+		name     string
+		targets  []TargetHandler
+		template *templates.ConstraintTemplate
+		want     *apiextensions.CustomResourceDefinition
+		wantErr  error
+	}{
+		{
+			name:     "nil",
+			template: nil,
+			want:     nil,
+			wantErr:  ErrInvalidConstraintTemplate,
+		},
+		{
+			name:     "empty",
+			template: &templates.ConstraintTemplate{},
+			want:     nil,
+			wantErr:  ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "no CRD kind",
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+			},
+			want:    nil,
+			wantErr: ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "name-kind mismatch",
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Bar",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "no targets",
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+				},
+			},
+			want:    nil,
+			wantErr: ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "wrong target",
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler.2",
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "multiple targets",
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}, {
+						Target: "handler.2",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: ErrInvalidConstraintTemplate,
+		},
+		{
+			name:    "no rego",
+			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler",
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: local.ErrInvalidConstraintTemplate,
+		},
+		{
+			name:    "empty rego package",
+			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler",
+						Rego:   `package foo`,
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: local.ErrInvalidConstraintTemplate,
+		},
+		{
+			name:    "minimal working",
+			targets: []TargetHandler{&badHandler{Name: "handler", HasLib: true}},
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "handler",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}},
+				},
+			},
+			want: &apiextensions.CustomResourceDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name:   "foo.constraints.gatekeeper.sh",
+					Labels: map[string]string{"gatekeeper.sh/constraint": "yes"},
+				},
+				Spec: apiextensions.CustomResourceDefinitionSpec{
+					Group:   "constraints.gatekeeper.sh",
+					Version: "v1beta1",
+					Names: apiextensions.CustomResourceDefinitionNames{
+						Plural:     "foo",
+						Singular:   "foo",
+						Kind:       "Foo",
+						ListKind:   "FooList",
+						Categories: []string{"constraint", "constraints"},
+					},
+					Scope: apiextensions.ClusterScoped,
+					Subresources: &apiextensions.CustomResourceSubresources{
+						Status: &apiextensions.CustomResourceSubresourceStatus{},
+					},
+					Versions: []apiextensions.CustomResourceDefinitionVersion{{
+						Name: "v1beta1", Served: true, Storage: true,
+					}, {
+						Name: "v1alpha1", Served: true,
+					}},
+					Conversion: &apiextensions.CustomResourceConversion{
+						Strategy: apiextensions.NoneConverter,
+					},
+					PreserveUnknownFields: pointer.BoolPtr(false),
+				},
+				Status: apiextensions.CustomResourceDefinitionStatus{
+					StoredVersions: []string{"v1beta1"},
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := local.New()
+
+			b, err := NewBackend(Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+			targets := Targets(&handler{})
+			if tc.targets != nil {
+				targets = Targets(tc.targets...)
+			}
+			c, err := b.NewClient(targets)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = c.ValidateConstraintTemplate(tc.template)
+
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("got CreateTemplate() error = %v, want %v",
+					err, tc.wantErr)
 			}
 		})
 	}
