@@ -85,8 +85,8 @@ type Driver struct {
 	printHook       print.Hook
 	providerCache   *externaldata.ProviderCache
 	externs         []string
-        // handlers is a map from handler name to the respective handler
-        handlers map[string]handler.TargetHandler
+	// handlers is a map from handler name to the respective handler
+  handlers map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {
@@ -570,6 +570,9 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	}
 	if err = d.putModules(namePrefix, mods); err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrCompile, err)
+	}
+	d.templateHandler[templ.Spec.CRD.Spec.Names.Kind] = []string{
+		templ.Spec.Targets[0].Target,
 	}
 	d.templateHandler[templ.Spec.CRD.Spec.Names.Kind] = []string{
 		templ.Spec.Targets[0].Target,
