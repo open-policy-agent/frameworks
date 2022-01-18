@@ -126,17 +126,19 @@ func TestValidateTemplate(t *testing.T) {
 	tests := []crdTestCase{
 		{
 			Name:          "Valid Template",
-			Template:      cts.New(cts.OptTargets("fooTarget")),
+			Template:      cts.New(cts.OptTargets(cts.Target("fooTarget", cts.ModuleDeny))),
 			ErrorExpected: false,
 		},
 		{
 			Name:          "No Targets Fails",
-			Template:      cts.New(),
+			Template:      cts.New(cts.OptTargets()),
 			ErrorExpected: true,
 		},
 		{
-			Name:          "Two Targets Fails",
-			Template:      cts.New(cts.OptTargets("fooTarget", "barTarget")),
+			Name: "Two Targets Fails",
+			Template: cts.New(cts.OptTargets(
+				cts.Target("fooTarget", cts.ModuleDeny),
+				cts.Target("barTarget", cts.ModuleDeny))),
 			ErrorExpected: true,
 		},
 	}
@@ -270,8 +272,8 @@ func TestCRDCreationAndValidation(t *testing.T) {
 			ErrorExpected: false,
 		},
 		{
-			Name:          "No Kind Fails",
-			Template:      cts.New(),
+			Name:          "No CRD Names Fails",
+			Template:      cts.New(cts.OptCRDNames("")),
 			Handler:       createTestTargetHandler(),
 			ErrorExpected: true,
 		},

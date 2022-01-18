@@ -20,8 +20,6 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-const badRego = `asd{`
-
 func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 	tcs := []struct {
 		name      string
@@ -148,7 +146,7 @@ func TestClient_AddData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddData(context.Background(), clienttest.Review{})
+			r, err := c.AddData(context.Background(), &clienttest.Object{})
 			if err != nil && len(tc.wantError) == 0 {
 				t.Fatalf("err = %s; want nil", err)
 			}
@@ -255,7 +253,7 @@ func TestClient_RemoveData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r, err := c.RemoveData(context.Background(), nil)
+			r, err := c.RemoveData(context.Background(), &clienttest.Object{})
 			if err != nil && len(tc.wantError) == 0 {
 				t.Fatalf("err = %s; want nil", err)
 			}
@@ -283,20 +281,6 @@ func TestClient_RemoveData(t *testing.T) {
 }
 
 func TestClient_AddTemplate(t *testing.T) {
-	badRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = badRego
-
-	missingRuleTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	missingRuleTempl.Spec.Targets[0].Rego = `
-package foo
-
-some_rule[r] {
- r = 5
-}
-`
-	emptyRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	emptyRegoTempl.Spec.Targets[0].Rego = ""
-
 	tcs := []struct {
 		name        string
 		handler     client.TargetHandler
@@ -307,49 +291,55 @@ some_rule[r] {
 		{
 			name:        "Good Template",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fakes"), cts.OptCRDNames("Fakes"), cts.OptTargets("h1")),
-			wantHandled: map[string]bool{"h1": true},
+			template:    cts.New(),
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "Unknown Target",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h2")),
+			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fakes"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptCRDNames(""), cts.OptTargets(cts.Target(clienttest.HandlerName, cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
-			name:        "No name",
+			name:        "No metadata name",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptCRDNames("Fake"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName(""), cts.OptTargets(cts.Target(clienttest.HandlerName, cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad Rego",
 			handler:     &clienttest.Handler{},
-			template:    badRegoTempl,
+			template:    cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `asd{`))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No Rego",
 			handler:     &clienttest.Handler{},
-			template:    emptyRegoTempl,
+			template:    cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, ""))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Missing Rule",
 			handler:     &clienttest.Handler{},
-			template:    missingRuleTempl,
+			template:    cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+package foo
+
+some_rule[r] {
+r = 5
+}
+`))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
@@ -416,8 +406,6 @@ some_rule[r] {
 }
 
 func TestClient_RemoveTemplate(t *testing.T) {
-	badRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tcs := []struct {
 		name        string
 		handler     client.TargetHandler
@@ -428,25 +416,26 @@ func TestClient_RemoveTemplate(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1")),
-			wantHandled: map[string]bool{"h1": true},
+			template:    cts.New(),
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "Unknown Target",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h2")),
+			template:    cts.New(cts.OptTargets(cts.Target("other.target", cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("fake")),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 	}
+
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
@@ -480,8 +469,6 @@ func TestClient_RemoveTemplate(t *testing.T) {
 }
 
 func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
-	badRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = badRego
 	tcs := []struct {
 		name        string
 		handler     client.TargetHandler
@@ -492,21 +479,21 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1")),
-			wantHandled: map[string]bool{"h1": true},
+			template:    cts.New(),
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "Unknown Target",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h2")),
+			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptName("fake"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("fake")),
 			wantHandled: nil,
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
@@ -548,9 +535,6 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 }
 
 func TestClient_GetTemplate(t *testing.T) {
-	badRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = badRego
-
 	tcs := []struct {
 		name         string
 		handler      client.TargetHandler
@@ -561,21 +545,21 @@ func TestClient_GetTemplate(t *testing.T) {
 		{
 			name:         "Good Template",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1")),
+			wantTemplate: cts.New(),
 			wantAddError: nil,
 			wantGetError: nil,
 		},
 		{
 			name:         "Unknown Target",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h2")),
+			wantTemplate: cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantAddError: local.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:         "Bad CRD",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptTargets("h1")),
+			wantTemplate: cts.New(cts.OptName("fake")),
 			wantAddError: local.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
@@ -619,9 +603,6 @@ func TestClient_GetTemplate(t *testing.T) {
 }
 
 func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
-	badRegoTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	badRegoTempl.Spec.Targets[0].Rego = badRego
-
 	tcs := []struct {
 		name         string
 		handler      client.TargetHandler
@@ -632,21 +613,21 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:         "Good Template",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1")),
+			wantTemplate: cts.New(),
 			wantAddError: nil,
 			wantGetError: nil,
 		},
 		{
 			name:         "Unknown Target",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h2")),
+			wantTemplate: cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantAddError: local.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:         "Bad CRD",
 			handler:      &clienttest.Handler{},
-			wantTemplate: cts.New(cts.OptName("fake"), cts.OptTargets("h1")),
+			wantTemplate: cts.New(cts.OptName("fake")),
 			wantAddError: local.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
@@ -706,7 +687,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	templ := cts.New(cts.OptName("cascadingdelete"), cts.OptCRDNames("CascadingDelete"), cts.OptTargets("h1"))
+	templ := cts.New(cts.OptName("cascadingdelete"), cts.OptCRDNames("CascadingDelete"))
 	if _, err = c.AddTemplate(templ); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
@@ -721,7 +702,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Fatalf("could not add second constraint: %v", err)
 	}
 
-	template2 := cts.New(cts.OptName("stillpersists"), cts.OptCRDNames("StillPersists"), cts.OptTargets("h1"))
+	template2 := cts.New(cts.OptName("stillpersists"), cts.OptCRDNames("StillPersists"))
 	if _, err = c.AddTemplate(template2); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
@@ -793,8 +774,6 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 }
 
 func TestClient_AddConstraint(t *testing.T) {
-	handler := &clienttest.Handler{}
-
 	tcs := []struct {
 		name                   string
 		template               *templates.ConstraintTemplate
@@ -805,15 +784,15 @@ func TestClient_AddConstraint(t *testing.T) {
 	}{
 		{
 			name:                   "Good Constraint",
-			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             clienttest.MakeConstraint(t, "Foos", "foo"),
-			wantHandled:            map[string]bool{"h1": true},
+			wantHandled:            map[string]bool{clienttest.HandlerName: true},
 			wantAddConstraintError: nil,
 			wantGetConstraintError: nil,
 		},
 		{
 			name:                   "No Name",
-			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             clienttest.MakeConstraint(t, "Foos", ""),
 			wantHandled:            nil,
 			wantAddConstraintError: crds.ErrInvalidConstraint,
@@ -821,7 +800,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		},
 		{
 			name:                   "No Kind",
-			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             clienttest.MakeConstraint(t, "", "foo"),
 			wantHandled:            nil,
 			wantAddConstraintError: crds.ErrInvalidConstraint,
@@ -837,7 +816,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		},
 		{
 			name:     "No Group",
-			template: cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template: cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind": "Foos",
@@ -858,7 +837,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := b.NewClient(client.Targets(handler))
+			c, err := b.NewClient(client.Targets(&clienttest.Handler{}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -929,15 +908,15 @@ func TestClient_RemoveConstraint(t *testing.T) {
 	}{
 		{
 			name:        "Good Constraint",
-			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    clienttest.MakeConstraint(t, "Foos", "foo"),
-			wantHandled: map[string]bool{"h1": true},
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "No name",
-			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    clienttest.MakeConstraint(t, "Foos", ""),
 			wantHandled: nil,
@@ -945,7 +924,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 		},
 		{
 			name:        "No Kind",
-			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    clienttest.MakeConstraint(t, "", "foo"),
 			wantHandled: nil,
@@ -959,9 +938,9 @@ func TestClient_RemoveConstraint(t *testing.T) {
 		},
 		{
 			name:        "No Constraint",
-			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos"), cts.OptTargets("h1")),
+			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			toRemove:    clienttest.MakeConstraint(t, "Foos", "bar"),
-			wantHandled: map[string]bool{"h1": true},
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
 			wantError:   nil,
 		},
 	}
@@ -1015,15 +994,6 @@ func TestClient_RemoveConstraint(t *testing.T) {
 }
 
 func TestClient_AllowedDataFields(t *testing.T) {
-	inventoryTempl := cts.New(cts.OptName("fake"), cts.OptCRDNames("Fake"), cts.OptTargets("h1"))
-	inventoryTempl.Spec.Targets[0].Rego = `
-package something
-
-violation[{"msg": "msg"}] {
-	data.inventory = "something_else"
-}
-`
-
 	tcs := []struct {
 		name          string
 		allowedFields []string
@@ -1036,15 +1006,21 @@ violation[{"msg": "msg"}] {
 			name:          "Inventory Not Used",
 			allowedFields: []string{},
 			handler:       &clienttest.Handler{},
-			template:      cts.New(cts.OptName("fakes"), cts.OptCRDNames("Fakes"), cts.OptTargets("h1")),
-			wantHandled:   map[string]bool{"h1": true},
+			template:      cts.New(),
+			wantHandled:   map[string]bool{clienttest.HandlerName: true},
 			wantError:     nil,
 		},
 		{
 			name:          "Inventory used but not allowed",
 			allowedFields: []string{},
 			handler:       &clienttest.Handler{},
-			template:      inventoryTempl,
+			template:      cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+package something
+
+violation[{"msg": "msg"}] {
+	data.inventory = "something_else"
+}
+`))),
 			wantHandled:   nil,
 			wantError:     local.ErrInvalidConstraintTemplate,
 		},
@@ -1052,8 +1028,14 @@ violation[{"msg": "msg"}] {
 			name:          "Inventory used and allowed",
 			allowedFields: []string{"inventory"},
 			handler:       &clienttest.Handler{},
-			template:      inventoryTempl,
-			wantHandled:   map[string]bool{"h1": true},
+			template:      cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+package something
+
+violation[{"msg": "msg"}] {
+	data.inventory = "something_else"
+}
+`))),
+			wantHandled:   map[string]bool{clienttest.HandlerName: true},
 			wantError:     nil,
 		},
 	}
@@ -1193,7 +1175,7 @@ func TestClient_CreateCRD(t *testing.T) {
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1259,7 +1241,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1288,7 +1270,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1412,7 +1394,7 @@ func TestClient_ValidateConstraintTemplate(t *testing.T) {
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1472,7 +1454,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1501,7 +1483,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 					}},
 				},
 			},
@@ -1522,7 +1504,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego:   `package foo`,
 					}},
 				},
@@ -1544,7 +1526,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: "handler",
+						Target: clienttest.HandlerName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,

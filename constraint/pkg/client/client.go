@@ -122,7 +122,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 	if !found {
 		knownTargets := c.knownTargets()
 
-		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
+		return nil, nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
 			local.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 

@@ -1,13 +1,31 @@
 package cts
 
 import (
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 )
 
-func New(args ...Opt) *templates.ConstraintTemplate {
+const ModuleDeny = `
+package foo
+
+violation[{"msg": msg}] {
+  true
+  msg := "denied"
+}
+`
+
+var defaults = []Opt{
+	OptName("fakes"),
+	OptCRDNames("Fakes"),
+	OptTargets(Target(clienttest.HandlerName, ModuleDeny)),
+}
+
+func New(opts ...Opt) *templates.ConstraintTemplate {
 	tmpl := &templates.ConstraintTemplate{}
-	for _, arg := range args {
-		arg(tmpl)
+
+	opts = append(defaults, opts...)
+	for _, opt := range opts {
+		opt(tmpl)
 	}
 	return tmpl
 }
@@ -42,13 +60,16 @@ func OptCRDSchema(pm PropMap) Opt {
 	}
 }
 
-func OptTargets(ts ...string) Opt {
-	targets := make([]templates.Target, len(ts))
-	for i, t := range ts {
-		targets[i] = templates.Target{Target: t, Rego: `package hello violation[{"msg": msg}] {msg = "hello"}`}
-	}
+func Target(name string, rego string, libs ...string) templates.Target {
+	return templates.Target{Target: name, Rego: rego, Libs: libs}
+}
 
+func OptTargets(targets ...templates.Target) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.Spec.Targets = targets
+		cpy := make([]templates.Target, len(targets))
+		copy(cpy, targets)
+
+		// Use a copy to prevent crosstalk between tests.
+		tmpl.Spec.Targets = cpy
 	}
 }

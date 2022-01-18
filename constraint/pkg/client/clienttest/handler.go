@@ -104,7 +104,11 @@ func (h *Handler) Library() *template.Template {
 func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
-		if !h.ShouldHandle(o) {
+		if h.ProcessDataError != nil {
+			return false, "", nil, h.ProcessDataError
+		}
+
+		if h.ShouldHandle != nil && !h.ShouldHandle(o) {
 			return false, "", nil, nil
 		}
 
@@ -113,7 +117,8 @@ func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error
 		}
 		return true, fmt.Sprintf("namespace/%s/%s", o.Namespace, o.Name), obj, nil
 	default:
-		return false, "", nil, fmt.Errorf("unrecognized type %T", obj)
+		return false, "", nil, fmt.Errorf("unrecognized type %T, want %T",
+			obj, &Object{})
 	}
 }
 
