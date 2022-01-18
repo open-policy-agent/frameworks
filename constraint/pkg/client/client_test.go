@@ -82,50 +82,50 @@ func TestClient_AddData(t *testing.T) {
 			wantError:   nil,
 		},
 		{
-			name:        "Handled By One",
-			handler1:    &clienttest.Handler{
+			name: "Handled By One",
+			handler1: &clienttest.Handler{
 				Name: pointer.String("h1"),
 			},
-			handler2:    &clienttest.Handler{
+			handler2: &clienttest.Handler{
 				Name:         pointer.String("h2"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
 			wantError:   nil,
 		},
 		{
-			name:        "Errored By One",
-			handler1:    &clienttest.Handler{
+			name: "Errored By One",
+			handler1: &clienttest.Handler{
 				Name: pointer.String("h1"),
 			},
-			handler2:    &clienttest.Handler{
-				Name:         pointer.String("h2"),
+			handler2: &clienttest.Handler{
+				Name:             pointer.String("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
 			wantError:   map[string]bool{"h2": true},
 		},
 		{
-			name:      "Errored By Both",
-			handler1:    &clienttest.Handler{
-				Name: pointer.String("h1"),
+			name: "Errored By Both",
+			handler1: &clienttest.Handler{
+				Name:             pointer.String("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
-			handler2:    &clienttest.Handler{
-				Name:         pointer.String("h2"),
+			handler2: &clienttest.Handler{
+				Name:             pointer.String("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
 		},
 		{
-			name:        "Handled By None",
-			handler1:    &clienttest.Handler{
-				Name: pointer.String("h1"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+			name: "Handled By None",
+			handler1: &clienttest.Handler{
+				Name:         pointer.String("h1"),
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
-			handler2:    &clienttest.Handler{
+			handler2: &clienttest.Handler{
 				Name:         pointer.String("h2"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
 			wantHandled: nil,
 			wantError:   nil,
@@ -189,50 +189,50 @@ func TestClient_RemoveData(t *testing.T) {
 			wantError:   nil,
 		},
 		{
-			name:        "Handled By One",
-			handler1:    &clienttest.Handler{
+			name: "Handled By One",
+			handler1: &clienttest.Handler{
 				Name: pointer.String("h1"),
 			},
-			handler2:    &clienttest.Handler{
+			handler2: &clienttest.Handler{
 				Name:         pointer.String("h2"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
 			wantError:   nil,
 		},
 		{
-			name:        "Errored By One",
-			handler1:    &clienttest.Handler{
+			name: "Errored By One",
+			handler1: &clienttest.Handler{
 				Name: pointer.String("h1"),
 			},
-			handler2:    &clienttest.Handler{
-				Name:         pointer.String("h2"),
+			handler2: &clienttest.Handler{
+				Name:             pointer.String("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
 			wantError:   map[string]bool{"h2": true},
 		},
 		{
-			name:      "Errored By Both",
-			handler1:    &clienttest.Handler{
-				Name: pointer.String("h1"),
+			name: "Errored By Both",
+			handler1: &clienttest.Handler{
+				Name:             pointer.String("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
-			handler2:    &clienttest.Handler{
-				Name:         pointer.String("h2"),
+			handler2: &clienttest.Handler{
+				Name:             pointer.String("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
 		},
 		{
-			name:        "Handled By None",
-			handler1:    &clienttest.Handler{
-				Name: pointer.String("h1"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+			name: "Handled By None",
+			handler1: &clienttest.Handler{
+				Name:         pointer.String("h1"),
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
-			handler2:    &clienttest.Handler{
+			handler2: &clienttest.Handler{
 				Name:         pointer.String("h2"),
-				ShouldHandle: func(*clienttest.Object) bool {return false},
+				ShouldHandle: func(*clienttest.Object) bool { return false },
 			},
 			wantHandled: nil,
 			wantError:   nil,
@@ -331,9 +331,9 @@ func TestClient_AddTemplate(t *testing.T) {
 			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
-			name:        "Missing Rule",
-			handler:     &clienttest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+			name:    "Missing Rule",
+			handler: &clienttest.Handler{},
+			template: cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
 package foo
 
 some_rule[r] {
@@ -1014,29 +1014,29 @@ func TestClient_AllowedDataFields(t *testing.T) {
 			name:          "Inventory used but not allowed",
 			allowedFields: []string{},
 			handler:       &clienttest.Handler{},
-			template:      cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+			template: cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
 package something
 
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }
 `))),
-			wantHandled:   nil,
-			wantError:     local.ErrInvalidConstraintTemplate,
+			wantHandled: nil,
+			wantError:   local.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:          "Inventory used and allowed",
 			allowedFields: []string{"inventory"},
 			handler:       &clienttest.Handler{},
-			template:      cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
+			template: cts.New(cts.OptTargets(cts.Target(clienttest.HandlerName, `
 package something
 
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }
 `))),
-			wantHandled:   map[string]bool{clienttest.HandlerName: true},
-			wantError:     nil,
+			wantHandled: map[string]bool{clienttest.HandlerName: true},
+			wantError:   nil,
 		},
 	}
 
