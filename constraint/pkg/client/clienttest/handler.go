@@ -14,11 +14,27 @@ import (
 
 var _ client.TargetHandler = &Handler{}
 
+// HandlerName is the default handler name.
 const HandlerName = "test.target"
 
-type Handler struct{}
+type Handler struct {
+	// Name, if set, is the name of the Handler. Otherwise defaults to HandlerName.
+	Name *string
+
+	// ShouldHandle is whether Handler should handle Object.
+	// If unset, handles all Objects.
+	ShouldHandle func(*Object) bool
+
+	// ProcessDataError is the error to return when ProcessData is called.
+	// If nil returns no error.
+	ProcessDataError error
+}
 
 func (h *Handler) GetName() string {
+	if h.Name != nil {
+		return *h.Name
+	}
+
 	return HandlerName
 }
 
@@ -88,6 +104,10 @@ func (h *Handler) Library() *template.Template {
 func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
+		if !h.ShouldHandle(o) {
+			return false, "", nil, nil
+		}
+
 		if o.Namespace == "" {
 			return true, fmt.Sprintf("cluster/%s", o.Name), obj, nil
 		}

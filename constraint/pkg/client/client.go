@@ -110,11 +110,6 @@ func createTemplatePath(target, name string) string {
 	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
 }
 
-// templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
-func templateLibPrefix(target, name string) string {
-	return fmt.Sprintf("libs.%s.%s", target, name)
-}
-
 // validateTargets handles validating the targets section of the CT.
 func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
 	if err := crds.ValidateTargets(templ); err != nil {
@@ -202,7 +197,6 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, err
 	}
 	targetSpec, targetHandler, err := c.ValidateConstraintTemplateBasic(templ)
-
 	if err != nil {
 		return nil, err
 	}

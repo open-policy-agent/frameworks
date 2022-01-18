@@ -344,8 +344,8 @@ func TestClient_Audit(t *testing.T) {
 			objects:     nil,
 		},
 		{
-			name: "no template returns empty audit",
-			templates: nil,
+			name:        "no template returns empty audit",
+			templates:   nil,
 			constraints: nil,
 			objects: []*clienttest.Object{
 				{Name: "foo", Data: "qux"},
