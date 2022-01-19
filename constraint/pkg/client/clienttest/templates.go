@@ -147,7 +147,6 @@ func TemplateDenyImport() *templates.ConstraintTemplate {
 
 // moduleCheckData defines a Rego package which checks the "data" field of
 // Objects under review.
-// TODO: Also test "details" wiring.
 const moduleCheckData = `
 package foo
 

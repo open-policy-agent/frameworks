@@ -739,12 +739,20 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 
 	_, err = c.GetConstraint(cst1)
 	if !errors.Is(err, client.ErrMissingConstraint) {
-		t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
+		if err != nil {
+			t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
+		} else {
+			t.Error(err)
+		}
 	}
 
 	_, err = c.GetConstraint(cst2)
 	if !errors.Is(err, client.ErrMissingConstraint) {
-		t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
+		if err != nil {
+			t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
+		} else {
+			t.Error(err)
+		}
 	}
 
 	_, err = c.GetConstraint(cst3)
