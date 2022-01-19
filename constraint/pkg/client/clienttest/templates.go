@@ -2,6 +2,7 @@ package clienttest
 
 import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
@@ -36,7 +37,7 @@ func TemplateAllow() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: HandlerName,
+		Target: handlertest.HandlerName,
 		Rego:   moduleAllow,
 	}}
 
@@ -66,7 +67,7 @@ func TemplateDeny() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: HandlerName,
+		Target: handlertest.HandlerName,
 		Rego:   moduleDeny,
 	}}
 
@@ -96,7 +97,7 @@ func TemplateDenyPrint() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: HandlerName,
+		Target: handlertest.HandlerName,
 		Rego:   moduleDenyPrint,
 	}}
 
@@ -137,7 +138,7 @@ func TemplateDenyImport() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: HandlerName,
+		Target: handlertest.HandlerName,
 		Rego:   moduleImportDenyRego,
 		Libs:   []string{moduleImportDenyLib},
 	}}
@@ -171,7 +172,7 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: HandlerName,
+		Target: handlertest.HandlerName,
 		Rego:   moduleCheckData,
 	}}
 

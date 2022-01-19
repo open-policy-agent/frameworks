@@ -5,10 +5,11 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 var defaults = []client.Opt{
-	client.Targets(&Handler{}),
+	client.Targets(&handlertest.Handler{}),
 }
 
 // New constructs a new Client for testing with a default-constructed local driver

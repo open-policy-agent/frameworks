@@ -1,18 +1,18 @@
-package clienttest
+package handlertest
 
 import (
 	"encoding/json"
 	"fmt"
 	"text/template"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-var _ client.TargetHandler = &Handler{}
+var _ handler.TargetHandler = &Handler{}
 
 // HandlerName is the default handler name.
 const HandlerName = "test.target"

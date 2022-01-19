@@ -1,8 +1,8 @@
 package cts
 
 import (
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 const ModuleDeny = `
@@ -17,7 +17,7 @@ violation[{"msg": msg}] {
 var defaults = []Opt{
 	OptName("fakes"),
 	OptCRDNames("Fakes"),
-	OptTargets(Target(clienttest.HandlerName, ModuleDeny)),
+	OptTargets(Target(handlertest.HandlerName, ModuleDeny)),
 }
 
 func New(opts ...Opt) *templates.ConstraintTemplate {

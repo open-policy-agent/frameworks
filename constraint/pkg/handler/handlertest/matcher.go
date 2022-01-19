@@ -1,4 +1,4 @@
-package clienttest
+package handlertest
 
 import (
 	"fmt"

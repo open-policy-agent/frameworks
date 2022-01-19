@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 var (
@@ -84,7 +84,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
-						targets := client.Targets(&clienttest.Handler{})
+						targets := client.Targets(&handlertest.Handler{})
 
 						d := local.New()
 

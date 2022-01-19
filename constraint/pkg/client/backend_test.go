@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 func TestNewBackend(t *testing.T) {
@@ -55,7 +55,7 @@ func TestBackend_NewClient(t *testing.T) {
 		{
 			name:        "with handler",
 			backendOpts: nil,
-			clientOpts:  []client.Opt{client.Targets(&clienttest.Handler{})},
+			clientOpts:  []client.Opt{client.Targets(&handlertest.Handler{})},
 			wantError:   nil,
 		},
 	}
@@ -85,12 +85,12 @@ func TestBackend_NewClient_MultipleClients(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = backend.NewClient(client.Targets(&clienttest.Handler{}))
+	_, err = backend.NewClient(client.Targets(&handlertest.Handler{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = backend.NewClient(client.Targets(&clienttest.Handler{}))
+	_, err = backend.NewClient(client.Targets(&handlertest.Handler{}))
 	if !errors.Is(err, client.ErrCreatingClient) {
 		t.Fatalf("got NewClient() err = %v, want %v",
 			err, client.ErrCreatingClient)

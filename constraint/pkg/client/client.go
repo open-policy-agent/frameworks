@@ -17,6 +17,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/format"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -32,7 +33,7 @@ type templateEntry struct {
 
 type Client struct {
 	backend *Backend
-	targets map[string]TargetHandler
+	targets map[string]handler.TargetHandler
 
 	// mtx guards access to both templates and constraints.
 	mtx         sync.RWMutex
@@ -111,7 +112,7 @@ func createTemplatePath(target, name string) string {
 }
 
 // validateTargets handles validating the targets section of the CT.
-func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
+func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, handler.TargetHandler, error) {
 	if err := crds.ValidateTargets(templ); err != nil {
 		return nil, nil, err
 	}
@@ -179,7 +180,7 @@ type basicCTArtifacts struct {
 
 	// targetHandler is the target handler indicated by the CT.  This isn't generated, but is used by
 	// consumers of createTemplateArtifacts
-	targetHandler TargetHandler
+	targetHandler handler.TargetHandler
 
 	// targetSpec is the target-oriented portion of a CT's Spec field.
 	targetSpec *templates.Target
@@ -238,7 +239,7 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 	return artifacts.crd, nil
 }
 
-func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
+func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemplate) (*templates.Target, handler.TargetHandler, error) {
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	if kind == "" {
 		return nil, nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
