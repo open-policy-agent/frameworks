@@ -159,8 +159,8 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 		{
 			name: "invalid binding of data to var",
 			snippet: `
- x := data
- x.stuff.more.stuff
+	x := data
+	x.stuff.more.stuff
 `,
 			wantError: ErrDataReferences,
 		},
@@ -191,7 +191,7 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 			name:    "invalid assignment to data using with from var",
 			imports: "data.lib.util",
 			snippet: `
-  util with data.checks as data.lib.mychecks
+	util with data.checks as data.lib.mychecks
 `,
 			wantError: ErrDataReferences,
 		},
@@ -199,7 +199,7 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 			name:    "invalid assignment to data using with from literal",
 			imports: "data.lib.util",
 			snippet: `
-  util with data.bobs as {"dev": ["bob"]}
+	util with data.bobs as {"dev": ["bob"]}
 `,
 			wantError: ErrDataReferences,
 		},
@@ -458,7 +458,7 @@ violation[{"msg": msg}] {
 			prefix: "prefix",
 			content: `package templates.stuff.MyTemplateV1
 violation[{"msg":msg}] {
-  bucket := input.asset.bucket
+	bucket := input.asset.bucket
 }`,
 			wantResult: map[string]string{"path": `package templates.stuff.MyTemplateV1
 
@@ -529,7 +529,7 @@ check(objects) = object {
 			content: `package lib.mylib
 myfunc() {
 	x := data.lib
- y := x[_]
+	y := x[_]
 }`,
 			wantResult: map[string]string{"path": `package prefix.lib.mylib
 
@@ -543,8 +543,8 @@ myfunc {
 			prefix: "prefix",
 			content: `package lib.alpha
 check(object) {
-  x := data.lib[_]
-  object == "foo"
+	x := data.lib[_]
+	object == "foo"
 }`,
 			wantResult: map[string]string{"path": `package prefix.lib.alpha
 
@@ -571,7 +571,7 @@ is_foo(name) {
 			prefix: "prefix",
 			content: `package lib.myLib
 is_foo(name) {
-  walk(data.lib, [p, v])
+	walk(data.lib, [p, v])
 }`,
 			wantResult: map[string]string{"path": `package prefix.lib.myLib
 
