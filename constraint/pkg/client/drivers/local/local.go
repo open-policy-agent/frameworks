@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 
@@ -78,6 +79,8 @@ type Driver struct {
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
 	externs       []string
+	// handlers is a map from handler name to the respective handler
+	handlers      map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {

@@ -2,6 +2,7 @@ package local
 
 import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
@@ -96,5 +97,16 @@ func DisableBuiltins(builtins ...string) Arg {
 		}
 
 		d.capabilities.Builtins = nb
+	}
+}
+
+func Handlers(handlers ...handler.TargetHandler) Arg {
+	return func(d *Driver) {
+		if d.handlers == nil {
+			d.handlers = make(map[string]handler.TargetHandler)
+		}
+		for _, h := range handlers {
+			d.handlers[h.GetName()] = h
+		}
 	}
 }
