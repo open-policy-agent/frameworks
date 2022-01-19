@@ -20,9 +20,9 @@ import (
 
 func TestClient_Review(t *testing.T) {
 	tests := []struct {
-		name      string
-		handler   handler.TargetHandler
-		templates []*templates.ConstraintTemplate
+		name        string
+		handler     handler.TargetHandler
+		templates   []*templates.ConstraintTemplate
 		constraints []*unstructured.Unstructured
 		toReview    interface{}
 

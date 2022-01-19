@@ -284,9 +284,9 @@ func TestClient_RemoveData(t *testing.T) {
 
 func TestClient_AddTemplate(t *testing.T) {
 	tcs := []struct {
-		name     string
-		handler  handler.TargetHandler
-		template *templates.ConstraintTemplate
+		name        string
+		handler     handler.TargetHandler
+		template    *templates.ConstraintTemplate
 		wantHandled map[string]bool
 		wantError   error
 	}{
@@ -409,9 +409,9 @@ r = 5
 
 func TestClient_RemoveTemplate(t *testing.T) {
 	tcs := []struct {
-		name     string
-		handler  handler.TargetHandler
-		template *templates.ConstraintTemplate
+		name        string
+		handler     handler.TargetHandler
+		template    *templates.ConstraintTemplate
 		wantHandled map[string]bool
 		wantError   error
 	}{
@@ -472,9 +472,9 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 	tcs := []struct {
-		name     string
-		handler  handler.TargetHandler
-		template *templates.ConstraintTemplate
+		name        string
+		handler     handler.TargetHandler
+		template    *templates.ConstraintTemplate
 		wantHandled map[string]bool
 		wantError   error
 	}{
