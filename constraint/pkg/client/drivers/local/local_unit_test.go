@@ -873,14 +873,6 @@ func (s *transactionErrorStorage) NewTransaction(_ context.Context, _ ...storage
 	return nil, errors.New("error making new transaction")
 }
 
-type upsertErrorStorage struct {
-	fakeStorage
-}
-
-func (s *upsertErrorStorage) UpsertPolicy(_ context.Context, _ storage.Transaction, _ string, _ []byte) error {
-	return errors.New("error upserting policy")
-}
-
 type commitErrorStorage struct {
 	fakeStorage
 }
