@@ -807,19 +807,6 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 	}
 }
 
-func getModules(dr *Driver) []string {
-	result := make([]string, len(dr.modules))
-
-	idx := 0
-	for module := range dr.modules {
-		result[idx] = module
-		idx++
-	}
-
-	sort.Strings(result)
-	return result
-}
-
 type fakeStorage struct {
 	storage.Store
 
