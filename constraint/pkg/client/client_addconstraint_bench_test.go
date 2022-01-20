@@ -1,47 +1,19 @@
-package client
+package client_test
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 )
-
-func makeConstraint(i int, ct *templates.ConstraintTemplate) *unstructured.Unstructured {
-	u := &unstructured.Unstructured{}
-	u.SetName(strconv.Itoa(i))
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "constraints.gatekeeper.sh",
-		Version: "v1beta1",
-		Kind:    ct.Spec.CRD.Spec.Names.Kind,
-	})
-
-	return u
-}
 
 func BenchmarkClient_AddConstraint(b *testing.B) {
 	ctx := context.Background()
 
-	ct := makeConstraintTemplate(0, makeModuleSimple)
+	c := clienttest.New(b)
 
-	d := local.New()
-	backend, err := NewBackend(Driver(d))
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	targets := Targets(&handler{})
-
-	c, err := backend.NewClient(targets)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	_, err = c.AddTemplate(ct)
+	_, err := c.AddTemplate(clienttest.TemplateCheckData())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -49,7 +21,8 @@ func BenchmarkClient_AddConstraint(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		constraint := makeConstraint(i, ct)
+		name := fmt.Sprintf("foo-%d", i)
+		constraint := clienttest.MakeConstraint(b, clienttest.KindCheckData, name, clienttest.WantData("bar"))
 
 		_, err = c.AddConstraint(ctx, constraint)
 		if err != nil {

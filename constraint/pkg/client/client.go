@@ -10,20 +10,20 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
-
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/format"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-const constraintGroup = "constraints.gatekeeper.sh"
 
 type templateEntry struct {
 	template *templates.ConstraintTemplate
@@ -33,14 +33,14 @@ type templateEntry struct {
 
 type Client struct {
 	backend *Backend
-	targets map[string]TargetHandler
+	targets map[string]handler.TargetHandler
 
 	// mtx guards access to both templates and constraints.
 	mtx         sync.RWMutex
 	templates   map[templateKey]*templateEntry
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 
-	allowedDataFields []string
+	AllowedDataFields []string
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
@@ -112,8 +112,8 @@ func createTemplatePath(target, name string) string {
 }
 
 // validateTargets handles validating the targets section of the CT.
-func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
-	if err := validateTargets(templ); err != nil {
+func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*templates.Target, handler.TargetHandler, error) {
+	if err := crds.ValidateTargets(templ); err != nil {
 		return nil, nil, err
 	}
 
@@ -123,8 +123,8 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 	if !found {
 		knownTargets := c.knownTargets()
 
-		return nil, nil, fmt.Errorf("%w: target %s not recognized, known targets %v",
-			ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+		return nil, nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
+			local.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -157,7 +157,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.GetName() == "" {
-		return nil, fmt.Errorf("%w: missing name", ErrInvalidConstraintTemplate)
+		return nil, fmt.Errorf("%w: missing name", local.ErrInvalidConstraintTemplate)
 	}
 
 	return &rawCTArtifacts{template: templ}, nil
@@ -180,7 +180,7 @@ type basicCTArtifacts struct {
 
 	// targetHandler is the target handler indicated by the CT.  This isn't generated, but is used by
 	// consumers of createTemplateArtifacts
-	targetHandler TargetHandler
+	targetHandler handler.TargetHandler
 
 	// targetSpec is the target-oriented portion of a CT's Spec field.
 	targetSpec *templates.Target
@@ -201,15 +201,16 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	if err != nil {
 		return nil, err
 	}
-	sch := c.backend.crd.createSchema(templ, targetHandler)
 
-	crd, err := c.backend.crd.createCRD(templ, sch)
+	sch := crds.CreateSchema(templ, targetHandler)
+
+	crd, err := crds.CreateCRD(templ, sch)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = c.backend.crd.validateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+	if err = crds.ValidateCRD(crd); err != nil {
+		return nil, fmt.Errorf("%w: %v", local.ErrInvalidConstraintTemplate, err)
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -228,7 +229,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
 		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
-			ErrInvalidConstraintTemplate)
+			local.ErrInvalidConstraintTemplate)
 	}
 
 	artifacts, err := c.createBasicTemplateArtifacts(templ)
@@ -238,16 +239,16 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 	return artifacts.crd, nil
 }
 
-func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemplate) (*templates.Target, TargetHandler, error) {
+func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemplate) (*templates.Target, handler.TargetHandler, error) {
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	if kind == "" {
 		return nil, nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			ErrInvalidConstraintTemplate, templ.GetName())
+			local.ErrInvalidConstraintTemplate, templ.GetName())
 	}
 
 	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
 		return nil, nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+			local.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -260,7 +261,7 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) error {
 	if templ == nil {
 		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			ErrInvalidConstraintTemplate)
+			local.ErrInvalidConstraintTemplate)
 	}
 	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
 		return err
@@ -302,6 +303,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		CRD:      basicArtifacts.crd,
 		Targets:  []string{basicArtifacts.targetHandler.GetName()},
 	}
+
 	if _, ok := c.constraints[basicArtifacts.gk]; !ok {
 		c.constraints[basicArtifacts.gk] = make(map[string]*unstructured.Unstructured)
 	}
@@ -384,18 +386,18 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 // for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", ErrInvalidConstraint)
+		return "", fmt.Errorf("%w: missing name", crds.ErrInvalidConstraint)
 	}
 
 	gvk := constraint.GroupVersionKind()
 	if gvk.Group == "" {
 		return "", fmt.Errorf("%w: empty group for constrant %q",
-			ErrInvalidConstraint, constraint.GetName())
+			crds.ErrInvalidConstraint, constraint.GetName())
 	}
 
 	if gvk.Kind == "" {
 		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			ErrInvalidConstraint, constraint.GetName())
+			crds.ErrInvalidConstraint, constraint.GetName())
 	}
 
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
@@ -431,12 +433,13 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	kind := constraint.GetKind()
 	if kind == "" {
 		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
-			ErrInvalidConstraint, constraint.GetName())
+			crds.ErrInvalidConstraint, constraint.GetName())
 	}
 
-	if constraint.GroupVersionKind().Group != constraintGroup {
-		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, need %q",
-			ErrInvalidConstraint, constraint.GetName(), constraintGroup)
+	group := constraint.GroupVersionKind().Group
+	if group != constraints.Group {
+		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, got %q but need %q",
+			crds.ErrInvalidConstraint, constraint.GetName(), group, constraints.Group)
 	}
 
 	if lock {
@@ -585,7 +588,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 	if err != nil {
 		return err
 	}
-	if err = c.backend.crd.validateCR(constraint, entry.CRD); err != nil {
+	if err = crds.ValidateCR(constraint, entry.CRD); err != nil {
 		return err
 	}
 
@@ -628,7 +631,7 @@ func (c *Client) init() error {
 
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraintGroup),
+			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraints.Group),
 			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, t.GetName()),
 		}); err != nil {
 			return err
@@ -642,12 +645,12 @@ func (c *Client) init() error {
 		}
 
 		modulePath := fmt.Sprintf("%s.library", hooks)
-		libModule, err := parseModule(modulePath, lib)
+		libModule, err := ParseModule(modulePath, lib)
 		if err != nil {
 			return fmt.Errorf("failed to parse module: %w", err)
 		}
 
-		err = requireModuleRules(libModule, req)
+		err = RequireModuleRules(libModule, req)
 		if err != nil {
 			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%w",
 				t.GetName(), lib, err)
@@ -672,7 +675,7 @@ func (c *Client) init() error {
 	}
 	if d, ok := c.backend.driver.(*local.Driver); ok {
 		var externs []string
-		for _, field := range c.allowedDataFields {
+		for _, field := range c.AllowedDataFields {
 			externs = append(externs, fmt.Sprintf("data.%s", field))
 		}
 		d.SetExterns(externs)
