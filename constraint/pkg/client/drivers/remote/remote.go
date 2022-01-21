@@ -9,12 +9,10 @@ import (
 	"net/url"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type Arg func(*inits)
