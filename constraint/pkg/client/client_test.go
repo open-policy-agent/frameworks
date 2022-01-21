@@ -3,7 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
-	errors2 "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"strings"
 	"testing"
 
@@ -155,7 +155,7 @@ func TestClient_AddData(t *testing.T) {
 			}
 
 			gotErrs := make(map[string]bool)
-			if e, ok := err.(*client.ErrorMap); ok {
+			if e, ok := err.(*clienterrors.ErrorMap); ok {
 				for k := range *e {
 					gotErrs[k] = true
 				}
@@ -262,7 +262,7 @@ func TestClient_RemoveData(t *testing.T) {
 			}
 
 			gotErrs := make(map[string]bool)
-			if e, ok := err.(*client.ErrorMap); ok {
+			if e, ok := err.(*clienterrors.ErrorMap); ok {
 				for k := range *e {
 					gotErrs[k] = true
 				}
@@ -303,35 +303,35 @@ func TestClient_AddTemplate(t *testing.T) {
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptCRDNames(""), cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No metadata name",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptName(""), cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad Rego",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, `asd{`))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No Rego",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, ""))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "Missing Rule",
@@ -344,7 +344,7 @@ r = 5
 }
 `))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 	}
 
@@ -428,14 +428,14 @@ func TestClient_RemoveTemplate(t *testing.T) {
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptTargets(cts.Target("other.target", cts.ModuleDeny))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptName("fake")),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 	}
 
@@ -491,14 +491,14 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(cts.OptName("fake")),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 	}
 
@@ -556,14 +556,14 @@ func TestClient_GetTemplate(t *testing.T) {
 			name:         "Unknown Target",
 			handler:      &handlertest.Handler{},
 			wantTemplate: cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
-			wantAddError: errors2.ErrInvalidConstraintTemplate,
+			wantAddError: clienterrors.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:         "Bad CRD",
 			handler:      &handlertest.Handler{},
 			wantTemplate: cts.New(cts.OptName("fake")),
-			wantAddError: errors2.ErrInvalidConstraintTemplate,
+			wantAddError: clienterrors.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 	}
@@ -624,14 +624,14 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 			name:         "Unknown Target",
 			handler:      &handlertest.Handler{},
 			wantTemplate: cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
-			wantAddError: errors2.ErrInvalidConstraintTemplate,
+			wantAddError: clienterrors.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:         "Bad CRD",
 			handler:      &handlertest.Handler{},
 			wantTemplate: cts.New(cts.OptName("fake")),
-			wantAddError: errors2.ErrInvalidConstraintTemplate,
+			wantAddError: clienterrors.ErrInvalidConstraintTemplate,
 			wantGetError: client.ErrMissingConstraintTemplate,
 		},
 	}
@@ -1033,7 +1033,7 @@ violation[{"msg": "msg"}] {
 }
 `))),
 			wantHandled: nil,
-			wantError:   errors2.ErrInvalidConstraintTemplate,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:          "Inventory used and allowed",
@@ -1154,14 +1154,14 @@ func TestClient_CreateCRD(t *testing.T) {
 			targets:  []handler.TargetHandler{&handlertest.Handler{}},
 			template: nil,
 			want:     nil,
-			wantErr:  errors2.ErrInvalidConstraintTemplate,
+			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:     "empty",
 			targets:  []handler.TargetHandler{&handlertest.Handler{}},
 			template: &templates.ConstraintTemplate{},
 			want:     nil,
-			wantErr:  errors2.ErrInvalidConstraintTemplate,
+			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "no CRD kind",
@@ -1170,7 +1170,7 @@ func TestClient_CreateCRD(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{Name: "foo"},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "name-kind mismatch",
@@ -1194,7 +1194,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "no targets",
@@ -1212,7 +1212,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "wrong target",
@@ -1233,7 +1233,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "multiple targets",
@@ -1265,7 +1265,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "minimal working",
@@ -1376,13 +1376,13 @@ func TestClient_ValidateConstraintTemplate(t *testing.T) {
 			name:     "nil",
 			template: nil,
 			want:     nil,
-			wantErr:  errors2.ErrInvalidConstraintTemplate,
+			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:     "empty",
 			template: &templates.ConstraintTemplate{},
 			want:     nil,
-			wantErr:  errors2.ErrInvalidConstraintTemplate,
+			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "no CRD kind",
@@ -1390,7 +1390,7 @@ func TestClient_ValidateConstraintTemplate(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{Name: "foo"},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "name-kind mismatch",
@@ -1413,7 +1413,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "no targets",
@@ -1430,7 +1430,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "wrong target",
@@ -1450,7 +1450,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name: "multiple targets",
@@ -1478,7 +1478,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "no rego",
@@ -1499,7 +1499,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "empty rego package",
@@ -1521,7 +1521,7 @@ violation[msg] {msg := "always"}`,
 				},
 			},
 			want:    nil,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "minimal working",
