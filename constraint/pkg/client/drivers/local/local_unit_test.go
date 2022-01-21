@@ -277,67 +277,6 @@ func TestDriver_PutModules(t *testing.T) {
 	}
 }
 
-func TestDriver_PutModules_StorageErrors(t *testing.T) {
-	testCases := []struct {
-		name    string
-		storage storage.Store
-
-		wantErr bool
-	}{
-		{
-			name:    "success",
-			storage: &fakeStorage{},
-			wantErr: false,
-		},
-		{
-			name:    "failure to create transaction",
-			storage: &transactionErrorStorage{},
-			wantErr: true,
-		},
-		{
-			name:    "failure to upsert policy",
-			storage: &upsertErrorStorage{},
-			wantErr: true,
-		},
-		{
-			name:    "failure to commit policy",
-			storage: &commitErrorStorage{},
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			d := New(Storage(tc.storage))
-
-			err := d.PutModule("foo", Module)
-
-			if tc.wantErr && err == nil {
-				t.Fatalf("got PutModule() err %v, want error", nil)
-			} else if !tc.wantErr && err != nil {
-				t.Fatalf("got PutModule() err %v, want %v", err, nil)
-			}
-
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T",
-					d, &Driver{})
-			}
-
-			gotModules := getModules(dr)
-
-			var wantModules []string
-			if !tc.wantErr {
-				wantModules = []string{"foo"}
-			}
-
-			if diff := cmp.Diff(wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
-				t.Errorf(diff)
-			}
-		})
-	}
-}
-
 func TestDriver_DeleteModules(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -869,19 +808,6 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 	}
 }
 
-func getModules(dr *Driver) []string {
-	result := make([]string, len(dr.modules))
-
-	idx := 0
-	for module := range dr.modules {
-		result[idx] = module
-		idx++
-	}
-
-	sort.Strings(result)
-	return result
-}
-
 type fakeStorage struct {
 	storage.Store
 
@@ -946,14 +872,6 @@ type transactionErrorStorage struct {
 
 func (s *transactionErrorStorage) NewTransaction(_ context.Context, _ ...storage.TransactionParams) (storage.Transaction, error) {
 	return nil, errors.New("error making new transaction")
-}
-
-type upsertErrorStorage struct {
-	fakeStorage
-}
-
-func (s *upsertErrorStorage) UpsertPolicy(_ context.Context, _ storage.Transaction, _ string, _ []byte) error {
-	return errors.New("error upserting policy")
 }
 
 type commitErrorStorage struct {
