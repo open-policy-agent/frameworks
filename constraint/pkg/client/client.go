@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"path"
 	"sort"
 	"strings"
@@ -124,7 +125,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 		knownTargets := c.knownTargets()
 
 		return nil, nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
-			local.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+			errors2.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -157,7 +158,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.GetName() == "" {
-		return nil, fmt.Errorf("%w: missing name", local.ErrInvalidConstraintTemplate)
+		return nil, fmt.Errorf("%w: missing name", errors2.ErrInvalidConstraintTemplate)
 	}
 
 	return &rawCTArtifacts{template: templ}, nil
@@ -210,7 +211,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}
 
 	if err = crds.ValidateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", local.ErrInvalidConstraintTemplate, err)
+		return nil, fmt.Errorf("%w: %v", errors2.ErrInvalidConstraintTemplate, err)
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -229,7 +230,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
 		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
-			local.ErrInvalidConstraintTemplate)
+			errors2.ErrInvalidConstraintTemplate)
 	}
 
 	artifacts, err := c.createBasicTemplateArtifacts(templ)
@@ -243,12 +244,12 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	if kind == "" {
 		return nil, nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			local.ErrInvalidConstraintTemplate, templ.GetName())
+			errors2.ErrInvalidConstraintTemplate, templ.GetName())
 	}
 
 	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
 		return nil, nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			local.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+			errors2.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -261,7 +262,7 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) error {
 	if templ == nil {
 		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			local.ErrInvalidConstraintTemplate)
+			errors2.ErrInvalidConstraintTemplate)
 	}
 	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
 		return err
