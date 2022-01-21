@@ -14,7 +14,6 @@ import (
 	"time"
 
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
