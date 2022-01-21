@@ -3,9 +3,10 @@ package local
 import (
 	"context"
 	"errors"
-	errors2 "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"sort"
 	"testing"
+
+	errors2 "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

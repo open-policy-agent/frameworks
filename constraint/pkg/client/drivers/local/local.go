@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -81,7 +82,7 @@ type Driver struct {
 	providerCache *externaldata.ProviderCache
 	externs       []string
 	// handlers is a map from handler name to the respective handler
-	handlers      map[string]handler.TargetHandler
+	handlers map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {

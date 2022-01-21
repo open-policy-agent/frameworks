@@ -3,9 +3,10 @@ package client_test
 import (
 	"context"
 	"errors"
-	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"strings"
 	"testing"
+
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"

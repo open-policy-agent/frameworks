@@ -2,8 +2,9 @@ package crds
 
 import (
 	"fmt"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"strings"
+
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"

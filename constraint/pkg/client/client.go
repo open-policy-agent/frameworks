@@ -5,11 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"path"
 	"sort"
 	"strings"
 	"sync"
+
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
