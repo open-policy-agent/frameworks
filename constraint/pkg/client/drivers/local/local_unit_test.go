@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	errors2 "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,7 +63,7 @@ func TestDriver_PutModule(t *testing.T) {
 			moduleName: "",
 			moduleSrc:  Module,
 
-			wantErr:     errors2.ErrModuleName,
+			wantErr:     clienterrors.ErrModuleName,
 			wantModules: nil,
 		},
 		{
@@ -71,7 +71,7 @@ func TestDriver_PutModule(t *testing.T) {
 			moduleName: moduleSetPrefix + "foo",
 			moduleSrc:  "",
 
-			wantErr:     errors2.ErrModuleName,
+			wantErr:     clienterrors.ErrModuleName,
 			wantModules: nil,
 		},
 		{
@@ -95,7 +95,7 @@ func TestDriver_PutModule(t *testing.T) {
 			moduleName: "foo",
 			moduleSrc:  UnparseableModule,
 
-			wantErr:     errors2.ErrParse,
+			wantErr:     clienterrors.ErrParse,
 			wantModules: nil,
 		},
 		{
@@ -103,7 +103,7 @@ func TestDriver_PutModule(t *testing.T) {
 			moduleName: "foo",
 			moduleSrc:  UncompilableModule,
 
-			wantErr:     errors2.ErrCompile,
+			wantErr:     clienterrors.ErrCompile,
 			wantModules: nil,
 		},
 		{
@@ -163,7 +163,7 @@ func TestDriver_PutModules(t *testing.T) {
 			prefix: "",
 			srcs:   []string{},
 
-			wantErr:     errors2.ErrModulePrefix,
+			wantErr:     clienterrors.ErrModulePrefix,
 			wantModules: nil,
 		},
 		{
@@ -171,7 +171,7 @@ func TestDriver_PutModules(t *testing.T) {
 			prefix: "a_idx_b",
 			srcs:   []string{},
 
-			wantErr:     errors2.ErrModulePrefix,
+			wantErr:     clienterrors.ErrModulePrefix,
 			wantModules: nil,
 		},
 		{
@@ -195,7 +195,7 @@ func TestDriver_PutModules(t *testing.T) {
 			prefix: "foo",
 			srcs:   []string{UnparseableModule},
 
-			wantErr:     errors2.ErrParse,
+			wantErr:     clienterrors.ErrParse,
 			wantModules: nil,
 		},
 		{
@@ -203,7 +203,7 @@ func TestDriver_PutModules(t *testing.T) {
 			prefix: "foo",
 			srcs:   []string{UncompilableModule},
 
-			wantErr:     errors2.ErrCompile,
+			wantErr:     clienterrors.ErrCompile,
 			wantModules: nil,
 		},
 		{
@@ -298,7 +298,7 @@ func TestDriver_DeleteModules(t *testing.T) {
 
 			prefix: "",
 
-			wantErr:     errors2.ErrModulePrefix,
+			wantErr:     clienterrors.ErrModulePrefix,
 			wantDeleted: 0,
 			wantModules: []string{
 				toModuleSetName("bar", 0),
@@ -392,14 +392,14 @@ func TestDriver_AddTemplates(t *testing.T) {
 	}{
 		{
 			name:        "no target",
-			wantErr:     errors2.ErrInvalidConstraintTemplate,
+			wantErr:     clienterrors.ErrInvalidConstraintTemplate,
 			wantModules: nil,
 		},
 		{
 			name:          "rego missing violation",
 			targetHandler: MockTargetHandler,
 			rego:          Module,
-			wantErr:       errors2.ErrInvalidConstraintTemplate,
+			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
 			wantModules:   nil,
 		},
 		{
@@ -419,7 +419,7 @@ violation[msg] {msg := "always"}`,
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }`,
-			wantErr: errors2.ErrInvalidConstraintTemplate,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:          "inventory allowed template",
@@ -533,14 +533,14 @@ func TestDriver_PutData(t *testing.T) {
 			path:  "",
 			value: map[string]string{},
 
-			wantErr: errors2.ErrPathInvalid,
+			wantErr: clienterrors.ErrPathInvalid,
 		},
 		{
 			name:  "root path",
 			path:  "/",
 			value: map[string]string{},
 
-			wantErr: errors2.ErrPathInvalid,
+			wantErr: clienterrors.ErrPathInvalid,
 		},
 		{
 			name:  "valid write",
@@ -565,7 +565,7 @@ func TestDriver_PutData(t *testing.T) {
 			path:        "/foo/bar",
 			value:       map[string]string{"foo": "qux"},
 
-			wantErr: errors2.ErrWrite,
+			wantErr: clienterrors.ErrWrite,
 		},
 		{
 			name:        "write to subdirectory of non-object",
@@ -574,7 +574,7 @@ func TestDriver_PutData(t *testing.T) {
 			path:        "/foo/bar",
 			value:       map[string]string{"foo": "qux"},
 
-			wantErr: errors2.ErrWrite,
+			wantErr: clienterrors.ErrWrite,
 		},
 		{
 			name:        "write to parent directory of existing data",
@@ -607,7 +607,7 @@ func TestDriver_PutData(t *testing.T) {
 					err, tc.wantErr)
 			}
 
-			if errors.Is(tc.wantErr, errors2.ErrPathInvalid) {
+			if errors.Is(tc.wantErr, clienterrors.ErrPathInvalid) {
 				return
 			}
 
@@ -653,22 +653,22 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 		{
 			name:    "transaction error",
 			storage: &transactionErrorStorage{},
-			wantErr: errors2.ErrTransaction,
+			wantErr: clienterrors.ErrTransaction,
 		},
 		{
 			name:    "read error",
 			storage: &readErrorStorage{},
-			wantErr: errors2.ErrRead,
+			wantErr: clienterrors.ErrRead,
 		},
 		{
 			name:    "write error",
 			storage: &writeErrorStorage{},
-			wantErr: errors2.ErrWrite,
+			wantErr: clienterrors.ErrWrite,
 		},
 		{
 			name:    "commit error",
 			storage: &commitErrorStorage{},
-			wantErr: errors2.ErrTransaction,
+			wantErr: clienterrors.ErrTransaction,
 		},
 	}
 
@@ -706,7 +706,7 @@ func TestDriver_DeleteData(t *testing.T) {
 			path:        "",
 
 			wantDeleted: false,
-			wantErr:     errors2.ErrPathInvalid,
+			wantErr:     clienterrors.ErrPathInvalid,
 		},
 		{
 			name:        "success",
@@ -775,12 +775,12 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 		{
 			name:    "transaction error",
 			storage: &transactionErrorStorage{},
-			wantErr: errors2.ErrTransaction,
+			wantErr: clienterrors.ErrTransaction,
 		},
 		{
 			name:    "write error",
 			storage: &writeErrorStorage{},
-			wantErr: errors2.ErrWrite,
+			wantErr: clienterrors.ErrWrite,
 		},
 		{
 			name: "commit error",
@@ -789,7 +789,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 					"/foo": "bar",
 				}},
 			},
-			wantErr: errors2.ErrTransaction,
+			wantErr: clienterrors.ErrTransaction,
 		},
 	}
 
