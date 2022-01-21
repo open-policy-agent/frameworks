@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
