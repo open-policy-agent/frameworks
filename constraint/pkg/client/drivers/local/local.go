@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
