@@ -616,7 +616,9 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	handlers, err := d.getTargetHandlers(constraint)
 	if err != nil {
-		return err
+		if !errors.Is(err, ErrMissingConstraintTemplate) {
+			return err
+		}
 	}
 	for _, target := range handlers {
 		relPath, err := createConstraintPath(target, constraint)
