@@ -624,12 +624,12 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 			template:   CreateTemplate(MockTargetHandler, TemplateModule),
 			constraint: MakeConstraint(t, MockTemplate, "foo"),
 			toRemove:   MakeConstraint(t, "", "foo"),
-			wantError:  ErrMissingConstraintTemplate,
+			wantError:  nil,
 		},
 		{
 			name:      "No Template",
 			toRemove:  MakeConstraint(t, "Foos", "foo"),
-			wantError: ErrMissingConstraintTemplate,
+			wantError: nil,
 		},
 		{
 			name:      "No Constraint",
