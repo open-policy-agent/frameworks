@@ -10,18 +10,16 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
-var (
-	modules = []struct {
-		name       string
-		makeModule func(i int) string
-	}{{
-		name:       "Simple",
-		makeModule: makeModuleSimple,
-	}, {
-		name:       "Complex",
-		makeModule: makeModuleComplex,
-	}}
-)
+var modules = []struct {
+	name       string
+	makeModule func(i int) string
+}{{
+	name:       "Simple",
+	makeModule: makeModuleSimple,
+}, {
+	name:       "Complex",
+	makeModule: makeModuleComplex,
+}}
 
 func makeKind(i int) string {
 	return fmt.Sprintf("foo%d", i)
