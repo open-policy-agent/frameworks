@@ -11,8 +11,6 @@ import (
 )
 
 var (
-	nTemplates = []int{1, 2, 5, 10, 20, 50, 100, 200}
-
 	modules = []struct {
 		name       string
 		makeModule func(i int) string
@@ -75,7 +73,7 @@ func makeConstraintTemplate(i int, makeModule func(i int) string) *templates.Con
 func BenchmarkClient_AddTemplate(b *testing.B) {
 	for _, tc := range modules {
 		b.Run(tc.name, func(b *testing.B) {
-			for _, n := range nTemplates {
+			for _, n := range []int{1, 2, 5, 10, 20, 50, 100, 200} {
 				b.Run(fmt.Sprintf("%d Templates", n), func(b *testing.B) {
 					cts := make([]*templates.ConstraintTemplate, n)
 					for i := range cts {
