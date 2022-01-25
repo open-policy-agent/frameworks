@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -51,9 +51,6 @@ fooisbar[msg] {
 package something
 
 violation[msg] {msg := "always"}`
-
-	MockTemplate      string = "MockConstraintTemplate"
-	MockTargetHandler string = "foo"
 )
 
 func TestDriver_PutModule(t *testing.T) {
@@ -405,23 +402,23 @@ func TestDriver_AddTemplates(t *testing.T) {
 		},
 		{
 			name:          "rego missing violation",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego:          Module,
 			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
 			wantModules:   nil,
 		},
 		{
 			name:          "valid template",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego: `
 package something
 
 violation[msg] {msg := "always"}`,
-			wantModules: []string{toModuleSetName(createTemplatePath(MockTargetHandler, MockTemplate), 0)},
+			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTargetHandler, cts.MockTemplate), 0)},
 		},
 		{
 			name:          "inventory disallowed template",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -431,7 +428,7 @@ violation[{"msg": "msg"}] {
 		},
 		{
 			name:          "inventory allowed template",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -439,7 +436,7 @@ violation[{"msg": "msg"}] {
 }`,
 			externs:     []string{"data.inventory"},
 			wantErr:     nil,
-			wantModules: []string{toModuleSetName(createTemplatePath(MockTargetHandler, MockTemplate), 0)},
+			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTargetHandler, cts.MockTemplate), 0)},
 		},
 	}
 
@@ -451,7 +448,7 @@ violation[{"msg": "msg"}] {
 				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
 			}
 			dr.SetExterns(tc.externs)
-			tmpl := CreateTemplate(tc.targetHandler, tc.rego)
+			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
 			gotErr := dr.AddTemplate(tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
@@ -480,7 +477,7 @@ func TestDriver_RemoveTemplates(t *testing.T) {
 	}{
 		{
 			name:          "valid template",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego: `
 package something
 
@@ -488,7 +485,7 @@ violation[msg] {msg := "always"}`,
 		},
 		{
 			name:          "inventory allowed template",
-			targetHandler: MockTargetHandler,
+			targetHandler: cts.MockTargetHandler,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -507,7 +504,7 @@ violation[{"msg": "msg"}] {
 				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
 			}
 			dr.SetExterns(tc.externs)
-			tmpl := CreateTemplate(tc.targetHandler, tc.rego)
+			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
 			gotErr := dr.AddTemplate(tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
@@ -529,42 +526,36 @@ violation[{"msg": "msg"}] {
 func TestDriver_AddConstraint(t *testing.T) {
 	testCases := []struct {
 		name                   string
-		template               *templates.ConstraintTemplate
 		constraint             *unstructured.Unstructured
 		wantAddConstraintError error
 	}{
 		{
 			name:       "Good Constraint",
-			template:   CreateTemplate(MockTargetHandler, TemplateModule),
-			constraint: MakeConstraint(t, MockTemplate, "tc_good_constraint"),
+			constraint: MakeConstraint(t, cts.MockTemplate, "tc_good_constraint"),
 		},
 		{
 			name:                   "No Name",
-			template:               CreateTemplate(MockTargetHandler, TemplateModule),
-			constraint:             MakeConstraint(t, MockTemplate, ""),
-			wantAddConstraintError: ErrInvalidConstraint,
+			constraint:             MakeConstraint(t, cts.MockTemplate, ""),
+			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Kind",
-			template:               CreateTemplate(MockTargetHandler, TemplateModule),
 			constraint:             MakeConstraint(t, "", "foo-constraint"),
-			wantAddConstraintError: ErrMissingConstraintTemplate,
+			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
 		},
 		{
 			name:                   "No Template",
-			template:               CreateTemplate(MockTargetHandler, TemplateModule),
 			constraint:             MakeConstraint(t, "TemplateMissing", "foo-constraint"),
-			wantAddConstraintError: ErrMissingConstraintTemplate,
+			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
 		},
 		{
-			name:     "No Group",
-			template: CreateTemplate(MockTargetHandler, TemplateModule),
+			name: "No Group",
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
-					"kind": MockTemplate,
+					"kind": cts.MockTemplate,
 				},
 			},
-			wantAddConstraintError: ErrInvalidConstraint,
+			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
 		},
 	}
 
@@ -575,7 +566,8 @@ func TestDriver_AddConstraint(t *testing.T) {
 			if !ok {
 				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
 			}
-			err := dr.AddTemplate(tc.template)
+			tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, TemplateModule)))
+			err := dr.AddTemplate(tmpl)
 			if err != nil {
 				t.Fatalf("got AddTemplate() error = %v", err)
 			}
@@ -598,6 +590,7 @@ func TestDriver_AddConstraint(t *testing.T) {
 }
 
 func TestDriver_RemoveConstraint(t *testing.T) {
+	tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, TemplateModule)))
 	tcs := []struct {
 		name       string
 		template   *templates.ConstraintTemplate
@@ -607,22 +600,22 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 	}{
 		{
 			name:       "Good Constraint",
-			template:   CreateTemplate(MockTargetHandler, TemplateModule),
-			constraint: MakeConstraint(t, MockTemplate, "foo"),
-			toRemove:   MakeConstraint(t, MockTemplate, "foo"),
+			template:   tmpl,
+			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:   MakeConstraint(t, cts.MockTemplate, "foo"),
 			wantError:  nil,
 		},
 		{
 			name:       "No name",
-			template:   CreateTemplate(MockTargetHandler, TemplateModule),
-			constraint: MakeConstraint(t, MockTemplate, "foo"),
-			toRemove:   MakeConstraint(t, MockTemplate, ""),
-			wantError:  ErrInvalidConstraint,
+			template:   tmpl,
+			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:   MakeConstraint(t, cts.MockTemplate, ""),
+			wantError:  clienterrors.ErrInvalidConstraint,
 		},
 		{
 			name:       "No Kind",
-			template:   CreateTemplate(MockTargetHandler, TemplateModule),
-			constraint: MakeConstraint(t, MockTemplate, "foo"),
+			template:   tmpl,
+			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
 			toRemove:   MakeConstraint(t, "", "foo"),
 			wantError:  nil,
 		},
@@ -633,8 +626,8 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 		},
 		{
 			name:      "No Constraint",
-			template:  CreateTemplate(MockTargetHandler, TemplateModule),
-			toRemove:  MakeConstraint(t, MockTemplate, "foo"),
+			template:  tmpl,
+			toRemove:  MakeConstraint(t, cts.MockTemplate, "foo"),
 			wantError: nil,
 		},
 	}
@@ -1054,37 +1047,8 @@ func (s *readErrorStorage) Read(_ context.Context, _ storage.Transaction, _ stor
 	return nil, errors.New("error writing data")
 }
 
-// TODO: move the mocking functions to a pkg that can be shared with client.
-func CreateTemplate(targetHandler, rego string) *templates.ConstraintTemplate {
-	tmpl := &templates.ConstraintTemplate{
-		TypeMeta: v1.TypeMeta{},
-		ObjectMeta: v1.ObjectMeta{
-			Name: "mockconstrainttemplate",
-		},
-		Spec: templates.ConstraintTemplateSpec{
-			CRD: templates.CRD{
-				Spec: templates.CRDSpec{
-					Names: templates.Names{
-						Kind:       MockTemplate,
-						ShortNames: nil,
-					},
-				},
-			},
-		},
-	}
-	if targetHandler == "" && rego == "" {
-		return tmpl
-	}
-	tmpl.Spec.Targets = []templates.Target{
-		{
-			Target: targetHandler,
-			Rego:   rego,
-		},
-	}
-	return tmpl
-}
-
 // MakeConstraint creates a new test Constraint.
+// TODO: use the MakeConstraint in clienttest when it's moved to cts.
 func MakeConstraint(t testing.TB, kind, name string) *unstructured.Unstructured {
 	t.Helper()
 

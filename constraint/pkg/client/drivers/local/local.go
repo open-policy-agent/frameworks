@@ -15,11 +15,11 @@ import (
 	"time"
 
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -76,6 +76,8 @@ type Driver struct {
 	modulesMux sync.RWMutex
 	compiler   *ast.Compiler
 	modules    map[string]*ast.Module
+	// thMux guards the access to templateHandler
+	thMux sync.RWMutex
 	// templateHandler stores the template kind and the mapping target handlers
 	templateHandler map[string][]string
 	storage         storage.Store
@@ -86,7 +88,7 @@ type Driver struct {
 	providerCache   *externaldata.ProviderCache
 	externs         []string
 	// handlers is a map from handler name to the respective handler
-  handlers map[string]handler.TargetHandler
+	handlers map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {
@@ -572,9 +574,8 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	if err = d.putModules(namePrefix, mods); err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrCompile, err)
 	}
-	d.templateHandler[templ.Spec.CRD.Spec.Names.Kind] = []string{
-		templ.Spec.Targets[0].Target,
-	}
+	d.thMux.Lock()
+	defer d.thMux.Unlock()
 	d.templateHandler[templ.Spec.CRD.Spec.Names.Kind] = []string{
 		templ.Spec.Targets[0].Target,
 	}
@@ -590,6 +591,8 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	namePrefix := createTemplatePath(targetHandler, kind)
 	_, err := d.deleteModules(namePrefix)
+	d.thMux.Lock()
+	defer d.thMux.Unlock()
 	delete(d.templateHandler, templ.Spec.CRD.Spec.Names.Kind)
 	return err
 }
@@ -599,6 +602,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	if err != nil {
 		return err
 	}
+
 	for _, target := range handlers {
 		relPath, err := createConstraintPath(target, constraint)
 		// If we ever create multi-target constraints we will need to handle this more cleverly.
@@ -616,10 +620,11 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	handlers, err := d.getTargetHandlers(constraint)
 	if err != nil {
-		if !errors.Is(err, ErrMissingConstraintTemplate) {
+		if !errors.Is(err, clienterrors.ErrMissingConstraintTemplate) {
 			return err
 		}
 	}
+
 	for _, target := range handlers {
 		relPath, err := createConstraintPath(target, constraint)
 		// If we ever create multi-target constraints we will need to handle this more cleverly.
@@ -730,18 +735,18 @@ func createConstraintGKSubPath(gk schema.GroupKind) string {
 // for each target: cluster.<group>.<kind>.<name>.
 func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
 	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", ErrInvalidConstraint)
+		return "", fmt.Errorf("%w: missing name", clienterrors.ErrInvalidConstraint)
 	}
 
 	gvk := constraint.GroupVersionKind()
 	if gvk.Group == "" {
 		return "", fmt.Errorf("%w: empty group for constrant %q",
-			ErrInvalidConstraint, constraint.GetName())
+			clienterrors.ErrInvalidConstraint, constraint.GetName())
 	}
 
 	if gvk.Kind == "" {
 		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			ErrInvalidConstraint, constraint.GetName())
+			clienterrors.ErrInvalidConstraint, constraint.GetName())
 	}
 
 	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
@@ -763,6 +768,9 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 }
 
 func (d *Driver) getTargetHandlers(constraint *unstructured.Unstructured) ([]string, error) {
+	d.thMux.RLock()
+	defer d.thMux.RUnlock()
+
 	kind := constraint.GetKind()
 	handlers, ok := d.templateHandler[kind]
 	if !ok {
@@ -771,7 +779,7 @@ func (d *Driver) getTargetHandlers(constraint *unstructured.Unstructured) ([]str
 			known = append(known, k)
 		}
 		return nil, fmt.Errorf("%w: Constraint kind %q is not recognized, known kinds %v",
-			ErrMissingConstraintTemplate, kind, known)
+			clienterrors.ErrMissingConstraintTemplate, kind, known)
 	}
 	return handlers, nil
 }
