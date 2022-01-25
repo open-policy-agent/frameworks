@@ -14,6 +14,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -57,7 +58,7 @@ func createDataPath(target, subpath string) string {
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
 		handled, relPath, processedData, err := h.ProcessData(data)
 		if err != nil {
@@ -84,7 +85,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 // partial results can be analyzed.
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
 		handled, relPath, _, err := h.ProcessData(data)
 		if err != nil {
@@ -124,7 +125,7 @@ func (c *Client) validateTargets(templ *templates.ConstraintTemplate) (*template
 		knownTargets := c.knownTargets()
 
 		return nil, nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
-			local.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
+			clienterrors.ErrInvalidConstraintTemplate, targetSpec.Target, knownTargets)
 	}
 
 	return targetSpec, targetHandler, nil
@@ -157,7 +158,7 @@ func (a *rawCTArtifacts) Key() templateKey {
 // complex tasks like rewriting Rego. Provides minimal validation.
 func (c *Client) createRawTemplateArtifacts(templ *templates.ConstraintTemplate) (*rawCTArtifacts, error) {
 	if templ.GetName() == "" {
-		return nil, fmt.Errorf("%w: missing name", local.ErrInvalidConstraintTemplate)
+		return nil, fmt.Errorf("%w: missing name", clienterrors.ErrInvalidConstraintTemplate)
 	}
 
 	return &rawCTArtifacts{template: templ}, nil
@@ -210,7 +211,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 	}
 
 	if err = crds.ValidateCRD(crd); err != nil {
-		return nil, fmt.Errorf("%w: %v", local.ErrInvalidConstraintTemplate, err)
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
 	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
@@ -229,7 +230,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
 		return nil, fmt.Errorf("%w: got nil ConstraintTemplate",
-			local.ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 
 	artifacts, err := c.createBasicTemplateArtifacts(templ)
@@ -243,12 +244,12 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	if kind == "" {
 		return nil, nil, fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			local.ErrInvalidConstraintTemplate, templ.GetName())
+			clienterrors.ErrInvalidConstraintTemplate, templ.GetName())
 	}
 
 	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
 		return nil, nil, fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			local.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+			clienterrors.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
 	}
 
 	targetSpec, targetHandler, err := c.validateTargets(templ)
@@ -261,7 +262,7 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) error {
 	if templ == nil {
 		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			local.ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
 		return err
@@ -469,7 +470,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	defer c.mtx.Unlock()
 
 	resp := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
@@ -526,7 +527,7 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
@@ -694,7 +695,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...QueryOpt) 
 		opt(cfg)
 	}
 	responses := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 TargetLoop:
 	for name, target := range c.targets {
 		handled, review, err := target.HandleReview(obj)
@@ -736,7 +737,7 @@ func (c *Client) Audit(ctx context.Context, opts ...QueryOpt) (*types.Responses,
 		opt(cfg)
 	}
 	responses := types.NewResponses()
-	errMap := make(ErrorMap)
+	errMap := make(clienterrors.ErrorMap)
 TargetLoop:
 	for name, target := range c.targets {
 		// Short-circuiting question applies here as well
