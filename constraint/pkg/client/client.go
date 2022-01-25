@@ -37,8 +37,9 @@ type Client struct {
 	targets map[string]handler.TargetHandler
 
 	// mtx guards access to both templates and constraints.
-	mtx         sync.RWMutex
-	templates   map[templateKey]*templateEntry
+	mtx       sync.RWMutex
+	templates map[templateKey]*templateEntry
+	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 
 	AllowedDataFields []string

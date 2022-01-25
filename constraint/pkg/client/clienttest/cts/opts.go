@@ -5,7 +5,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
-const ModuleDeny = `
+const (
+	ModuleDeny = `
 package foo
 
 violation[{"msg": msg}] {
@@ -13,10 +14,14 @@ violation[{"msg": msg}] {
   msg := "denied"
 }
 `
+	MockTemplateName  string = "fakes"
+	MockTemplate      string = "Fakes"
+	MockTargetHandler string = "foo"
+)
 
 var defaults = []Opt{
-	OptName("fakes"),
-	OptCRDNames("Fakes"),
+	OptName(MockTemplateName),
+	OptCRDNames(MockTemplate),
 	OptTargets(Target(handlertest.HandlerName, ModuleDeny)),
 }
 
