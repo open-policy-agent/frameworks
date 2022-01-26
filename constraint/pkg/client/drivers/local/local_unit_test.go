@@ -553,6 +553,22 @@ func TestDriver_AddConstraint(t *testing.T) {
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind": cts.MockTemplate,
+					"metadata": map[string]interface{}{
+						"name": "foo-constraint",
+					},
+				},
+			},
+			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
+		},
+		{
+			name: "Incorrect Group",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "foo-group/v1",
+					"kind":       cts.MockTemplate,
+					"metadata": map[string]interface{}{
+						"name": "foo-constraint",
+					},
 				},
 			},
 			wantAddConstraintError: clienterrors.ErrInvalidConstraint,

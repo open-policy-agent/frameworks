@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -583,6 +585,7 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate implements driver.Driver.
+// TODO: Cascading deletes.
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	if err := validateTargets(templ); err != nil {
 		return nil
@@ -739,9 +742,9 @@ func createConstraintSubPath(constraint *unstructured.Unstructured) (string, err
 	}
 
 	gvk := constraint.GroupVersionKind()
-	if gvk.Group == "" {
-		return "", fmt.Errorf("%w: empty group for constrant %q",
-			clienterrors.ErrInvalidConstraint, constraint.GetName())
+	if gvk.Group != constraints.Group {
+		return "", fmt.Errorf("%w: expect group %q for constrant %q, got %q",
+			clienterrors.ErrInvalidConstraint, constraints.Group, constraint.GetName(), gvk.Group)
 	}
 
 	if gvk.Kind == "" {
