@@ -57,6 +57,8 @@ func createDataPath(target, subpath string) string {
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
+	// TODO(#189): Make AddData atomic across all Drivers/Targets.
+
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
@@ -68,12 +70,32 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, createDataPath(target, relPath), processedData); err != nil {
+
+		// paths passed to driver must be specific to the target to prevent key
+		// collisions.
+		driverPath := createDataPath(target, relPath)
+		err = c.backend.driver.PutData(ctx, driverPath, processedData)
+		if err != nil {
 			errMap[target] = err
 			continue
 		}
+
+		if cacher, ok := h.(handler.Cacher); ok {
+			cache := cacher.GetCache()
+
+			err = cache.Add(relPath, processedData)
+			if err != nil {
+				// Use a different key than the driver so it's obvious where the error
+				// is from.
+				errMap[target+"-cache"] = err
+
+				continue
+			}
+		}
+
 		resp.Handled[target] = true
 	}
+
 	if len(errMap) == 0 {
 		return resp, nil
 	}
@@ -84,6 +106,8 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
+	// TODO(#189): Make RemoveData atomic across all Drivers/Targets.
+
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
@@ -95,15 +119,27 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if !handled {
 			continue
 		}
+
 		if _, err := c.backend.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
 			errMap[target] = err
 			continue
 		}
 		resp.Handled[target] = true
+
+		if cacher, ok := h.(handler.Cacher); ok {
+			cache := cacher.GetCache()
+
+			err = cache.Remove(relPath)
+			if err != nil {
+				errMap[target+"-cache"] = err
+			}
+		}
 	}
+
 	if len(errMap) == 0 {
 		return resp, nil
 	}
+
 	return resp, &errMap
 }
 
