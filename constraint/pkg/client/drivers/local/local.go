@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -45,7 +47,7 @@ type insertParam map[string]*module
 func (i insertParam) add(name string, src string) error {
 	m, err := ast.ParseModule(name, src)
 	if err != nil {
-		return fmt.Errorf("%w: %q: %v", ErrParse, name, err)
+		return fmt.Errorf("%w: %q: %v", clienterrors.ErrParse, name, err)
 	}
 
 	i[name] = &module{text: src, parsed: m}
@@ -78,6 +80,8 @@ type Driver struct {
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
 	externs       []string
+	// handlers is a map from handler name to the respective handler
+	handlers map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {
@@ -147,12 +151,12 @@ func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
 func (d *Driver) checkModuleName(name string) error {
 	if name == "" {
 		return fmt.Errorf("%w: module %q has no name",
-			ErrModuleName, name)
+			clienterrors.ErrModuleName, name)
 	}
 
 	if strings.HasPrefix(name, moduleSetPrefix) {
 		return fmt.Errorf("%w: module %q has forbidden prefix %q",
-			ErrModuleName, name, moduleSetPrefix)
+			clienterrors.ErrModuleName, name, moduleSetPrefix)
 	}
 
 	return nil
@@ -160,11 +164,11 @@ func (d *Driver) checkModuleName(name string) error {
 
 func (d *Driver) checkModuleSetName(name string) error {
 	if name == "" {
-		return fmt.Errorf("%w: modules name prefix cannot be empty", ErrModulePrefix)
+		return fmt.Errorf("%w: modules name prefix cannot be empty", clienterrors.ErrModulePrefix)
 	}
 
 	if strings.Contains(name, moduleSetSep) {
-		return fmt.Errorf("%w: modules name prefix not allowed to contain the sequence %q", ErrModulePrefix, moduleSetSep)
+		return fmt.Errorf("%w: modules name prefix not allowed to contain the sequence %q", clienterrors.ErrModulePrefix, moduleSetSep)
 	}
 
 	return nil
@@ -242,7 +246,7 @@ func (d *Driver) alterModules(insert insertParam, remove []string) (int, error) 
 		WithEnablePrintStatements(d.printEnabled)
 
 	if c.Compile(updatedModules); c.Failed() {
-		return 0, fmt.Errorf("%w: %v", ErrCompile, c.Errors)
+		return 0, fmt.Errorf("%w: %v", clienterrors.ErrCompile, c.Errors)
 	}
 
 	d.compiler = c
@@ -283,10 +287,10 @@ func (d *Driver) listModuleSet(namePrefix string) []string {
 func parsePath(path string) ([]string, error) {
 	p, ok := storage.ParsePathEscaped(path)
 	if !ok {
-		return nil, fmt.Errorf("%w: path must begin with '/': %q", ErrPathInvalid, path)
+		return nil, fmt.Errorf("%w: path must begin with '/': %q", clienterrors.ErrPathInvalid, path)
 	}
 	if len(p) == 0 {
-		return nil, fmt.Errorf("%w: path must contain at least one path element: %q", ErrPathInvalid, path)
+		return nil, fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, path)
 	}
 
 	return p, nil
@@ -303,23 +307,23 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTransaction, err)
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
 	if _, err = d.storage.Read(ctx, txn, p); err != nil {
 		if storage.IsNotFound(err) {
 			if err = storage.MakeDir(ctx, d.storage, txn, p[:len(p)-1]); err != nil {
-				return fmt.Errorf("%w: unable to make directory: %v", ErrWrite, err)
+				return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
 			}
 		} else {
 			d.storage.Abort(ctx, txn)
-			return fmt.Errorf("%w: %v", ErrRead, err)
+			return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
 		}
 	}
 
 	if err = d.storage.Write(ctx, txn, storage.AddOp, p, data); err != nil {
 		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
+		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
 
 	// TODO: Determine if this can be removed. No tests exercise this path, and
@@ -327,12 +331,12 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 	if errs := ast.CheckPathConflicts(d.compiler, storage.NonEmpty(ctx, d.storage, txn)); len(errs) > 0 {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: %q conflicts with existing path: %v",
-			ErrPathConflict, path, errs)
+			clienterrors.ErrPathConflict, path, errs)
 	}
 
 	err = d.storage.Commit(ctx, txn)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrTransaction, err)
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 	return nil
 }
@@ -350,7 +354,7 @@ func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
+		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
 	if err = d.storage.Write(ctx, txn, storage.RemoveOp, p, interface{}(nil)); err != nil {
@@ -358,11 +362,11 @@ func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
 		if storage.IsNotFound(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("%w: unable to write data: %v", ErrWrite, err)
+		return false, fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
 
 	if err = d.storage.Commit(ctx, txn); err != nil {
-		return false, fmt.Errorf("%w: %v", ErrTransaction, err)
+		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
 	return true, nil
@@ -503,12 +507,12 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 	namePrefix := createTemplatePath(targetHandler, kind)
 	entryPoint, err := parseModule(namePrefix, templ.Spec.Targets[0].Rego)
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v", ErrInvalidConstraintTemplate, err)
+		return "", nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
 	if entryPoint == nil {
 		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 
 	if err = rewriteModulePackage(namePrefix, entryPoint); err != nil {
@@ -519,7 +523,7 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 
 	if err = requireModuleRules(entryPoint, req); err != nil {
 		return "", nil, fmt.Errorf("%w: invalid rego: %v",
-			ErrInvalidConstraintTemplate, err)
+			clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
 	rr.AddEntryPointModule(namePrefix, entryPoint)
@@ -527,14 +531,14 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, pkgPrefix, idx)
 		if err = rr.AddLib(libPath, libSrc); err != nil {
 			return "", nil, fmt.Errorf("%w: %v",
-				ErrInvalidConstraintTemplate, err)
+				clienterrors.ErrInvalidConstraintTemplate, err)
 		}
 	}
 
 	sources, err := rr.Rewrite()
 	if err != nil {
 		return "", nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
+			clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
 	var mods []string
@@ -548,7 +552,7 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 	})
 	if err != nil {
 		return "", nil, fmt.Errorf("%w: %v",
-			ErrInvalidConstraintTemplate, err)
+			clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 	return namePrefix, mods, nil
 }
@@ -560,7 +564,7 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 		return err
 	}
 	if err = d.putModules(namePrefix, mods); err != nil {
-		return fmt.Errorf("%w: %v", ErrCompile, err)
+		return fmt.Errorf("%w: %v", clienterrors.ErrCompile, err)
 	}
 	return nil
 }
@@ -596,7 +600,7 @@ func parseModule(path, rego string) (*ast.Module, error) {
 
 	if module == nil {
 		return nil, fmt.Errorf("%w: module %q is empty",
-			ErrInvalidModule, path)
+			clienterrors.ErrInvalidModule, path)
 	}
 
 	return module, nil
@@ -634,7 +638,7 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 
 	if len(missing) > 0 {
 		return fmt.Errorf("%w: missing required rules: %v",
-			ErrInvalidModule, missing)
+			clienterrors.ErrInvalidModule, missing)
 	}
 
 	return nil
@@ -644,23 +648,23 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 func validateTargets(templ *templates.ConstraintTemplate) error {
 	if templ == nil {
 		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 	targets := templ.Spec.Targets
 	if targets == nil {
 		return fmt.Errorf(`%w: field "targets" not specified in ConstraintTemplate spec`,
-			ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 
 	switch len(targets) {
 	case 0:
 		return fmt.Errorf("%w: no targets specified: ConstraintTemplate must specify one target",
-			ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	case 1:
 		return nil
 	default:
 		return fmt.Errorf("%w: multi-target templates are not currently supported",
-			ErrInvalidConstraintTemplate)
+			clienterrors.ErrInvalidConstraintTemplate)
 	}
 }
 
