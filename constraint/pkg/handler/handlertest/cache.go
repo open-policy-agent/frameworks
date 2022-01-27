@@ -38,8 +38,6 @@ func (c *Cache) Add(key string, object interface{}) error {
 	return nil
 }
 
-func (c *Cache) Remove(key string) error {
+func (c *Cache) Remove(key string) {
 	c.Namespaces.Delete(key)
-
-	return nil
 }

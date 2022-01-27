@@ -129,10 +129,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if cacher, ok := h.(handler.Cacher); ok {
 			cache := cacher.GetCache()
 
-			err = cache.Remove(relPath)
-			if err != nil {
-				errMap[target+"-cache"] = err
-			}
+			cache.Remove(relPath)
 		}
 	}
 

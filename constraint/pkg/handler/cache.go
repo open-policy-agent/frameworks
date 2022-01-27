@@ -20,9 +20,11 @@ type Cache interface {
 	// already exists, replaces the object at key.
 	Add(key string, object interface{}) error
 
-	// Remove deletes the object at key from Cache. If the object was not found,
-	// returns nil.
-	Remove(key string) error
+	// Remove deletes the object at key from Cache. Deletion succeeds if key
+	// does not exist.
+	// Remove always succeeds; if for some reason key cannot be deleted the application
+	// should panic.
+	Remove(key string)
 }
 
 type NoCache struct{}
@@ -35,8 +37,6 @@ func (n NoCache) Get(key string) (interface{}, error) {
 	return nil, nil
 }
 
-func (n NoCache) Remove(key string) error {
-	return nil
-}
+func (n NoCache) Remove(key string) {}
 
 var _ Cache = NoCache{}
