@@ -85,9 +85,14 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 			err = cache.Add(relPath, processedData)
 			if err != nil {
-				// Use a different key than the driver so it's obvious where the error
-				// is from.
+				// Use a different key than the driver to avoid clobbering errors.
 				errMap[target+"-cache"] = err
+
+				_, err = c.backend.driver.DeleteData(ctx, driverPath)
+
+				if err != nil {
+					errMap[target] = err
+				}
 
 				continue
 			}
@@ -106,8 +111,6 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
-	// TODO(#189): Make RemoveData atomic across all Drivers/Targets.
-
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
