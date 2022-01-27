@@ -1634,7 +1634,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 			before: nil,
 			add:    "foo",
 			want:   nil,
-			wantErr: &client.ErrorMap{
+			wantErr: &clienterrors.ErrorMap{
 				handlertest.HandlerName: handlertest.ErrInvalidType,
 			},
 		},
@@ -1646,7 +1646,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 				Name:      "",
 			},
 			want: nil,
-			wantErr: &client.ErrorMap{
+			wantErr: &clienterrors.ErrorMap{
 				handlertest.HandlerName + "-cache": handlertest.ErrInvalidObject,
 			},
 		},
@@ -1741,7 +1741,7 @@ func TestClient_RemoveData_Cache(t *testing.T) {
 			before: nil,
 			remove: "foo",
 			want:   nil,
-			wantErr: &client.ErrorMap{
+			wantErr: &clienterrors.ErrorMap{
 				handlertest.HandlerName: handlertest.ErrInvalidType,
 			},
 		},
