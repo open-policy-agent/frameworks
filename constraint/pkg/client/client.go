@@ -71,31 +71,34 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			continue
 		}
 
+		var cache handler.Cache
+		if cacher, ok := h.(handler.Cacher); ok {
+			cache = cacher.GetCache()
+		}
+
+		// Add to the target cache first because cache.Remove cannot fail. Thus, we
+		// can prevent the system from getting into an inconsistent state.
+		if cache != nil {
+			err = cache.Add(relPath, processedData)
+			if err != nil {
+				// Use a different key than the driver to avoid clobbering errors.
+				errMap[target] = err
+
+				continue
+			}
+		}
+
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
 		driverPath := createDataPath(target, relPath)
 		err = c.backend.driver.PutData(ctx, driverPath, processedData)
 		if err != nil {
 			errMap[target] = err
-			continue
-		}
 
-		if cacher, ok := h.(handler.Cacher); ok {
-			cache := cacher.GetCache()
-
-			err = cache.Add(relPath, processedData)
-			if err != nil {
-				// Use a different key than the driver to avoid clobbering errors.
-				errMap[target+"-cache"] = err
-
-				_, err = c.backend.driver.DeleteData(ctx, driverPath)
-
-				if err != nil {
-					errMap[target] = err
-				}
-
-				continue
+			if cache != nil {
+				cache.Remove(relPath)
 			}
+			continue
 		}
 
 		resp.Handled[target] = true

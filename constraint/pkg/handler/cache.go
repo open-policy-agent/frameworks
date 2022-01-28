@@ -5,6 +5,8 @@ package handler
 // Handlers which do not implement Cacher are assumed to be stateless from
 // Client's perspective.
 type Cacher interface {
+	// GetCache returns the Cache. If nil, the Cacher is treated as having no
+	// cache.
 	GetCache() Cache
 }
 

@@ -1647,7 +1647,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 			},
 			want: nil,
 			wantErr: &clienterrors.ErrorMap{
-				handlertest.HandlerName + "-cache": handlertest.ErrInvalidObject,
+				handlertest.HandlerName: handlertest.ErrInvalidObject,
 			},
 		},
 		{
