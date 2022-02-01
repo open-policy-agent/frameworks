@@ -15,7 +15,6 @@ import (
 
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -80,8 +79,6 @@ type Driver struct {
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
 	externs       []string
-	// handlers is a map from handler name to the respective handler
-	handlers map[string]handler.TargetHandler
 }
 
 func (d *Driver) Init() error {
