@@ -10,20 +10,16 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
-var (
-	nTemplates = []int{1, 2, 5, 10, 20, 50, 100, 200}
-
-	modules = []struct {
-		name       string
-		makeModule func(i int) string
-	}{{
-		name:       "Simple",
-		makeModule: makeModuleSimple,
-	}, {
-		name:       "Complex",
-		makeModule: makeModuleComplex,
-	}}
-)
+var modules = []struct {
+	name       string
+	makeModule func(i int) string
+}{{
+	name:       "Simple",
+	makeModule: makeModuleSimple,
+}, {
+	name:       "Complex",
+	makeModule: makeModuleComplex,
+}}
 
 func makeKind(i int) string {
 	return fmt.Sprintf("foo%d", i)
@@ -75,7 +71,7 @@ func makeConstraintTemplate(i int, makeModule func(i int) string) *templates.Con
 func BenchmarkClient_AddTemplate(b *testing.B) {
 	for _, tc := range modules {
 		b.Run(tc.name, func(b *testing.B) {
-			for _, n := range nTemplates {
+			for _, n := range []int{1, 2, 5, 10, 20, 50, 100, 200} {
 				b.Run(fmt.Sprintf("%d Templates", n), func(b *testing.B) {
 					cts := make([]*templates.ConstraintTemplate, n)
 					for i := range cts {
