@@ -167,6 +167,14 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
+func (d *driver) AddCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
+	panic("not implemented")
+}
+
+func (d *driver) RemoveCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
+	panic("not implemented")
+}
+
 func (d *driver) Query(_ context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*ctypes.Response, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {

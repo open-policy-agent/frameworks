@@ -668,3 +668,11 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 func (d *Driver) SetExterns(fields []string) {
 	d.externs = fields
 }
+
+func (d *Driver) AddCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
+	panic("not implemented")
+}
+
+func (d *Driver) RemoveCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
+	panic("not implemented")
+}
