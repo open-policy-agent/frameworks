@@ -122,6 +122,7 @@ func (d *Driver) Init() error {
 				if err != nil {
 					return externaldata.HandleError(http.StatusInternalServerError, err)
 				}
+				req.Header.Set("Content-Type", "application/json")
 
 				ctx, cancel := context.WithDeadline(bctx.Context, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
 				defer cancel()
