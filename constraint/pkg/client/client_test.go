@@ -69,7 +69,7 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 	}
 }
 
-func TestClient_AddData(t *testing.T) {
+func TestClient_AddCachedData(t *testing.T) {
 	tcs := []struct {
 		name        string
 		handler1    handler.TargetHandler
@@ -176,7 +176,7 @@ func TestClient_AddData(t *testing.T) {
 	}
 }
 
-func TestClient_RemoveData(t *testing.T) {
+func TestClient_RemoveCachedData(t *testing.T) {
 	tcs := []struct {
 		name        string
 		handler1    handler.TargetHandler
