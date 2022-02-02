@@ -7,17 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -531,21 +528,21 @@ func TestDriver_AddConstraint(t *testing.T) {
 	}{
 		{
 			name:       "Good Constraint",
-			constraint: MakeConstraint(t, cts.MockTemplate, "tc_good_constraint"),
+			constraint: cts.MakeConstraint(t, cts.MockTemplate, "tc_good_constraint"),
 		},
 		{
 			name:                   "No Name",
-			constraint:             MakeConstraint(t, cts.MockTemplate, ""),
+			constraint:             cts.MakeConstraint(t, cts.MockTemplate, ""),
 			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Kind",
-			constraint:             MakeConstraint(t, "", "foo-constraint"),
+			constraint:             cts.MakeConstraint(t, "", "foo-constraint"),
 			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
 		},
 		{
 			name:                   "No Template",
-			constraint:             MakeConstraint(t, "TemplateMissing", "foo-constraint"),
+			constraint:             cts.MakeConstraint(t, "TemplateMissing", "foo-constraint"),
 			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
 		},
 		{
@@ -617,33 +614,33 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 		{
 			name:       "Good Constraint",
 			template:   tmpl,
-			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   MakeConstraint(t, cts.MockTemplate, "foo"),
+			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:   cts.MakeConstraint(t, cts.MockTemplate, "foo"),
 			wantError:  nil,
 		},
 		{
 			name:       "No name",
 			template:   tmpl,
-			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   MakeConstraint(t, cts.MockTemplate, ""),
+			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:   cts.MakeConstraint(t, cts.MockTemplate, ""),
 			wantError:  clienterrors.ErrInvalidConstraint,
 		},
 		{
 			name:       "No Kind",
 			template:   tmpl,
-			constraint: MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   MakeConstraint(t, "", "foo"),
+			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:   cts.MakeConstraint(t, "", "foo"),
 			wantError:  nil,
 		},
 		{
 			name:      "No Template",
-			toRemove:  MakeConstraint(t, "Foos", "foo"),
+			toRemove:  cts.MakeConstraint(t, "Foos", "foo"),
 			wantError: nil,
 		},
 		{
 			name:      "No Constraint",
 			template:  tmpl,
-			toRemove:  MakeConstraint(t, cts.MockTemplate, "foo"),
+			toRemove:  cts.MakeConstraint(t, cts.MockTemplate, "foo"),
 			wantError: nil,
 		},
 	}
@@ -1061,21 +1058,4 @@ type readErrorStorage struct {
 
 func (s *readErrorStorage) Read(_ context.Context, _ storage.Transaction, _ storage.Path) (interface{}, error) {
 	return nil, errors.New("error writing data")
-}
-
-// MakeConstraint creates a new test Constraint.
-// TODO: use the MakeConstraint in clienttest when it's moved to cts.
-func MakeConstraint(t testing.TB, kind, name string) *unstructured.Unstructured {
-	t.Helper()
-
-	u := &unstructured.Unstructured{Object: make(map[string]interface{})}
-
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   constraints.Group,
-		Version: "v1beta1",
-		Kind:    kind,
-	})
-	u.SetName(name)
-
-	return u
 }

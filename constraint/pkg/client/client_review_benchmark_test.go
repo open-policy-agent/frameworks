@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,7 +27,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name, clienttest.WantData("bar"))
+			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "fail",
@@ -36,7 +38,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name, clienttest.WantData("bar"))
+			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "filtered out",
@@ -48,9 +50,9 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name,
-				clienttest.WantData("bar"),
-				clienttest.MatchNamespace("zab"))
+			return cts.MakeConstraint(b, makeKind(tid), name,
+				cts.WantData("bar"),
+				cts.MatchNamespace("zab"))
 		},
 	}, {
 		name: "autoreject",
@@ -62,9 +64,9 @@ func BenchmarkClient_Review(b *testing.B) {
 			Autoreject: true,
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name,
-				clienttest.WantData("bar"),
-				clienttest.EnableAutoreject)
+			return cts.MakeConstraint(b, makeKind(tid), name,
+				cts.WantData("bar"),
+				cts.EnableAutoreject)
 		},
 	}}
 
