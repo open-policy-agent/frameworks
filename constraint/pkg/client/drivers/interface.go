@@ -30,7 +30,7 @@ type Driver interface {
 	PutData(ctx context.Context, path string, data interface{}) error
 	DeleteData(ctx context.Context, path string) (bool, error)
 	AddCachedData(ctx context.Context, target string, relPath string, data interface{}) error
-	RemoveCachedData(ctx context.Context, target string, relPath string, data interface{}) error
+	RemoveCachedData(ctx context.Context, target string, relPath string) error
 	Query(ctx context.Context, path string, input interface{}, opts ...QueryOpt) (*types.Response, error)
 	Dump(ctx context.Context) (string, error)
 }

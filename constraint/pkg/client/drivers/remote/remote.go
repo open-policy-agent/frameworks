@@ -171,7 +171,7 @@ func (d *driver) AddCachedData(ctx context.Context, target string, relPath strin
 	panic("not implemented")
 }
 
-func (d *driver) RemoveCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
+func (d *driver) RemoveCachedData(ctx context.Context, target string, relPath string) error {
 	panic("not implemented")
 }
 

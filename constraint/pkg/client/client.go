@@ -44,19 +44,12 @@ type Client struct {
 	AllowedDataFields []string
 }
 
-// createDataPath compiles the data destination: data.external.<target>.<path>.
-func createDataPath(target, subpath string) string {
-	subpaths := strings.Split(subpath, "/")
-	p := []string{"external", target}
-	p = append(p, subpaths...)
-
-	return "/" + path.Join(p...)
-}
-
 // AddData inserts the provided data into OPA for every target that can handle the data.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
+	// TODO davis-haba delete comments when done
+	// This function will construct the error map
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
@@ -68,7 +61,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, createDataPath(target, relPath), processedData); err != nil {
+		if err := c.backend.driver.AddCachedData(ctx, target, relPath, processedData); err != nil {
 			errMap[target] = err
 			continue
 		}
@@ -95,7 +88,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if !handled {
 			continue
 		}
-		if _, err := c.backend.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
+		if err := c.backend.driver.RemoveCachedData(ctx, target, relPath); err != nil {
 			errMap[target] = err
 			continue
 		}

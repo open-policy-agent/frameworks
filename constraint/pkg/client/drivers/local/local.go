@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -670,9 +671,20 @@ func (d *Driver) SetExterns(fields []string) {
 }
 
 func (d *Driver) AddCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
-	panic("not implemented")
+	return d.PutData(ctx, createDataPath(target, relPath), data)
 }
 
-func (d *Driver) RemoveCachedData(ctx context.Context, target string, relPath string, data interface{}) error {
-	panic("not implemented")
+func (d *Driver) RemoveCachedData(ctx context.Context, target string, relPath string) error {
+	_, err := d.DeleteData(ctx, createDataPath(target, relPath))
+	return err
 }
+
+// createDataPath compiles the data destination: data.external.<target>.<path>.
+func createDataPath(target, subpath string) string {
+	subpaths := strings.Split(subpath, "/")
+	p := []string{"external", target}
+	p = append(p, subpaths...)
+
+	return "/" + path.Join(p...)
+}
+
