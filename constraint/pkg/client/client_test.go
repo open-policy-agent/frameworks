@@ -149,7 +149,7 @@ func TestClient_AddData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddData(context.Background(), &handlertest.Object{})
+			r, err := c.AddCachedData(context.Background(), &handlertest.Object{})
 			if err != nil && len(tc.wantError) == 0 {
 				t.Fatalf("err = %s; want nil", err)
 			}
@@ -256,7 +256,7 @@ func TestClient_RemoveData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			r, err := c.RemoveData(context.Background(), &handlertest.Object{})
+			r, err := c.RemoveCachedData(context.Background(), &handlertest.Object{})
 			if err != nil && len(tc.wantError) == 0 {
 				t.Fatalf("err = %s; want nil", err)
 			}
@@ -273,7 +273,7 @@ func TestClient_RemoveData(t *testing.T) {
 			}
 
 			if r == nil {
-				t.Fatal("got RemoveData() == nil, want non-nil")
+				t.Fatal("got RemoveCachedData() == nil, want non-nil")
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {

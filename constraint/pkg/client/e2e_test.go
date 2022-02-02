@@ -444,7 +444,7 @@ func TestClient_Audit(t *testing.T) {
 			}
 
 			for _, object := range tt.objects {
-				_, err := c.AddData(ctx, object)
+				_, err := c.AddCachedData(ctx, object)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -692,7 +692,7 @@ func TestE2E_Review_Tracing(t *testing.T) {
 				t.Fatalf("got trace but tracing disabled: %v", *trace)
 			}
 
-			_, err = c.AddData(ctx, &obj.Object)
+			_, err = c.AddCachedData(ctx, &obj.Object)
 			if err != nil {
 				t.Fatal(err)
 			}

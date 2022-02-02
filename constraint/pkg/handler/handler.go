@@ -61,10 +61,10 @@ type TargetHandler interface {
 	//   DataRoot: The root path under which all data for the target is stored
 	Library() *template.Template
 
-	// ProcessData takes inputs to AddData and converts them into the format that
+	// ProcessData takes inputs to AddCachedData and converts them into the format that
 	// will be stored in data.inventory and returns the relative storage path.
 	// Args:
-	//	data: the object passed to client.Client.AddData
+	//	data: the object passed to client.Client.AddCachedData
 	// Returns:
 	//	handle: true if the target handles the data type
 	//	relPath: the relative path under which the data should be stored in OPA under data.inventory, for example, an item to be stored at data.inventory.x.y.z would return x.y.z

@@ -95,7 +95,7 @@ func BenchmarkClient_Audit(b *testing.B) {
 
 					for oid := 0; oid < objects; oid++ {
 						obj := tt.makeObject(oid)
-						_, err := c.AddData(ctx, obj)
+						_, err := c.AddCachedData(ctx, obj)
 						if err != nil {
 							b.Fatal(err)
 						}
