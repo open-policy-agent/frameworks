@@ -687,4 +687,3 @@ func createDataPath(target, subpath string) string {
 
 	return "/" + path.Join(p...)
 }
-
