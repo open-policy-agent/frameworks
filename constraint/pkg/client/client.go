@@ -44,7 +44,7 @@ type Client struct {
 	AllowedDataFields []string
 }
 
-// AddCachedData inserts the provided data into OPA for every target that can handle the data.
+// AddCachedData inserts the provided data into every target and driver which caches data.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddCachedData(ctx context.Context, data interface{}) (*types.Responses, error) {
@@ -73,7 +73,7 @@ func (c *Client) AddCachedData(ctx context.Context, data interface{}) (*types.Re
 	return resp, &errMap
 }
 
-// RemoveCachedData removes data from OPA for every target that can handle the data.
+// RemoveCachedData removes data from every target and driver which caches data.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) RemoveCachedData(ctx context.Context, data interface{}) (*types.Responses, error) {
