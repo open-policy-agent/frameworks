@@ -24,10 +24,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
 			matcher: handlertest.Matcher{},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -36,10 +38,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name: "overwrite with identical",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -47,10 +51,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
 			matcher: handlertest.Matcher{},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -59,10 +65,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name: "overwrite with new",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
 						},
 					},
 				},
@@ -70,10 +78,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "bbb"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "bbb"},
+							},
 						},
 					},
 				},
@@ -82,10 +92,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name: "add with different name",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
 						},
 					},
 				},
@@ -93,11 +105,13 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "foo", kind: "bar", name: "cog"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
-							"cog": handlertest.Matcher{Namespace: "bbb"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+								"cog": handlertest.Matcher{Namespace: "bbb"},
+							},
 						},
 					},
 				},
@@ -106,10 +120,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name: "add with different kind",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
 						},
 					},
 				},
@@ -117,13 +133,15 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "foo", kind: "cog", name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
-						},
-						"cog": {
-							"qux": handlertest.Matcher{Namespace: "bbb"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
+							"cog": {
+								"qux": handlertest.Matcher{Namespace: "bbb"},
+							},
 						},
 					},
 				},
@@ -132,10 +150,12 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name: "add with different target",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
 						},
 					},
 				},
@@ -143,15 +163,19 @@ func TestConstraintMatchers_Add(t *testing.T) {
 			key:     matcherKey{target: "cog", kind: "bar", name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "aaa"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "aaa"},
+							},
 						},
 					},
 					"cog": {
-						"bar": {
-							"qux": handlertest.Matcher{Namespace: "bbb"},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{Namespace: "bbb"},
+							},
 						},
 					},
 				},
@@ -188,13 +212,13 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		{
 			name: "remove from empty target",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {},
 				},
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {},
 				},
 			},
@@ -202,17 +226,21 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		{
 			name: "remove from empty kind",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {},
+						},
 					},
 				},
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {},
+						},
 					},
 				},
 			},
@@ -220,39 +248,45 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		{
 			name: "remove last from target",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{},
+				matchers: map[string]targetMatchers{},
 			},
 		},
 		{
 			name: "remove last from kind",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
-						},
-						"cog": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
+							"cog": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"cog": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"cog": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -261,21 +295,25 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		{
 			name: "remove",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
-							"cog": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+								"cog": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"cog": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"cog": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -296,7 +334,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 	}
 }
 
-func TestConstraintMatchers_RemoveAll(t *testing.T) {
+func TestConstraintMatchers_RemoveKind(t *testing.T) {
 	tests := []struct {
 		name   string
 		before *constraintMatchers
@@ -312,7 +350,7 @@ func TestConstraintMatchers_RemoveAll(t *testing.T) {
 		{
 			name: "remove from empty handler",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {},
 				},
 			},
@@ -322,10 +360,12 @@ func TestConstraintMatchers_RemoveAll(t *testing.T) {
 		{
 			name: "remove last from handler",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -336,13 +376,15 @@ func TestConstraintMatchers_RemoveAll(t *testing.T) {
 		{
 			name: "remove from handler",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
-						},
-						"cog": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
+							"cog": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -353,15 +395,19 @@ func TestConstraintMatchers_RemoveAll(t *testing.T) {
 		{
 			name: "remove from multiple handlers",
 			before: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 					"cog": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
@@ -375,7 +421,7 @@ func TestConstraintMatchers_RemoveAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.before
 
-			got.RemoveAll(tt.kind)
+			got.RemoveKind(tt.kind)
 
 			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreUnexported(constraintMatchers{})); diff != "" {
 				t.Error(diff)
@@ -388,157 +434,195 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 	tests := []struct {
 		name     string
 		matchers *constraintMatchers
+		handler  string
 		review   interface{}
-		want     map[string]map[string][]string
+		want     map[string][]string
 		wantErrs error
 	}{
 		{
 			name:     "no matchers",
 			matchers: &constraintMatchers{},
+			handler:  "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want:     map[string]map[string][]string{},
+			want:     map[string][]string{},
 			wantErrs: nil,
 		},
 		{
 			name: "match one",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
+			handler: "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: map[string]map[string][]string{
-				"foo": {
-					"bar": []string{"qux"},
-				},
+			want: map[string][]string{
+				"bar": {"qux"},
 			},
 			wantErrs: nil,
 		},
 		{
 			name: "match two same kind",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
-							"cog": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+								"cog": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
+			handler: "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string]map[string][]string{
-				"foo": {
-					"bar": []string{"cog", "qux"},
-				},
+			want: map[string][]string{
+				"bar": {"cog", "qux"},
 			},
 			wantErrs: nil,
 		},
 		{
 			name: "match two different kinds",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
-						},
-						"cog": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{},
+							},
+							"cog": {
+								"qux": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
+			handler: "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string]map[string][]string{
-				"foo": {
-					"bar": []string{"qux"},
-					"cog": []string{"qux"},
-				},
+			want: map[string][]string{
+				"bar": {"qux"},
+				"cog": {"qux"},
 			},
 			wantErrs: nil,
 		},
 		{
-			name: "match two different targets",
+			name: "match one target",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux1": handlertest.Matcher{},
+							},
 						},
 					},
 					"cog": {
-						"bar": {
-							"qux": handlertest.Matcher{},
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux2": handlertest.Matcher{},
+							},
 						},
 					},
 				},
 			},
+			handler: "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string]map[string][]string{
-				"foo": {
-					"bar": []string{"qux"},
+			want: map[string][]string{
+				"bar": {"qux1"},
+			},
+			wantErrs: nil,
+		},
+		{
+			name: "match other target",
+			matchers: &constraintMatchers{
+				matchers: map[string]targetMatchers{
+					"foo": {
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux1": handlertest.Matcher{},
+							},
+						},
+					},
+					"cog": {
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux2": handlertest.Matcher{},
+							},
+						},
+					},
 				},
-				"cog": {
-					"bar": []string{"qux"},
-				},
+			},
+			handler: "cog",
+			review: &handlertest.Review{
+				Object: handlertest.Object{},
+			},
+			want: map[string][]string{
+				"bar": {"qux2"},
 			},
 			wantErrs: nil,
 		},
 		{
 			name: "match one but not the other",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{
-								Namespace: "aaa",
-							},
-							"cog": handlertest.Matcher{
-								Namespace: "bbb",
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{
+									Namespace: "aaa",
+								},
+								"cog": handlertest.Matcher{
+									Namespace: "bbb",
+								},
 							},
 						},
 					},
 				},
 			},
+			handler: "foo",
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: map[string]map[string][]string{
-				"foo": {
-					"bar": []string{"qux"},
-				},
+			want: map[string][]string{
+				"bar": {"qux"},
 			},
 			wantErrs: nil,
 		},
 		{
 			name: "error matching",
 			matchers: &constraintMatchers{
-				matchers: map[string]map[string]map[string]constraints.Matcher{
+				matchers: map[string]targetMatchers{
 					"foo": {
-						"bar": {
-							"qux": handlertest.Matcher{
-								Namespace: "aaa",
+						matchers: map[string]map[string]constraints.Matcher{
+							"bar": {
+								"qux": handlertest.Matcher{
+									Namespace: "aaa",
+								},
 							},
 						},
 					},
 				},
 			},
-			review: "nope",
-			want:   nil,
+			handler: "foo",
+			review:  "nope",
+			want:    nil,
 			wantErrs: &errors.ErrorMap{
 				"foo bar qux": handlertest.ErrInvalidType,
 			},
@@ -547,7 +631,7 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.matchers.ConstraintsFor(tt.review)
+			got, err := tt.matchers.ConstraintsFor(tt.handler, tt.review)
 			if diff := cmp.Diff(tt.wantErrs, err, cmpopts.EquateErrors()); diff != "" {
 				t.Fatal(diff)
 			}

@@ -20,10 +20,11 @@ type matcherKey struct {
 
 // constraintMatchers tracks the Matchers for each Constraint.
 // Filters Constraints relevant to a passed review.
+// Threadsafe.
 type constraintMatchers struct {
 	// matchers is the set of Constraint matchers by their Target, Kind, and Name.
 	// matchers is a map from Target to a map from Kind to a map from Name to matcher.
-	matchers map[string]map[string]map[string]constraints.Matcher
+	matchers map[string]targetMatchers
 
 	mtx sync.RWMutex
 }
@@ -35,22 +36,13 @@ func (c *constraintMatchers) Add(key matcherKey, matcher constraints.Matcher) {
 	defer c.mtx.Unlock()
 
 	if c.matchers == nil {
-		c.matchers = make(map[string]map[string]map[string]constraints.Matcher)
+		c.matchers = make(map[string]targetMatchers)
 	}
 
-	targetMatchers := c.matchers[key.target]
-	if targetMatchers == nil {
-		targetMatchers = make(map[string]map[string]constraints.Matcher)
-	}
+	target := c.matchers[key.target]
+	target.Add(key, matcher)
 
-	kindMatchers := targetMatchers[key.kind]
-	if kindMatchers == nil {
-		kindMatchers = make(map[string]constraints.Matcher)
-	}
-
-	kindMatchers[key.name] = matcher
-	targetMatchers[key.kind] = kindMatchers
-	c.matchers[key.target] = targetMatchers
+	c.matchers[key.target] = target
 }
 
 // Remove deletes the Matcher for the Constraint with kind and name.
@@ -63,35 +55,23 @@ func (c *constraintMatchers) Remove(key matcherKey) {
 		return
 	}
 
-	targetMatchers := c.matchers[key.target]
-	if len(targetMatchers) == 0 {
+	target := c.matchers[key.target]
+	if len(target.matchers) == 0 {
 		return
 	}
 
-	kindMatchers := targetMatchers[key.kind]
-	if len(kindMatchers) == 0 {
-		return
-	}
+	target.Remove(key)
 
-	delete(kindMatchers, key.name)
-
-	// Remove empty parents to avoid memory leaks.
-	if len(kindMatchers) == 0 {
-		delete(targetMatchers, key.kind)
-	} else {
-		targetMatchers[key.kind] = kindMatchers
-	}
-
-	if len(targetMatchers) == 0 {
+	if len(target.matchers) == 0 {
 		delete(c.matchers, key.target)
 	} else {
-		c.matchers[key.target] = targetMatchers
+		c.matchers[key.target] = target
 	}
 }
 
-// RemoveAll removes all Matchers for Constraints with kind.
-// Returns normally if no entry for the kind existed.
-func (c *constraintMatchers) RemoveAll(kind string) {
+// RemoveKind removes all Matchers for Constraints with kind.
+// Returns normally if no entry for the kind exists for any target.
+func (c *constraintMatchers) RemoveKind(kind string) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -99,14 +79,14 @@ func (c *constraintMatchers) RemoveAll(kind string) {
 		return
 	}
 
-	for h, handlerMatchers := range c.matchers {
-		delete(handlerMatchers, kind)
+	for name, target := range c.matchers {
+		target.RemoveKind(kind)
 
-		if len(handlerMatchers) == 0 {
+		if len(target.matchers) == 0 {
 			// It is safe to delete keys from a map while traversing it.
-			delete(c.matchers, h)
+			delete(c.matchers, name)
 		} else {
-			c.matchers[h] = handlerMatchers
+			c.matchers[name] = target
 		}
 	}
 
@@ -119,35 +99,30 @@ func (c *constraintMatchers) RemoveAll(kind string) {
 //
 // Returns errors for each Constraint which was unable to properly run match
 // criteria.
-func (c *constraintMatchers) ConstraintsFor(review interface{}) (map[string]map[string][]string, error) {
+func (c *constraintMatchers) ConstraintsFor(targetName string, review interface{}) (map[string][]string, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	result := make(map[string]map[string][]string)
-
+	result := make(map[string][]string)
+	target := c.matchers[targetName]
 	errs := errors.ErrorMap{}
 
-	for target, targetMatchers := range c.matchers {
-		resultTargetMatchers := make(map[string][]string)
-		for kind, kindMatchers := range targetMatchers {
-			var resultKindMatchers []string
+	for kind, kindMatchers := range target.matchers {
+		var resultKindMatchers []string
 
-			for name, matcher := range kindMatchers {
-				if matches, err := matcher.Match(review); err != nil {
-					// key uniquely identifies the Constraint whose matcher was unable to
-					// run, for use in debugging.
-					key := fmt.Sprintf("%s %s %s", target, kind, name)
-					errs[key] = err
-				} else if matches {
-					resultKindMatchers = append(resultKindMatchers, name)
-				}
+		for name, matcher := range kindMatchers {
+			if matches, err := matcher.Match(review); err != nil {
+				// key uniquely identifies the Constraint whose matcher was unable to
+				// run, for use in debugging.
+				key := fmt.Sprintf("%s %s %s", targetName, kind, name)
+				errs[key] = err
+			} else if matches {
+				resultKindMatchers = append(resultKindMatchers, name)
 			}
-
-			sort.Strings(resultKindMatchers)
-			resultTargetMatchers[kind] = resultKindMatchers
 		}
 
-		result[target] = resultTargetMatchers
+		sort.Strings(resultKindMatchers)
+		result[kind] = resultKindMatchers
 	}
 
 	if len(errs) > 0 {
@@ -155,4 +130,44 @@ func (c *constraintMatchers) ConstraintsFor(review interface{}) (map[string]map[
 	}
 
 	return result, nil
+}
+
+// targetMatchers are the Matchers for Constraints for a specific target.
+// Not threadsafe.
+type targetMatchers struct {
+	matchers map[string]map[string]constraints.Matcher
+}
+
+func (t *targetMatchers) Add(key matcherKey, matcher constraints.Matcher) {
+	if t.matchers == nil {
+		t.matchers = make(map[string]map[string]constraints.Matcher)
+	}
+
+	kindMatchers := t.matchers[key.kind]
+	if kindMatchers == nil {
+		kindMatchers = make(map[string]constraints.Matcher)
+	}
+
+	kindMatchers[key.name] = matcher
+	t.matchers[key.kind] = kindMatchers
+}
+
+func (t *targetMatchers) Remove(key matcherKey) {
+	kindMatchers := t.matchers[key.kind]
+	if len(kindMatchers) == 0 {
+		return
+	}
+
+	delete(kindMatchers, key.name)
+
+	// Remove empty parents to avoid memory leaks.
+	if len(kindMatchers) == 0 {
+		delete(t.matchers, key.kind)
+	} else {
+		t.matchers[key.kind] = kindMatchers
+	}
+}
+
+func (t *targetMatchers) RemoveKind(kind string) {
+	delete(t.matchers, kind)
 }
