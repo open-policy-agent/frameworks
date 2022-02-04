@@ -509,7 +509,8 @@ violation[{"msg": "msg"}] {
 			if len(dr.modules) == 0 {
 				t.Errorf("driver failed to add module")
 			}
-			gotErr = dr.RemoveTemplate(context.Background(), tmpl)
+
+			gotErr = dr.RemoveTemplate(tmpl)
 			if gotErr != nil {
 				t.Errorf("err = %v; want nil", gotErr)
 			}

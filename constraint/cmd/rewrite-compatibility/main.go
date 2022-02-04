@@ -34,7 +34,9 @@ opa test -v rewrite/lib/ rewrite/validator/
 meld policy-library/lib/ rewrite/lib/
 meld policy-library/validator/ rewrite/validator/
 `,
-	RunE: rootCmdFn,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return rootCmdFn()
+	},
 }
 
 var (
@@ -115,7 +117,7 @@ func compileSrcs(
 	return nil
 }
 
-func rootCmdFn(cmd *cobra.Command, args []string) error {
+func rootCmdFn() error {
 	return compileSrcs(cts, libs, pkgPrefix, oldRoot, newRoot)
 }
 

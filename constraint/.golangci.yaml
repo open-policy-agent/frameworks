@@ -35,6 +35,7 @@ linters:
   - govet
   - ineffassign
   - misspell
+  - nilerr
   - revive # replacement for golint
   - staticcheck
   - structcheck

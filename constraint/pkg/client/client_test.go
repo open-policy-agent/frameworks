@@ -166,7 +166,7 @@ func TestClient_AddData(t *testing.T) {
 			}
 
 			if r == nil {
-				t.Fatal("got AddTemplate() == nil, want non-nil")
+				t.Fatal("got AddData() == nil, want non-nil")
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -461,7 +461,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), tc.template)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -482,7 +482,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(),
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
 			wantHandled: map[string]bool{handlertest.HandlerName: true},
 			wantError:   nil,
 		},
@@ -527,7 +527,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -677,7 +677,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 }
 
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
-	handler := &handlertest.Handler{}
+	h := &handlertest.Handler{}
 
 	d := local.New()
 	b, err := client.NewBackend(client.Driver(d))
@@ -685,7 +685,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Fatalf("Could not create backend: %s", err)
 	}
 
-	c, err := b.NewClient(client.Targets(handler))
+	c, err := b.NewClient(client.Targets(h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,8 +966,8 @@ func TestClient_RemoveConstraint(t *testing.T) {
 				t.Fatalf("Could not create backend: %s", err)
 			}
 
-			handler := &handlertest.Handler{}
-			c, err := b.NewClient(client.Targets(handler))
+			h := &handlertest.Handler{}
+			c, err := b.NewClient(client.Targets(h))
 			if err != nil {
 				t.Fatal(err)
 			}

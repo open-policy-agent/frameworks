@@ -27,7 +27,7 @@ type Driver interface {
 	// AddTemplate adds the template source code to OPA
 	AddTemplate(ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the template source code from OPA
-	RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error
+	RemoveTemplate(ct *templates.ConstraintTemplate) error
 	// AddConstraint inserts validated constraint into OPA
 	AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 	// RemoveConstraint removes a constraint from OPA

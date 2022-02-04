@@ -585,11 +585,17 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate implements driver.Driver.
-// TODO: Cascading deletes.
-func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
-	if err := validateTargets(templ); err != nil {
+func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
+	if len(templ.Spec.Targets) != 1 {
+		// TODO: Properly handle multi-target deletes.
+		//  This is likely trivially covered by compiler sharding since we'll
+		//  control how data is stored per-Template.
+		//  https://github.com/open-policy-agent/frameworks/issues/197
+		// The template has an unexpected number of targets at removal time, so do
+		// nothing.
 		return nil
 	}
+
 	targetHandler := templ.Spec.Targets[0].Target
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	namePrefix := createTemplatePath(targetHandler, kind)
