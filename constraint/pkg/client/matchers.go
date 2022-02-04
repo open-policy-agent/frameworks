@@ -55,8 +55,8 @@ func (c *constraintMatchers) Remove(key matcherKey) {
 		return
 	}
 
-	target := c.matchers[key.target]
-	if len(target.matchers) == 0 {
+	target, ok := c.matchers[key.target]
+	if !ok {
 		return
 	}
 
@@ -153,8 +153,8 @@ func (t *targetMatchers) Add(key matcherKey, matcher constraints.Matcher) {
 }
 
 func (t *targetMatchers) Remove(key matcherKey) {
-	kindMatchers := t.matchers[key.kind]
-	if len(kindMatchers) == 0 {
+	kindMatchers, ok := t.matchers[key.kind]
+	if !ok {
 		return
 	}
 
