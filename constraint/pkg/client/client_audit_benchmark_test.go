@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -19,7 +21,7 @@ func BenchmarkClient_Audit(b *testing.B) {
 	}{{
 		name: "success",
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name, clienttest.WantData("bar"))
+			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
 		},
 		makeObject: func(oid int) *handlertest.Object {
 			name := fmt.Sprintf("has-foo-%d", oid)
@@ -31,7 +33,7 @@ func BenchmarkClient_Audit(b *testing.B) {
 	}, {
 		name: "fail",
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name, clienttest.WantData("bar"))
+			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
 		},
 		makeObject: func(oid int) *handlertest.Object {
 			name := fmt.Sprintf("has-foo-%d", oid)
@@ -43,9 +45,9 @@ func BenchmarkClient_Audit(b *testing.B) {
 	}, {
 		name: "filtered out",
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return clienttest.MakeConstraint(b, makeKind(tid), name,
-				clienttest.WantData("bar"),
-				clienttest.MatchNamespace("zab"))
+			return cts.MakeConstraint(b, makeKind(tid), name,
+				cts.WantData("bar"),
+				cts.MatchNamespace("zab"))
 		},
 		makeObject: func(oid int) *handlertest.Object {
 			name := fmt.Sprintf("has-foo-%d", oid)
