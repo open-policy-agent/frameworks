@@ -1,4 +1,4 @@
-package clienttest
+package cts
 
 import (
 	"testing"

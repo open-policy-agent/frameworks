@@ -166,7 +166,7 @@ func TestClient_AddCachedData(t *testing.T) {
 			}
 
 			if r == nil {
-				t.Fatal("got AddTemplate() == nil, want non-nil")
+				t.Fatal("got AddData() == nil, want non-nil")
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -461,7 +461,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), tc.template)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -482,7 +482,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(),
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
 			wantHandled: map[string]bool{handlertest.HandlerName: true},
 			wantError:   nil,
 		},
@@ -527,7 +527,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -677,7 +677,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 }
 
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
-	handler := &handlertest.Handler{}
+	h := &handlertest.Handler{}
 
 	d := local.New()
 	b, err := client.NewBackend(client.Driver(d))
@@ -685,7 +685,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Fatalf("Could not create backend: %s", err)
 	}
 
-	c, err := b.NewClient(client.Targets(handler))
+	c, err := b.NewClient(client.Targets(h))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -695,12 +695,12 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Errorf("err = %v; want nil", err)
 	}
 
-	cst1 := clienttest.MakeConstraint(t, "CascadingDelete", "cascadingdelete")
+	cst1 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete")
 	if _, err = c.AddConstraint(context.Background(), cst1); err != nil {
 		t.Fatalf("could not add first constraint: %v", err)
 	}
 
-	cst2 := clienttest.MakeConstraint(t, "CascadingDelete", "cascadingdelete2")
+	cst2 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete2")
 	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
 		t.Fatalf("could not add second constraint: %v", err)
 	}
@@ -710,12 +710,12 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Errorf("err = %v; want nil", err)
 	}
 
-	cst3 := clienttest.MakeConstraint(t, "StillPersists", "stillpersists")
+	cst3 := cts.MakeConstraint(t, "StillPersists", "stillpersists")
 	if _, err = c.AddConstraint(context.Background(), cst3); err != nil {
 		t.Fatalf("could not add third constraint: %v", err)
 	}
 
-	cst4 := clienttest.MakeConstraint(t, "StillPersists", "stillpersists2")
+	cst4 := cts.MakeConstraint(t, "StillPersists", "stillpersists2")
 	if _, err = c.AddConstraint(context.Background(), cst4); err != nil {
 		t.Fatalf("could not add fourth constraint: %v", err)
 	}
@@ -796,7 +796,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name:                   "Good Constraint",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:             clienttest.MakeConstraint(t, "Foos", "foo"),
+			constraint:             cts.MakeConstraint(t, "Foos", "foo"),
 			wantHandled:            map[string]bool{handlertest.HandlerName: true},
 			wantAddConstraintError: nil,
 			wantGetConstraintError: nil,
@@ -804,7 +804,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name:                   "No Name",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:             clienttest.MakeConstraint(t, "Foos", ""),
+			constraint:             cts.MakeConstraint(t, "Foos", ""),
 			wantHandled:            nil,
 			wantAddConstraintError: crds.ErrInvalidConstraint,
 			wantGetConstraintError: crds.ErrInvalidConstraint,
@@ -812,7 +812,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name:                   "No Kind",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:             clienttest.MakeConstraint(t, "", "foo"),
+			constraint:             cts.MakeConstraint(t, "", "foo"),
 			wantHandled:            nil,
 			wantAddConstraintError: crds.ErrInvalidConstraint,
 			wantGetConstraintError: crds.ErrInvalidConstraint,
@@ -820,7 +820,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name:                   "No Template",
 			template:               nil,
-			constraint:             clienttest.MakeConstraint(t, "Foo", "foo"),
+			constraint:             cts.MakeConstraint(t, "Foo", "foo"),
 			wantHandled:            nil,
 			wantAddConstraintError: client.ErrMissingConstraintTemplate,
 			wantGetConstraintError: client.ErrMissingConstraint,
@@ -920,37 +920,37 @@ func TestClient_RemoveConstraint(t *testing.T) {
 		{
 			name:        "Good Constraint",
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
-			toRemove:    clienttest.MakeConstraint(t, "Foos", "foo"),
+			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
+			toRemove:    cts.MakeConstraint(t, "Foos", "foo"),
 			wantHandled: map[string]bool{handlertest.HandlerName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "No name",
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
-			toRemove:    clienttest.MakeConstraint(t, "Foos", ""),
+			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
+			toRemove:    cts.MakeConstraint(t, "Foos", ""),
 			wantHandled: nil,
 			wantError:   crds.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Kind",
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			constraint:  clienttest.MakeConstraint(t, "Foos", "foo"),
-			toRemove:    clienttest.MakeConstraint(t, "", "foo"),
+			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
+			toRemove:    cts.MakeConstraint(t, "", "foo"),
 			wantHandled: nil,
 			wantError:   crds.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Template",
-			toRemove:    clienttest.MakeConstraint(t, "Foos", "foo"),
+			toRemove:    cts.MakeConstraint(t, "Foos", "foo"),
 			wantHandled: nil,
 			wantError:   client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:        "No Constraint",
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
-			toRemove:    clienttest.MakeConstraint(t, "Foos", "bar"),
+			toRemove:    cts.MakeConstraint(t, "Foos", "bar"),
 			wantHandled: map[string]bool{handlertest.HandlerName: true},
 			wantError:   nil,
 		},
@@ -966,8 +966,8 @@ func TestClient_RemoveConstraint(t *testing.T) {
 				t.Fatalf("Could not create backend: %s", err)
 			}
 
-			handler := &handlertest.Handler{}
-			c, err := b.NewClient(client.Targets(handler))
+			h := &handlertest.Handler{}
+			c, err := b.NewClient(client.Targets(h))
 			if err != nil {
 				t.Fatal(err)
 			}

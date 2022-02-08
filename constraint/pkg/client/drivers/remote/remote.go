@@ -9,10 +9,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 type Arg func(*inits)
@@ -99,7 +99,15 @@ func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate implements driver.Driver.
-func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
+func (d *driver) RemoveTemplate(ct *templates.ConstraintTemplate) error {
+	panic("not implemented")
+}
+
+func (d *driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	panic("not implemented")
+}
+
+func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	panic("not implemented")
 }
 
