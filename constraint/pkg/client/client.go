@@ -48,8 +48,6 @@ type Client struct {
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddCachedData(ctx context.Context, data interface{}) (*types.Responses, error) {
-	// TODO davis-haba delete comments when done
-	// This function will construct the error map
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
