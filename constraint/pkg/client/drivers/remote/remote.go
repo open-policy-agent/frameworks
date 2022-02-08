@@ -99,7 +99,7 @@ func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate implements driver.Driver.
-func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
+func (d *driver) RemoveTemplate(ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 
