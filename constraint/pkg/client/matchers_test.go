@@ -189,7 +189,8 @@ func TestConstraintMatchers_Add(t *testing.T) {
 
 			got.Add(tt.key, tt.matcher)
 
-			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreUnexported(constraintMatchers{})); diff != "" {
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
 		})
@@ -348,7 +349,9 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 				},
 			},
 			kind: "bar",
-			want: &constraintMatchers{},
+			want: &constraintMatchers{
+				matchers: map[string]targetMatchers{},
+			},
 		},
 		{
 			name: "remove last from handler",
@@ -364,7 +367,9 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 				},
 			},
 			kind: "bar",
-			want: &constraintMatchers{},
+			want: &constraintMatchers{
+				matchers: map[string]targetMatchers{},
+			},
 		},
 		{
 			name: "remove from handler",
@@ -383,7 +388,17 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 				},
 			},
 			kind: "bar",
-			want: &constraintMatchers{},
+			want: &constraintMatchers{
+				matchers: map[string]targetMatchers{
+					"foo": {
+						matchers: map[string]map[string]constraints.Matcher{
+							"cog": {
+								"qux": handlertest.Matcher{},
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "remove from multiple handlers",
@@ -406,7 +421,9 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 				},
 			},
 			kind: "bar",
-			want: &constraintMatchers{},
+			want: &constraintMatchers{
+				matchers: map[string]targetMatchers{},
+			},
 		},
 	}
 
@@ -416,7 +433,8 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 
 			got.RemoveKind(tt.kind)
 
-			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreUnexported(constraintMatchers{})); diff != "" {
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
 		})
