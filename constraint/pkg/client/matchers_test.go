@@ -218,9 +218,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]targetMatchers{
-					"foo": {},
-				},
+				matchers: map[string]targetMatchers{},
 			},
 		},
 		{
@@ -236,13 +234,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 			},
 			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]targetMatchers{
-					"foo": {
-						matchers: map[string]map[string]constraints.Matcher{
-							"bar": {},
-						},
-					},
-				},
+				matchers: map[string]targetMatchers{},
 			},
 		},
 		{
@@ -327,7 +319,8 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 
 			got.Remove(tt.key)
 
-			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreUnexported(constraintMatchers{})); diff != "" {
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
 		})
