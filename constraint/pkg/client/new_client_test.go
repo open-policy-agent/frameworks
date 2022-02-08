@@ -29,7 +29,8 @@ func TestNewClient(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := append(tc.clientOpts, client.Driver(local.New()))
+			opts := tc.clientOpts
+			opts = append(opts, client.Driver(local.New()))
 
 			_, err := client.NewClient(opts...)
 			if !errors.Is(err, tc.wantError) {
