@@ -380,7 +380,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	if err := c.backend.driver.RemoveTemplate(ctx, templ); err != nil {
+	if err := c.backend.driver.RemoveTemplate(templ); err != nil {
 		return resp, err
 	}
 

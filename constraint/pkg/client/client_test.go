@@ -166,7 +166,7 @@ func TestClient_AddData(t *testing.T) {
 			}
 
 			if r == nil {
-				t.Fatal("got AddTemplate() == nil, want non-nil")
+				t.Fatal("got AddData() == nil, want non-nil")
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -461,7 +461,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), tc.template)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -482,7 +482,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(),
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
 			wantHandled: map[string]bool{handlertest.HandlerName: true},
 			wantError:   nil,
 		},
@@ -527,7 +527,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
 			if err != nil {
-				t.Errorf("err = %v; want nil", err)
+				t.Fatalf("err = %v; want nil", err)
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
