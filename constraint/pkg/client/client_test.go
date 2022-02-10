@@ -156,7 +156,7 @@ func TestClient_AddCachedData(t *testing.T) {
 			}
 
 			if r == nil {
-				t.Fatal("got AddData() == nil, want non-nil")
+				t.Fatal("got AddCachedData() == nil, want non-nil")
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
@@ -1549,7 +1549,7 @@ func TestClient_AddTemplate_Duplicate(t *testing.T) {
 	}
 }
 
-func TestClient_AddData_Cache(t *testing.T) {
+func TestClient_AddCachedData_Cache(t *testing.T) {
 	tests := []struct {
 		name    string
 		before  map[string]*handlertest.Object
@@ -1632,13 +1632,13 @@ func TestClient_AddData_Cache(t *testing.T) {
 
 			ctx := context.Background()
 			for _, v := range tt.before {
-				_, err := c.AddData(ctx, v)
+				_, err := c.AddCachedData(ctx, v)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			_, err := c.AddData(ctx, tt.add)
+			_, err := c.AddCachedData(ctx, tt.add)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got error: %#v,\nwant %#v", err, tt.wantErr)
 			}
@@ -1656,7 +1656,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 	}
 }
 
-func TestClient_RemoveData_Cache(t *testing.T) {
+func TestClient_RemoveCachedData_Cache(t *testing.T) {
 	tests := []struct {
 		name    string
 		before  map[string]*handlertest.Object
@@ -1700,13 +1700,13 @@ func TestClient_RemoveData_Cache(t *testing.T) {
 
 			ctx := context.Background()
 			for _, v := range tt.before {
-				_, err := c.AddData(ctx, v)
+				_, err := c.AddCachedData(ctx, v)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			_, err := c.RemoveData(ctx, tt.remove)
+			_, err := c.RemoveCachedData(ctx, tt.remove)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got error: %v,\nwant %v", err, tt.wantErr)
 			}
