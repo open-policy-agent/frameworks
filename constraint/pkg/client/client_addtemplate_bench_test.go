@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 var modules = []struct {
@@ -80,24 +78,13 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
-						targets := client.Targets(&handlertest.Handler{})
 
-						d := local.New()
-
-						backend, err := client.NewBackend(client.Driver(d))
-						if err != nil {
-							b.Fatal(err)
-						}
-
-						c, err := backend.NewClient(targets)
-						if err != nil {
-							b.Fatal(err)
-						}
+						c := clienttest.New(b)
 
 						b.StartTimer()
 
 						for _, ct := range cts {
-							_, err = c.AddTemplate(ct)
+							_, err := c.AddTemplate(ct)
 							if err != nil {
 								b.Fatal(err)
 							}

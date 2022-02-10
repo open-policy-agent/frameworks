@@ -55,12 +55,7 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			_, err = b.NewClient(client.Targets(tc.handler))
+			_, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -139,12 +134,7 @@ func TestClient_AddData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler1, tc.handler2))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -246,12 +236,7 @@ func TestClient_RemoveData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler1, tc.handler2))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -352,12 +337,7 @@ r = 5
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -443,12 +423,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -506,12 +481,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -572,12 +542,7 @@ func TestClient_GetTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -638,14 +603,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Driver(local.New()), client.Targets(tc.handler))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -680,12 +638,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
 	d := local.New()
-	b, err := client.NewBackend(client.Driver(d))
-	if err != nil {
-		t.Fatalf("Could not create backend: %s", err)
-	}
-
-	c, err := b.NewClient(client.Targets(h))
+	c, err := client.NewClient(client.Targets(h), client.Driver(d))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -843,12 +796,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(&handlertest.Handler{}))
+			c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -961,13 +909,8 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			ctx := context.Background()
 
 			d := local.New()
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
 			h := &handlertest.Handler{}
-			c, err := b.NewClient(client.Targets(h))
+			c, err := client.NewClient(client.Targets(h), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1055,12 +998,7 @@ violation[{"msg": "msg"}] {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...))
+			c, err := client.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1114,17 +1052,12 @@ func TestClient_AllowedDataFields_Intersection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			opts := []client.Opt{client.Targets(&handlertest.Handler{})}
+			opts := []client.Opt{client.Targets(&handlertest.Handler{}), client.Driver(d)}
 			if tc.allowed != nil {
 				opts = append(opts, tc.allowed)
 			}
 
-			c, err := b.NewClient(opts...)
+			c, err := client.NewClient(opts...)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -1338,12 +1271,7 @@ violation[msg] {msg := "always"}`,
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.targets...))
+			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
