@@ -8,8 +8,11 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
-var defaults = []client.Opt{
-	client.Targets(&handlertest.Handler{}),
+func defaults() []client.Opt {
+	return []client.Opt{
+		client.Driver(local.New()),
+		client.Targets(&handlertest.Handler{}),
+	}
 }
 
 // New constructs a new Client for testing with a default-constructed local driver
@@ -17,14 +20,9 @@ var defaults = []client.Opt{
 func New(t testing.TB, opts ...client.Opt) *client.Client {
 	t.Helper()
 
-	backend, err := client.NewBackend(client.Driver(local.New()))
-	if err != nil {
-		t.Fatal(err)
-	}
+	opts = append(defaults(), opts...)
 
-	opts = append(defaults, opts...)
-
-	c, err := backend.NewClient(opts...)
+	c, err := client.NewClient(opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
