@@ -1548,3 +1548,178 @@ func TestClient_AddTemplate_Duplicate(t *testing.T) {
 		t.Fatal(diff)
 	}
 }
+
+func TestClient_AddData_Cache(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  map[string]*handlertest.Object
+		add     interface{}
+		want    map[interface{}]interface{}
+		wantErr error
+	}{
+		{
+			name:   "add invalid type",
+			before: nil,
+			add:    "foo",
+			want:   nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidType,
+			},
+		},
+		{
+			name:   "add invalid Object",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "",
+				Name:      "",
+			},
+			want: nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidObject,
+			},
+		},
+		{
+			name:   "add Object",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "foo",
+				Name:      "bar",
+			},
+			want:    nil,
+			wantErr: nil,
+		},
+		{
+			name:   "add Namespace",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "foo",
+			},
+			want: map[interface{}]interface{}{
+				"namespace/foo/": &handlertest.Object{
+					Namespace: "foo",
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "replace Namespace",
+			before: map[string]*handlertest.Object{
+				"namespace/foo/": {
+					Namespace: "foo",
+					Data:      "qux",
+				},
+			},
+			add: &handlertest.Object{
+				Namespace: "foo",
+				Data:      "bar",
+			},
+			want: map[interface{}]interface{}{
+				"namespace/foo/": &handlertest.Object{
+					Namespace: "foo",
+					Data:      "bar",
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &handlertest.Cache{}
+			h := &handlertest.Handler{Cache: cache}
+
+			c := clienttest.New(t, client.Targets(h))
+
+			ctx := context.Background()
+			for _, v := range tt.before {
+				_, err := c.AddData(ctx, v)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := c.AddData(ctx, tt.add)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("got error: %#v,\nwant %#v", err, tt.wantErr)
+			}
+
+			got := make(map[interface{}]interface{})
+			cache.Namespaces.Range(func(key, value interface{}) bool {
+				got[key] = value
+				return true
+			})
+
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestClient_RemoveData_Cache(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  map[string]*handlertest.Object
+		remove  interface{}
+		want    map[interface{}]interface{}
+		wantErr error
+	}{
+		{
+			name:   "remove invalid",
+			before: nil,
+			remove: "foo",
+			want:   nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidType,
+			},
+		},
+		{
+			name:    "remove nonexistent",
+			before:  nil,
+			remove:  &handlertest.Object{Namespace: "foo"},
+			want:    nil,
+			wantErr: nil,
+		},
+		{
+			name: "remove Namespace",
+			before: map[string]*handlertest.Object{
+				"/namespace/foo": {Namespace: "foo"},
+			},
+			remove:  &handlertest.Object{Namespace: "foo"},
+			want:    nil,
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &handlertest.Cache{}
+			h := &handlertest.Handler{Cache: cache}
+
+			c := clienttest.New(t, client.Targets(h))
+
+			ctx := context.Background()
+			for _, v := range tt.before {
+				_, err := c.AddData(ctx, v)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := c.RemoveData(ctx, tt.remove)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("got error: %v,\nwant %v", err, tt.wantErr)
+			}
+
+			got := make(map[interface{}]interface{})
+			cache.Namespaces.Range(func(key, value interface{}) bool {
+				got[key] = value
+				return true
+			})
+
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
