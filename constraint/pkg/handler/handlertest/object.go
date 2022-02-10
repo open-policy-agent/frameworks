@@ -1,11 +1,26 @@
 package handlertest
 
-// Object is a test object under review.
+import "fmt"
+
+// Object is a test object under review. The idea is to represent objects just
+// complex enough to showcase (and test) the features of frameworks's Client,
+// Drivers, and Handlers.
 type Object struct {
-	Name      string `json:"name"`
+	// Name is the identifier of an Object within the scope of its Namespace
+	// (if present). If unset, the Object is a special "Namespace" object.
+	Name string `json:"name"`
+
+	// Namespace is used for Constraints which apply to a subset of Objects.
+	// If unset, the Object is not scoped to a Namespace.
 	Namespace string `json:"namespace"`
 
 	// Data is checked by "CheckData" templates.
-	Data string      `json:"data"`
-	Root interface{} `json:"root"`
+	Data string `json:"data"`
+}
+
+func (o *Object) Key() string {
+	if o.Namespace == "" {
+		return fmt.Sprintf("cluster/%s/%s", o.Namespace, o.Name)
+	}
+	return fmt.Sprintf("namespace/%s/%s", o.Namespace, o.Name)
 }

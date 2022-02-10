@@ -55,12 +55,7 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			_, err = b.NewClient(client.Targets(tc.handler))
+			_, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -139,12 +134,7 @@ func TestClient_AddCachedData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler1, tc.handler2))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -246,12 +236,7 @@ func TestClient_RemoveCachedData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler1, tc.handler2))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -352,12 +337,7 @@ r = 5
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -443,12 +423,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -506,12 +481,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -572,12 +542,7 @@ func TestClient_GetTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -638,14 +603,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler))
+			c, err := client.NewClient(client.Driver(local.New()), client.Targets(tc.handler))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -680,12 +638,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
 	d := local.New()
-	b, err := client.NewBackend(client.Driver(d))
-	if err != nil {
-		t.Fatalf("Could not create backend: %s", err)
-	}
-
-	c, err := b.NewClient(client.Targets(h))
+	c, err := client.NewClient(client.Targets(h), client.Driver(d))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -843,12 +796,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(&handlertest.Handler{}))
+			c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -961,13 +909,8 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			ctx := context.Background()
 
 			d := local.New()
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
 			h := &handlertest.Handler{}
-			c, err := b.NewClient(client.Targets(h))
+			c, err := client.NewClient(client.Targets(h), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1055,12 +998,7 @@ violation[{"msg": "msg"}] {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...))
+			c, err := client.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1114,17 +1052,12 @@ func TestClient_AllowedDataFields_Intersection(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatalf("Could not create backend: %s", err)
-			}
-
-			opts := []client.Opt{client.Targets(&handlertest.Handler{})}
+			opts := []client.Opt{client.Targets(&handlertest.Handler{}), client.Driver(d)}
 			if tc.allowed != nil {
 				opts = append(opts, tc.allowed)
 			}
 
-			c, err := b.NewClient(opts...)
+			c, err := client.NewClient(opts...)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -1338,12 +1271,7 @@ violation[msg] {msg := "always"}`,
 		t.Run(tc.name, func(t *testing.T) {
 			d := local.New()
 
-			b, err := client.NewBackend(client.Driver(d))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			c, err := b.NewClient(client.Targets(tc.targets...))
+			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1618,5 +1546,180 @@ func TestClient_AddTemplate_Duplicate(t *testing.T) {
 
 	if diff := cmp.Diff(t1, t3); diff != "" {
 		t.Fatal(diff)
+	}
+}
+
+func TestClient_AddData_Cache(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  map[string]*handlertest.Object
+		add     interface{}
+		want    map[interface{}]interface{}
+		wantErr error
+	}{
+		{
+			name:   "add invalid type",
+			before: nil,
+			add:    "foo",
+			want:   nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidType,
+			},
+		},
+		{
+			name:   "add invalid Object",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "",
+				Name:      "",
+			},
+			want: nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidObject,
+			},
+		},
+		{
+			name:   "add Object",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "foo",
+				Name:      "bar",
+			},
+			want:    nil,
+			wantErr: nil,
+		},
+		{
+			name:   "add Namespace",
+			before: nil,
+			add: &handlertest.Object{
+				Namespace: "foo",
+			},
+			want: map[interface{}]interface{}{
+				"namespace/foo/": &handlertest.Object{
+					Namespace: "foo",
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "replace Namespace",
+			before: map[string]*handlertest.Object{
+				"namespace/foo/": {
+					Namespace: "foo",
+					Data:      "qux",
+				},
+			},
+			add: &handlertest.Object{
+				Namespace: "foo",
+				Data:      "bar",
+			},
+			want: map[interface{}]interface{}{
+				"namespace/foo/": &handlertest.Object{
+					Namespace: "foo",
+					Data:      "bar",
+				},
+			},
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &handlertest.Cache{}
+			h := &handlertest.Handler{Cache: cache}
+
+			c := clienttest.New(t, client.Targets(h))
+
+			ctx := context.Background()
+			for _, v := range tt.before {
+				_, err := c.AddData(ctx, v)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := c.AddData(ctx, tt.add)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("got error: %#v,\nwant %#v", err, tt.wantErr)
+			}
+
+			got := make(map[interface{}]interface{})
+			cache.Namespaces.Range(func(key, value interface{}) bool {
+				got[key] = value
+				return true
+			})
+
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestClient_RemoveData_Cache(t *testing.T) {
+	tests := []struct {
+		name    string
+		before  map[string]*handlertest.Object
+		remove  interface{}
+		want    map[interface{}]interface{}
+		wantErr error
+	}{
+		{
+			name:   "remove invalid",
+			before: nil,
+			remove: "foo",
+			want:   nil,
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: handlertest.ErrInvalidType,
+			},
+		},
+		{
+			name:    "remove nonexistent",
+			before:  nil,
+			remove:  &handlertest.Object{Namespace: "foo"},
+			want:    nil,
+			wantErr: nil,
+		},
+		{
+			name: "remove Namespace",
+			before: map[string]*handlertest.Object{
+				"/namespace/foo": {Namespace: "foo"},
+			},
+			remove:  &handlertest.Object{Namespace: "foo"},
+			want:    nil,
+			wantErr: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &handlertest.Cache{}
+			h := &handlertest.Handler{Cache: cache}
+
+			c := clienttest.New(t, client.Targets(h))
+
+			ctx := context.Background()
+			for _, v := range tt.before {
+				_, err := c.AddData(ctx, v)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, err := c.RemoveData(ctx, tt.remove)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("got error: %v,\nwant %v", err, tt.wantErr)
+			}
+
+			got := make(map[interface{}]interface{})
+			cache.Namespaces.Range(func(key, value interface{}) bool {
+				got[key] = value
+				return true
+			})
+
+			if diff := cmp.Diff(tt.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
