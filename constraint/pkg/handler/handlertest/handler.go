@@ -14,6 +14,8 @@ import (
 
 var _ handler.TargetHandler = &Handler{}
 
+var _ handler.Cacher = &Handler{}
+
 // HandlerName is the default handler name.
 const HandlerName = "test.target"
 
@@ -28,6 +30,8 @@ type Handler struct {
 	// ProcessDataError is the error to return when ProcessData is called.
 	// If nil returns no error.
 	ProcessDataError error
+
+	Cache *Cache
 }
 
 func (h *Handler) GetName() string {
@@ -112,13 +116,10 @@ func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error
 			return false, "", nil, nil
 		}
 
-		if o.Namespace == "" {
-			return true, fmt.Sprintf("cluster/%s", o.Name), obj, nil
-		}
-		return true, fmt.Sprintf("namespace/%s/%s", o.Namespace, o.Name), obj, nil
+		return true, o.Key(), obj, nil
 	default:
-		return false, "", nil, fmt.Errorf("unrecognized type %T, want %T",
-			obj, &Object{})
+		return false, "", nil, fmt.Errorf("%w: got object type %T, want %T",
+			ErrInvalidType, obj, &Object{})
 	}
 }
 
@@ -167,5 +168,13 @@ func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.
 		return nil, fmt.Errorf("unable to get spec.matchNamespace: %w", err)
 	}
 
-	return Matcher{namespace: ns}, nil
+	return Matcher{namespace: ns, cache: h.Cache}, nil
+}
+
+func (h *Handler) GetCache() handler.Cache {
+	if h.Cache == nil {
+		return handler.NoCache{}
+	}
+
+	return h.Cache
 }

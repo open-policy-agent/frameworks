@@ -58,6 +58,8 @@ func createDataPath(target, subpath string) string {
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
+	// TODO(#189): Make AddData atomic across all Drivers/Targets.
+
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for target, h := range c.targets {
@@ -69,12 +71,40 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
-		if err := c.backend.driver.PutData(ctx, createDataPath(target, relPath), processedData); err != nil {
+
+		var cache handler.Cache
+		if cacher, ok := h.(handler.Cacher); ok {
+			cache = cacher.GetCache()
+		}
+
+		// Add to the target cache first because cache.Remove cannot fail. Thus, we
+		// can prevent the system from getting into an inconsistent state.
+		if cache != nil {
+			err = cache.Add(relPath, processedData)
+			if err != nil {
+				// Use a different key than the driver to avoid clobbering errors.
+				errMap[target] = err
+
+				continue
+			}
+		}
+
+		// paths passed to driver must be specific to the target to prevent key
+		// collisions.
+		driverPath := createDataPath(target, relPath)
+		err = c.backend.driver.PutData(ctx, driverPath, processedData)
+		if err != nil {
 			errMap[target] = err
+
+			if cache != nil {
+				cache.Remove(relPath)
+			}
 			continue
 		}
+
 		resp.Handled[target] = true
 	}
+
 	if len(errMap) == 0 {
 		return resp, nil
 	}
@@ -96,15 +126,24 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if !handled {
 			continue
 		}
+
 		if _, err := c.backend.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
 			errMap[target] = err
 			continue
 		}
 		resp.Handled[target] = true
+
+		if cacher, ok := h.(handler.Cacher); ok {
+			cache := cacher.GetCache()
+
+			cache.Remove(relPath)
+		}
 	}
+
 	if len(errMap) == 0 {
 		return resp, nil
 	}
+
 	return resp, &errMap
 }
 
