@@ -15,8 +15,8 @@ var (
 // Matcher is a test matcher which matches Objects with a matching namespace.
 // Checks that Namespace exists in cache before proceeding.
 type Matcher struct {
-	namespace string
-	cache     *Cache
+	Namespace string
+	Cache     *Cache
 }
 
 // Match returns true if the object under review's Namespace matches the Namespace
@@ -25,26 +25,30 @@ type Matcher struct {
 //
 // Matches all objects if the Matcher has no namespace specified.
 func (m Matcher) Match(review interface{}) (bool, error) {
-	if m.namespace == "" {
+	if m.Namespace == "" {
 		return true, nil
 	}
 
-	wantNamespace := Object{Namespace: m.namespace}
+	if m.Cache == nil {
+		return false, fmt.Errorf("missing cache")
+	}
+
+	wantNamespace := Object{Namespace: m.Namespace}
 
 	key := wantNamespace.Key()
-	_, exists := m.cache.Namespaces.Load(key)
+	_, exists := m.Cache.Namespaces.Load(key)
 	if !exists {
 		return false, fmt.Errorf("%w: namespace %q not in cache",
-			ErrNotFound, m.namespace)
+			ErrNotFound, m.Namespace)
 	}
 
 	reviewObj, ok := review.(*Review)
 	if !ok {
-		return false, fmt.Errorf("%w: unrecognized type %T, want %T",
+		return false, fmt.Errorf("%w: got %T, want %T",
 			ErrInvalidType, review, &Review{})
 	}
 
-	return m.namespace == reviewObj.Object.Namespace, nil
+	return m.Namespace == reviewObj.Object.Namespace, nil
 }
 
 var _ constraints.Matcher = Matcher{}
