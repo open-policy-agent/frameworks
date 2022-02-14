@@ -411,7 +411,7 @@ func TestDriver_AddTemplates(t *testing.T) {
 package something
 
 violation[msg] {msg := "always"}`,
-			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTargetHandler, cts.MockTemplate), 0)},
+			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
 		},
 		{
 			name:          "inventory disallowed template",
@@ -433,7 +433,7 @@ violation[{"msg": "msg"}] {
 }`,
 			externs:     []string{"data.inventory"},
 			wantErr:     nil,
-			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTargetHandler, cts.MockTemplate), 0)},
+			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
 		},
 	}
 
@@ -631,7 +631,7 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 			template:   tmpl,
 			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
 			toRemove:   cts.MakeConstraint(t, "", "foo"),
-			wantError:  nil,
+			wantError:  clienterrors.ErrInvalidConstraint,
 		},
 		{
 			name:      "No Template",
