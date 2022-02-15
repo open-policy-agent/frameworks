@@ -9,8 +9,13 @@ import (
 )
 
 func defaults() []client.Opt {
+	d, err := local.New()
+	if err != nil {
+		panic(err)
+	}
+
 	return []client.Opt{
-		client.Driver(local.New()),
+		client.Driver(d),
 		client.Targets(&handlertest.Handler{}),
 	}
 }

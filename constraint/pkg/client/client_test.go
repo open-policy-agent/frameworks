@@ -53,9 +53,12 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			_, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			_, err = client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -132,7 +135,10 @@ func TestClient_AddData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
@@ -234,7 +240,10 @@ func TestClient_RemoveData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
@@ -335,7 +344,10 @@ r = 5
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
@@ -421,7 +433,10 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
@@ -479,7 +494,10 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
@@ -540,7 +558,10 @@ func TestClient_GetTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
@@ -603,7 +624,12 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := client.NewClient(client.Driver(local.New()), client.Targets(tc.handler))
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c, err := client.NewClient(client.Driver(d), client.Targets(tc.handler))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -637,7 +663,10 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
-	d := local.New()
+	d, err := local.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, err := client.NewClient(client.Targets(h), client.Driver(d))
 	if err != nil {
 		t.Fatal(err)
@@ -794,7 +823,10 @@ func TestClient_AddConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
 			if err != nil {
@@ -908,7 +940,10 @@ func TestClient_RemoveConstraint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 			h := &handlertest.Handler{}
 			c, err := client.NewClient(client.Targets(h), client.Driver(d))
 			if err != nil {
@@ -996,9 +1031,12 @@ violation[{"msg": "msg"}] {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New(local.Externs(tc.allowedFields...))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			c, err := client.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1014,60 +1052,6 @@ violation[{"msg": "msg"}] {
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-func TestClient_AllowedDataFields_Intersection(t *testing.T) {
-	tcs := []struct {
-		name      string
-		allowed   client.Opt
-		want      []string
-		wantError error
-	}{
-		{
-			name: "No AllowedDataFields specified",
-			want: []string{"inventory"},
-		},
-		{
-			name:    "Empty AllowedDataFields Used",
-			allowed: client.AllowedDataFields(),
-			want:    nil,
-		},
-		{
-			name:    "Inventory Used",
-			allowed: client.AllowedDataFields("inventory"),
-			want:    []string{"inventory"},
-		},
-		{
-			name:      "Invalid Data Field",
-			allowed:   client.AllowedDataFields("no_overlap"),
-			want:      []string{},
-			wantError: client.ErrCreatingClient,
-		},
-	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			opts := []client.Opt{client.Targets(&handlertest.Handler{}), client.Driver(d)}
-			if tc.allowed != nil {
-				opts = append(opts, tc.allowed)
-			}
-
-			c, err := client.NewClient(opts...)
-			if !errors.Is(err, tc.wantError) {
-				t.Fatalf("got NewClient() error = %v, want %v",
-					err, tc.wantError)
-			}
-
-			if tc.wantError != nil {
-				return
-			}
-
-			if diff := cmp.Diff(tc.want, c.AllowedDataFields); diff != "" {
 				t.Error(diff)
 			}
 		})
@@ -1269,7 +1253,10 @@ violation[msg] {msg := "always"}`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
 			if err != nil {

@@ -7,11 +7,6 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 )
 
-// Currently rules should only access data.inventory.
-var validDataFields = map[string]bool{
-	"inventory": true,
-}
-
 // ParseModule parses the module and also fails empty modules.
 func ParseModule(path, rego string) (*ast.Module, error) {
 	module, err := ast.ParseModule(path, rego)

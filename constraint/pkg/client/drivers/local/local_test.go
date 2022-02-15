@@ -74,10 +74,9 @@ type action struct {
 }
 
 func (tt *compositeTestCase) run(t *testing.T) {
-	dr := New(tt.driverArg...)
-	d, ok := dr.(*Driver)
-	if !ok {
-		t.Fatalf("got driver %T, want %T", dr, &Driver{})
+	d, err := New(tt.driverArg...)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	for idx, a := range tt.Actions {
@@ -377,10 +376,9 @@ func TestPutModule(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			ctx := context.Background()
 
-			dr := New()
-			d, ok := dr.(*Driver)
-			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			for _, r := range tt.Rules {
@@ -435,10 +433,9 @@ func TestPutData(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			ctx := context.Background()
 
-			dr := New()
-			d, ok := dr.(*Driver)
-			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			for _, data := range tt.Data {
@@ -513,10 +510,9 @@ func TestDeleteData(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			ctx := context.Background()
 
-			dr := New()
-			d, ok := dr.(*Driver)
-			if !ok {
-				t.Fatalf("got driver %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			for _, a := range tt.Actions {
@@ -605,7 +601,10 @@ func TestQuery(t *testing.T) {
 	t.Run("Parse Response", func(t *testing.T) {
 		ctx := context.Background()
 
-		d := New()
+		d, err := New()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		for i, v := range intResponses {
 			if err := d.PutData(ctx, fmt.Sprintf("/constraints/%d", i), v); err != nil {

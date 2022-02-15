@@ -41,8 +41,6 @@ type Client struct {
 	templates map[templateKey]*templateEntry
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
-
-	AllowedDataFields []string
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
@@ -678,15 +676,7 @@ func (c *Client) init() error {
 				ErrCreatingClient, err, src)
 		}
 	}
-	if d, ok := c.driver.(*local.Driver); ok {
-		var externs []string
-		for _, field := range c.AllowedDataFields {
-			externs = append(externs, fmt.Sprintf("data.%s", field))
-		}
-		d.SetExterns(externs)
-	} else {
-		return fmt.Errorf("%w: driver %T is not supported", ErrCreatingClient, c.driver)
-	}
+
 	return nil
 }
 

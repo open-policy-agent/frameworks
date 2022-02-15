@@ -59,23 +59,30 @@ func (i insertParam) add(name string, src string) error {
 	return nil
 }
 
-func New(args ...Arg) drivers.Driver {
+func New(args ...Arg) (*Driver, error) {
 	d := &Driver{}
 	for _, arg := range args {
-		arg(d)
+		err := arg(d)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	Defaults()(d)
+	err := Defaults()(d)
+	if err != nil {
+		return nil, err
+	}
 
 	d.compiler.WithCapabilities(d.capabilities)
 
-	return d
+	return d, nil
 }
 
 var _ drivers.Driver = &Driver{}
 
 type Driver struct {
-	modulesMux    sync.RWMutex
+	mtx sync.RWMutex
+
 	compiler      *ast.Compiler
 	modules       map[string]*ast.Module
 	storage       storage.Store
@@ -90,6 +97,9 @@ type Driver struct {
 }
 
 func (d *Driver) Init() error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	if d.providerCache != nil {
 		rego.RegisterBuiltin1(
 			&rego.Function{
@@ -189,6 +199,9 @@ func toModuleSetName(prefix string, idx int) string {
 }
 
 func (d *Driver) PutModule(name string, src string) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	if err := d.checkModuleName(name); err != nil {
 		return err
 	}
@@ -197,9 +210,6 @@ func (d *Driver) PutModule(name string, src string) error {
 	if err := insert.add(name, src); err != nil {
 		return err
 	}
-
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
 
 	_, err := d.alterModules(insert, nil)
 	return err
@@ -219,9 +229,6 @@ func (d *Driver) putModules(namePrefix string, srcs []string) error {
 			return err
 		}
 	}
-
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
 
 	var remove []string
 	for _, name := range d.listModuleSet(namePrefix) {
@@ -269,9 +276,6 @@ func (d *Driver) deleteModules(namePrefix string) (int, error) {
 		return 0, err
 	}
 
-	d.modulesMux.Lock()
-	defer d.modulesMux.Unlock()
-
 	return d.alterModules(nil, d.listModuleSet(namePrefix))
 }
 
@@ -303,9 +307,6 @@ func parsePath(path string) ([]string, error) {
 }
 
 func (d *Driver) PutData(ctx context.Context, path string, data interface{}) error {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
-
 	p, err := parsePath(path)
 	if err != nil {
 		return err
@@ -350,9 +351,6 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
 func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
-
 	p, err := parsePath(path)
 	if err != nil {
 		return false, err
@@ -379,9 +377,6 @@ func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
 }
 
 func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *drivers.QueryCfg) (rego.ResultSet, *string, error) {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
-
 	args := []func(*rego.Rego){
 		rego.Compiler(d.compiler),
 		rego.Store(d.storage),
@@ -410,6 +405,9 @@ func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *
 }
 
 func (d *Driver) Query(ctx context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -449,8 +447,8 @@ func (d *Driver) Query(ctx context.Context, path string, input interface{}, opts
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
-	d.modulesMux.RLock()
-	defer d.modulesMux.RUnlock()
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 
 	mods := make(map[string]string, len(d.modules))
 	for k, v := range d.modules {
@@ -564,6 +562,9 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 
 // AddTemplate implements drivers.Driver.
 func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	namePrefix, mods, err := d.ValidateConstraintTemplate(templ)
 	if err != nil {
 		return err
@@ -584,6 +585,9 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 
 // RemoveTemplate implements driver.Driver.
 func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	namePrefix := createTemplatePath(kind)
 
@@ -598,6 +602,9 @@ func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 }
 
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	kind := constraint.GetKind()
 	_, found := d.kinds[kind]
 	if !found {
@@ -615,6 +622,9 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 }
 
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	relPath, err := createConstraintPath(handlertest.HandlerName, constraint)
 	// If we ever create multi-target constraints we will need to handle this more cleverly.
 	// the short-circuiting question, cleanup, etc.
@@ -752,8 +762,4 @@ func createConstraintPath(target string, constraint *unstructured.Unstructured) 
 		return "", err
 	}
 	return constraintPathMerge(target, p), nil
-}
-
-func (d *Driver) SetExterns(fields []string) {
-	d.externs = fields
 }

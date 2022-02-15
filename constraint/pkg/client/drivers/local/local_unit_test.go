@@ -123,12 +123,9 @@ func TestDriver_PutModule(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New(Modules(tc.beforeModules))
-
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T",
-					d, &Driver{})
+			d, err := New(Modules(tc.beforeModules))
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			gotErr := d.PutModule(tc.moduleName, tc.moduleSrc)
@@ -136,8 +133,8 @@ func TestDriver_PutModule(t *testing.T) {
 				t.Fatalf("got PutModule() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(dr.modules))
-			for gotModule := range dr.modules {
+			gotModules := make([]string, 0, len(d.modules))
+			for gotModule := range d.modules {
 				gotModules = append(gotModules, gotModule)
 			}
 			sort.Strings(gotModules)
@@ -250,25 +247,25 @@ func TestDriver_PutModules(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
+
 			for prefix, src := range tc.beforeModules {
-				err := dr.putModules(prefix, src)
+				err := d.putModules(prefix, src)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			gotErr := dr.putModules(tc.prefix, tc.srcs)
+			gotErr := d.putModules(tc.prefix, tc.srcs)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got PutModules() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(dr.modules))
-			for gotModule := range dr.modules {
+			gotModules := make([]string, 0, len(d.modules))
+			for gotModule := range d.modules {
 				gotModules = append(gotModules, gotModule)
 			}
 			sort.Strings(gotModules)
@@ -343,24 +340,23 @@ func TestDriver_DeleteModules(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T",
-					d, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
+
 			for prefix, count := range tc.beforeModules {
 				modules := make([]string, count)
 				for i := 0; i < count; i++ {
 					modules[i] = Module
 				}
-				err := dr.putModules(prefix, modules)
+				err := d.putModules(prefix, modules)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			gotDeleted, gotErr := dr.deleteModules(tc.prefix)
+			gotDeleted, gotErr := d.deleteModules(tc.prefix)
 			if gotDeleted != tc.wantDeleted {
 				t.Errorf("got DeleteModules() = %v, want %v", gotDeleted, tc.wantDeleted)
 			}
@@ -369,8 +365,8 @@ func TestDriver_DeleteModules(t *testing.T) {
 				t.Fatalf("got DeleteModules() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(dr.modules))
-			for gotModule := range dr.modules {
+			gotModules := make([]string, 0, len(d.modules))
+			for gotModule := range d.modules {
 				gotModules = append(gotModules, gotModule)
 			}
 			sort.Strings(gotModules)
@@ -431,7 +427,7 @@ violation[{"msg": "msg"}] {
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }`,
-			externs:     []string{"data.inventory"},
+			externs:     []string{"inventory"},
 			wantErr:     nil,
 			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
 		},
@@ -439,20 +435,19 @@ violation[{"msg": "msg"}] {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			d, err := New(Externs(tc.externs...))
+			if err != nil {
+				t.Fatal(err)
 			}
-			dr.SetExterns(tc.externs)
+
 			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
-			gotErr := dr.AddTemplate(tmpl)
+			gotErr := d.AddTemplate(tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(dr.modules))
-			for gotModule := range dr.modules {
+			gotModules := make([]string, 0, len(d.modules))
+			for gotModule := range d.modules {
 				gotModules = append(gotModules, gotModule)
 			}
 			sort.Strings(gotModules)
@@ -488,34 +483,33 @@ violation[msg] {msg := "always"}`,
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }`,
-			externs: []string{"data.inventory"},
+			externs: []string{"inventory"},
 			wantErr: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			d, err := New(Externs(tc.externs...))
+			if err != nil {
+				t.Fatal(err)
 			}
-			dr.SetExterns(tc.externs)
+
 			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
-			gotErr := dr.AddTemplate(tmpl)
+			gotErr := d.AddTemplate(tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
-			if len(dr.modules) == 0 {
+			if len(d.modules) == 0 {
 				t.Errorf("driver failed to add module")
 			}
 
-			gotErr = dr.RemoveTemplate(tmpl)
+			gotErr = d.RemoveTemplate(tmpl)
 			if gotErr != nil {
 				t.Errorf("err = %v; want nil", gotErr)
 			}
-			if len(dr.modules) != 0 {
-				t.Errorf("driver has module = %v; want nil", len(dr.modules))
+			if len(d.modules) != 0 {
+				t.Errorf("driver has module = %v; want nil", len(d.modules))
 			}
 		})
 	}
@@ -575,27 +569,27 @@ func TestDriver_AddConstraint(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
+
 			tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, TemplateModule)))
-			err := dr.AddTemplate(tmpl)
+			err = d.AddTemplate(tmpl)
 			if err != nil {
 				t.Fatalf("got AddTemplate() error = %v", err)
 			}
-			err = dr.AddConstraint(context.Background(), tc.constraint)
+			err = d.AddConstraint(context.Background(), tc.constraint)
 			if !errors.Is(err, tc.wantAddConstraintError) {
 				t.Fatalf("got AddConstraint() error = %v, want %v",
 					err, tc.wantAddConstraintError)
 			}
 			if err == nil {
-				storage, err := dr.Dump(context.Background())
+				store, err := d.Dump(context.Background())
 				if err != nil {
 					t.Fatalf("could not dump driver %v", err)
 				}
-				if !strings.Contains(storage, tc.constraint.GetName()) {
+				if !strings.Contains(store, tc.constraint.GetName()) {
 					t.Errorf("expected constraint %s not added to driver", tc.constraint.GetName())
 				}
 			}
@@ -650,28 +644,26 @@ func TestDriver_RemoveConstraint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New()
-			dr, ok := d.(*Driver)
-			if !ok {
-				t.Fatalf("got New() type = %T, want %T", dr, &Driver{})
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			if tc.template != nil {
-				err := dr.AddTemplate(tc.template)
+				err := d.AddTemplate(tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			if tc.constraint != nil {
-				err := dr.AddConstraint(ctx, tc.constraint)
+				err := d.AddConstraint(ctx, tc.constraint)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			err := dr.RemoveConstraint(context.Background(), tc.toRemove)
-
+			err = d.RemoveConstraint(context.Background(), tc.toRemove)
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got RemoveConstraint error = %v, want %v",
 					err, tc.wantError)
@@ -754,7 +746,10 @@ func TestDriver_PutData(t *testing.T) {
 			ctx := context.Background()
 
 			s := &fakeStorage{}
-			d := New(Storage(s))
+			d, err := New(Storage(s))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			if tc.beforeValue != nil {
 				err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
@@ -763,7 +758,7 @@ func TestDriver_PutData(t *testing.T) {
 				}
 			}
 
-			err := d.PutData(ctx, tc.path, tc.value)
+			err = d.PutData(ctx, tc.path, tc.value)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got PutData() error = %v, want %v",
 					err, tc.wantErr)
@@ -838,11 +833,14 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(Storage(tc.storage))
+			d, err := New(Storage(tc.storage))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			path := "/foo"
 			value := map[string]string{"bar": "qux"}
-			err := d.PutData(ctx, path, value)
+			err = d.PutData(ctx, path, value)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got PutData() error = %v, want %v", err, tc.wantErr)
@@ -895,9 +893,12 @@ func TestDriver_DeleteData(t *testing.T) {
 			ctx := context.Background()
 
 			s := &fakeStorage{}
-			d := New(Storage(s))
+			d, err := New(Storage(s))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
+			err = d.PutData(ctx, tc.beforePath, tc.beforeValue)
 			if err != nil {
 				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 			}
@@ -959,13 +960,63 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d := New(Storage(tc.storage))
+			d, err := New(Storage(tc.storage))
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			path := "/foo"
-			_, err := d.DeleteData(ctx, path)
+			_, err = d.DeleteData(ctx, path)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestDriver_Externs_Intersection(t *testing.T) {
+	tcs := []struct {
+		name      string
+		allowed   []Arg
+		want      []string
+		wantError error
+	}{
+		{
+			name: "No Externs specified",
+			want: []string{"data.inventory"},
+		},
+		{
+			name:    "Empty Externs Used",
+			allowed: []Arg{Externs()},
+			want:    []string{},
+		},
+		{
+			name:    "Inventory Used",
+			allowed: []Arg{Externs("inventory")},
+			want:    []string{"data.inventory"},
+		},
+		{
+			name:      "Invalid Data Field",
+			allowed:   []Arg{Externs("no_overlap")},
+			want:      []string{},
+			wantError: clienterrors.ErrCreatingDriver,
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := New(tc.allowed...)
+			if !errors.Is(err, tc.wantError) {
+				t.Fatalf("got NewClient() error = %v, want %v",
+					err, tc.wantError)
+			}
+
+			if tc.wantError != nil {
+				return
+			}
+
+			if diff := cmp.Diff(tc.want, d.externs); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}

@@ -10,7 +10,11 @@ func BenchmarkDriver_PutModule(b *testing.B) {
 		b.Run(fmt.Sprintf("%d templates", n), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				d := New()
+				d, err := New()
+				if err != nil {
+					b.Fatal(err)
+				}
+
 				b.StartTimer()
 
 				for j := 0; j < n; j++ {

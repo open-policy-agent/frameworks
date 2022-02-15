@@ -1,6 +1,9 @@
 package local
 
 import (
+	"fmt"
+
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
@@ -9,10 +12,10 @@ import (
 	opatypes "github.com/open-policy-agent/opa/types"
 )
 
-type Arg func(*Driver)
+type Arg func(*Driver) error
 
 func Defaults() Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		if d.compiler == nil {
 			d.compiler = ast.NewCompiler()
 		}
@@ -28,6 +31,12 @@ func Defaults() Arg {
 			d.capabilities = ast.CapabilitiesForThisVersion()
 		}
 
+		if d.externs == nil {
+			for allowed := range validDataFields {
+				d.externs = append(d.externs, fmt.Sprintf("data.%s", allowed))
+			}
+		}
+
 		// adding external_data builtin otherwise capabilities get overridden
 		// if a capability, like http.send, is disabled
 		if d.providerCache != nil {
@@ -36,47 +45,61 @@ func Defaults() Arg {
 				Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
 			})
 		}
+
+		return nil
 	}
 }
 
 func Tracing(enabled bool) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.traceEnabled = enabled
+
+		return nil
 	}
 }
 
 func PrintEnabled(enabled bool) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.printEnabled = enabled
+
+		return nil
 	}
 }
 
 func PrintHook(hook print.Hook) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.printHook = hook
+
+		return nil
 	}
 }
 
 func Modules(modules map[string]*ast.Module) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.modules = modules
+
+		return nil
 	}
 }
 
 func Storage(s storage.Store) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.storage = s
+
+		return nil
 	}
 }
 
 func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		d.providerCache = providerCache
+
+		return nil
 	}
 }
 
 func DisableBuiltins(builtins ...string) Arg {
-	return func(d *Driver) {
+	return func(d *Driver) error {
 		if d.capabilities == nil {
 			d.capabilities = ast.CapabilitiesForThisVersion()
 		}
@@ -95,5 +118,34 @@ func DisableBuiltins(builtins ...string) Arg {
 		}
 
 		d.capabilities.Builtins = nb
+
+		return nil
 	}
+}
+
+// Externs sets the fields under `data` that Rego in ConstraintTemplates
+// can access. If unset, all fields can be accessed. Only fields recognized by
+// the system can be enabled.
+func Externs(externs ...string) Arg {
+	return func(driver *Driver) error {
+		fields := make([]string, len(externs))
+
+		for i, field := range externs {
+			if !validDataFields[field] {
+				return fmt.Errorf("%w: invalid data field %q; allowed fields are: %v",
+					errors.ErrCreatingDriver, field, validDataFields)
+			}
+
+			fields[i] = fmt.Sprintf("data.%s", field)
+		}
+
+		driver.externs = fields
+
+		return nil
+	}
+}
+
+// Currently rules should only access data.inventory.
+var validDataFields = map[string]bool{
+	"inventory": true,
 }

@@ -9,27 +9,14 @@ import (
 
 // NewClient creates a new client.
 func NewClient(opts ...Opt) (*Client, error) {
-	var fields []string
-	for k := range validDataFields {
-		fields = append(fields, k)
-	}
-
 	c := &Client{
-		constraints:       make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
-		templates:         make(map[templateKey]*templateEntry),
-		AllowedDataFields: fields,
+		constraints: make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
+		templates:   make(map[templateKey]*templateEntry),
 	}
 
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
 			return nil, err
-		}
-	}
-
-	for _, field := range c.AllowedDataFields {
-		if !validDataFields[field] {
-			return nil, fmt.Errorf("%w: invalid data field %q; allowed fields are: %v",
-				ErrCreatingClient, field, validDataFields)
 		}
 	}
 

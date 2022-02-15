@@ -515,7 +515,11 @@ func TestClient_Review_Print(t *testing.T) {
 			var printed []string
 			printHook := appendingPrintHook{printed: &printed}
 
-			d := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			d, err := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
