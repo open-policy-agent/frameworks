@@ -204,6 +204,8 @@ func TestClient_Review(t *testing.T) {
 			wantErr: &clienterrors.ErrorMap{
 				handlertest.HandlerName: clienterrors.ErrAutoreject,
 			},
+			// TODO(willbeason): Before merging, make sure we return the autoreject
+			//  results, and conditionally exit early based on enforcement action.
 			//wantResults: []*types.Result{{
 			//	Msg:               "autoreject",
 			//	EnforcementAction: "deny",

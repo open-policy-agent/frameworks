@@ -765,6 +765,9 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 	name := target.GetName()
 	_, err = c.matchers.ConstraintsFor(name, obj)
 	if err != nil {
+		// TODO(willbeason): This is where we'll make the determination about whether
+		//  to continue, or just insert the autorejection into responses based on
+		//  the Constraint's enforcementAction.
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrAutoreject, err)
 	}
 
