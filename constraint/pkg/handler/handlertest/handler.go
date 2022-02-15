@@ -45,18 +45,6 @@ func (h *Handler) GetName() string {
 var libTempl = template.Must(template.New("library").Parse(`
 package foo
 
-autoreject_review[rejection] {
-  constraint := {{.ConstraintsRoot}}[_][_]
-  constraint.spec.autoreject
-  input.review.autoreject
-
-  rejection := {
-    "msg": "autoreject",
-    "details": {},
-    "constraint": constraint,
-  }
-}
-
 matching_constraints[constraint] {
   constraint = {{.ConstraintsRoot}}[_][_]
   spec := object.get(constraint, "spec", {})

@@ -34,7 +34,6 @@ func (c *Cache) Add(key string, object interface{}) error {
 	}
 
 	c.Namespaces.Store(key, object)
-
 	return nil
 }
 

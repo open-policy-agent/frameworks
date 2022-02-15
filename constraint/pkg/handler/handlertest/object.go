@@ -18,7 +18,7 @@ type Object struct {
 	Data string `json:"data"`
 }
 
-func (o *Object) Key() string {
+func (o Object) Key() string {
 	if o.Namespace == "" {
 		return fmt.Sprintf("cluster/%s/%s", o.Namespace, o.Name)
 	}

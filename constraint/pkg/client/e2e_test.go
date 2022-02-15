@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -23,6 +25,7 @@ import (
 func TestClient_Review(t *testing.T) {
 	tests := []struct {
 		name        string
+		namespaces  []string
 		handler     handler.TargetHandler
 		templates   []*templates.ConstraintTemplate
 		constraints []*unstructured.Unstructured
@@ -32,29 +35,29 @@ func TestClient_Review(t *testing.T) {
 		wantErr     error
 	}{
 		{
-			name:    "empty client",
-			handler: &handlertest.Handler{},
-			toReview: handlertest.Review{
+			name:       "empty client",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: nil,
 		},
 		{
-			name:    "deny missing Constraint",
-			handler: &handlertest.Handler{},
+			name:       "deny missing Constraint",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDeny(),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: nil,
 		},
@@ -67,12 +70,11 @@ func TestClient_Review(t *testing.T) {
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: []*types.Result{{
 				Msg:               "denied",
@@ -81,20 +83,20 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
-			name:    "deny all dryrun",
-			handler: &handlertest.Handler{},
+			name:       "deny all dryrun",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDeny(),
 			},
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindDeny, "constraint", cts.EnforcementAction("dryrun")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: []*types.Result{{
 				Msg:               "denied",
@@ -103,20 +105,20 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
-			name:    "deny all library",
-			handler: &handlertest.Handler{},
+			name:       "deny all library",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDenyImport(),
 			},
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: []*types.Result{{
 				Msg:               "denied with library",
@@ -125,56 +127,56 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
-			name:    "allow all",
-			handler: &handlertest.Handler{},
+			name:       "allow all",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateAllow(),
 			},
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindAllow, "constraint"),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: nil,
 		},
 		{
-			name:    "check data allow",
-			handler: &handlertest.Handler{},
+			name:       "check data allow",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "bar",
 				},
-				Autoreject: false,
 			},
 			wantResults: nil,
 		},
 		{
-			name:    "check data deny",
-			handler: &handlertest.Handler{},
+			name:       "check data deny",
+			namespaces: nil,
+			handler:    &handlertest.Handler{},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
 			constraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name: "foo",
 					Data: "qux",
 				},
-				Autoreject: false,
 			},
 			wantResults: []*types.Result{{
 				Msg:               "got qux but want bar for data",
@@ -183,31 +185,38 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
-			name:    "autoreject",
-			handler: &handlertest.Handler{},
+			name:       "autoreject",
+			namespaces: nil,
+			handler:    &handlertest.Handler{Cache: &handlertest.Cache{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
 			constraints: []*unstructured.Unstructured{
-				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar"), cts.EnableAutoreject),
+				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar"), cts.MatchNamespace("aaa")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
-					Name: "foo",
-					Data: "bar",
+					Name:      "foo",
+					Namespace: "aaa",
+					Data:      "bar",
 				},
-				Autoreject: true,
 			},
-			wantResults: []*types.Result{{
-				Msg:               "autoreject",
-				EnforcementAction: "deny",
-				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
-					cts.WantData("bar"), cts.EnableAutoreject),
-			}},
+			wantErr: &clienterrors.ErrorMap{
+				handlertest.HandlerName: clienterrors.ErrAutoreject,
+			},
+			//wantResults: []*types.Result{{
+			//	Msg:               "autoreject",
+			//	EnforcementAction: "deny",
+			//	Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+			//		cts.WantData("bar")),
+			//}},
 		},
 		{
-			name:    "namespace matches",
-			handler: &handlertest.Handler{},
+			name:       "namespace matches",
+			namespaces: []string{"billing"},
+			handler: &handlertest.Handler{
+				Cache: &handlertest.Cache{},
+			},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -215,13 +224,12 @@ func TestClient_Review(t *testing.T) {
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name:      "foo",
 					Namespace: "billing",
 					Data:      "qux",
 				},
-				Autoreject: false,
 			},
 			wantResults: []*types.Result{{
 				Msg:               "got qux but want bar for data",
@@ -231,8 +239,11 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
-			name:    "namespace does not match",
-			handler: &handlertest.Handler{},
+			name:       "namespace does not match",
+			namespaces: []string{"shipping"},
+			handler: &handlertest.Handler{
+				Cache: &handlertest.Cache{},
+			},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -240,13 +251,12 @@ func TestClient_Review(t *testing.T) {
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
 			},
-			toReview: handlertest.Review{
+			toReview: &handlertest.Review{
 				Object: handlertest.Object{
 					Name:      "foo",
 					Namespace: "shipping",
 					Data:      "qux",
 				},
-				Autoreject: false,
 			},
 			wantResults: nil,
 		},
@@ -256,7 +266,14 @@ func TestClient_Review(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			c := clienttest.New(t)
+			c := clienttest.New(t, client.Targets(tt.handler))
+
+			for _, ns := range tt.namespaces {
+				_, err := c.AddData(ctx, &handlertest.Object{Namespace: ns})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			for _, ct := range tt.templates {
 				_, err := c.AddTemplate(ct)
@@ -309,7 +326,6 @@ func TestClient_Review_Details(t *testing.T) {
 			Name: "foo",
 			Data: "qux",
 		},
-		Autoreject: false,
 	}
 
 	responses, err := c.Review(ctx, review)
@@ -681,7 +697,7 @@ func TestE2E_Review_Tracing(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, client.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, drivers.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -698,7 +714,7 @@ func TestE2E_Review_Tracing(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			rsps2, err := c.Audit(ctx, client.Tracing(tt.tracingEnabled))
+			rsps2, err := c.Audit(ctx, drivers.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}

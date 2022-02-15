@@ -61,12 +61,9 @@ func BenchmarkClient_Review(b *testing.B) {
 				Name: "has-foo",
 				Data: "foo",
 			},
-			Autoreject: true,
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name,
-				cts.WantData("bar"),
-				cts.EnableAutoreject)
+			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
 		},
 	}}
 

@@ -46,16 +46,6 @@ type TargetHandler interface {
 	//			review: the value for input.review when evaluating `matching_constraints`
 	//			constraint: constraint that satisfies `matching_constraints`
 	//
-	// Optional Rules:
-	// `autoreject_review[rejection]`
-	//		summary:
-	//			This rule serves to indicate if the match field cannot be evaluated.
-	//			It should define rejection as a rejection message if a constraint's
-	//			match field will effectively "error out" while being evaluated.
-	//		params:
-	//			rejection: the rejection message
-	//
-	//
 	// Libraries are currently templates that have the following parameters:
 	//   ConstraintsRoot: The root path under which all constraints for the target are stored
 	//   DataRoot: The root path under which all data for the target is stored

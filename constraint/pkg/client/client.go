@@ -691,7 +691,6 @@ func (c *Client) init() error {
 
 		lib := libBuf.String()
 		req := map[string]struct{}{
-			"autoreject_review":                {},
 			"matching_reviews_and_constraints": {},
 			"matching_constraints":             {},
 		}
@@ -732,59 +731,69 @@ func (c *Client) init() error {
 // Review makes sure the provided object satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) Review(ctx context.Context, obj interface{}, opts ...QueryOpt) (*types.Responses, error) {
-	cfg := &queryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
+func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.QueryOpt) (*types.Responses, error) {
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
-TargetLoop:
+
 	for name, target := range c.targets {
-		handled, review, err := target.HandleReview(obj)
-		// Short-circuiting question applies here as well
+		resp, err := c.review(ctx, target, obj, opts...)
 		if err != nil {
-			errMap[name] = err
+			errMap.Add(name, err)
 			continue
 		}
-		if !handled {
-			continue
-		}
-		input := map[string]interface{}{"review": review}
-		resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].violation`, name), input, drivers.Tracing(cfg.enableTracing))
-		if err != nil {
-			errMap[name] = err
-			continue
-		}
-		for _, r := range resp.Results {
-			if err := target.HandleViolation(r); err != nil {
-				errMap[name] = err
-				continue TargetLoop
-			}
-		}
-		resp.Target = name
 		responses.ByTarget[name] = resp
 	}
+
 	if len(errMap) == 0 {
 		return responses, nil
 	}
+
 	return responses, &errMap
+}
+
+func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
+	// Short-circuiting question applies here as well
+	handled, review, err := target.HandleReview(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	if !handled {
+		return nil, err
+	}
+
+	name := target.GetName()
+	_, err = c.matchers.ConstraintsFor(name, obj)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrAutoreject, err)
+	}
+
+	input := map[string]interface{}{"review": review}
+	resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].violation`, name), input, opts...)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range resp.Results {
+		err = target.HandleViolation(r)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resp.Target = name
+	return resp, nil
 }
 
 // Audit makes sure the cached state of the system satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) Audit(ctx context.Context, opts ...QueryOpt) (*types.Responses, error) {
-	cfg := &queryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
+func (c *Client) Audit(ctx context.Context, opts ...drivers.QueryOpt) (*types.Responses, error) {
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 TargetLoop:
 	for name, target := range c.targets {
 		// Short-circuiting question applies here as well
-		resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil, drivers.Tracing(cfg.enableTracing))
+		resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil, opts...)
 		if err != nil {
 			errMap[name] = err
 			continue

@@ -33,12 +33,6 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 
 type ConstraintArg func(*unstructured.Unstructured) error
 
-// EnableAutoreject enables autorejecting requests to review Objects the constraint
-// matches.
-func EnableAutoreject(u *unstructured.Unstructured) error {
-	return unstructured.SetNestedField(u.Object, true, "spec", "autoreject")
-}
-
 // MatchNamespace modifies the Constraint to only match objects with the passed
 // Namespace.
 func MatchNamespace(namespace string) ConstraintArg {
