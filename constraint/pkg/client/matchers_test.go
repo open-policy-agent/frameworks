@@ -21,7 +21,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		{
 			name:    "add to empty",
 			before:  &constraintMatchers{},
-			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			matcher: handlertest.Matcher{},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -48,7 +48,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			matcher: handlertest.Matcher{},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -75,7 +75,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -102,7 +102,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{target: "foo", kind: "bar", name: "cog"},
+			key:     matcherKey{Target: "foo", Kind: "bar", Name: "cog"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -130,7 +130,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{target: "foo", kind: "cog", name: "qux"},
+			key:     matcherKey{Target: "foo", Kind: "cog", Name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -160,7 +160,7 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{target: "cog", kind: "bar", name: "qux"},
+			key:     matcherKey{Target: "cog", Kind: "bar", Name: "qux"},
 			matcher: handlertest.Matcher{Namespace: "bbb"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
@@ -207,7 +207,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		{
 			name:   "remove from empty",
 			before: &constraintMatchers{},
-			key:    matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key:    matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want:   &constraintMatchers{},
 		},
 		{
@@ -217,7 +217,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					"foo": {},
 				},
 			},
-			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{},
 			},
@@ -233,7 +233,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{},
 			},
@@ -251,7 +251,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{},
 			},
@@ -272,7 +272,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -299,7 +299,7 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{target: "foo", kind: "bar", name: "qux"},
+			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -459,7 +459,7 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 		matchers *constraintMatchers
 		handler  string
 		review   interface{}
-		want     map[string][]string
+		want     []matcherKey
 		wantErrs error
 	}{
 		{
@@ -469,7 +469,7 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want:     map[string][]string{},
+			want:     []matcherKey{},
 			wantErrs: nil,
 		},
 		{
@@ -489,8 +489,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: map[string][]string{
-				"bar": {"qux"},
+			want: []matcherKey{
+				{Target: "foo", Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -512,8 +512,9 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string][]string{
-				"bar": {"cog", "qux"},
+			want: []matcherKey{
+				{Target: "foo", Kind: "bar", Name: "cog"},
+				{Target: "foo", Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -537,9 +538,9 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string][]string{
-				"bar": {"qux"},
-				"cog": {"qux"},
+			want: []matcherKey{
+				{Target: "foo", Kind: "bar", Name: "qux"},
+				{Target: "foo", Kind: "cog", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -567,8 +568,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string][]string{
-				"bar": {"qux1"},
+			want: []matcherKey{
+				{Target: "foo", Kind: "bar", Name: "qux1"},
 			},
 			wantErrs: nil,
 		},
@@ -596,8 +597,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: map[string][]string{
-				"bar": {"qux2"},
+			want: []matcherKey{
+				{Target: "cog", Kind: "bar", Name: "qux2"},
 			},
 			wantErrs: nil,
 		},
@@ -625,8 +626,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: map[string][]string{
-				"bar": {"qux"},
+			want: []matcherKey{
+				{Target: "foo", Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},

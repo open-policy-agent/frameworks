@@ -44,9 +44,9 @@ type Client struct {
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
-func createDataPath(target, subpath string) string {
+func createDataPath(targetName string, subpath string) string {
 	subpaths := strings.Split(subpath, "/")
-	p := []string{"external", target}
+	p := []string{"external", targetName}
 	p = append(p, subpaths...)
 
 	return "/" + path.Join(p...)
@@ -60,10 +60,10 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
-	for target, h := range c.targets {
-		handled, relPath, processedData, err := h.ProcessData(data)
+	for name, target := range c.targets {
+		handled, relPath, processedData, err := target.ProcessData(data)
 		if err != nil {
-			errMap[target] = err
+			errMap[name] = err
 			continue
 		}
 		if !handled {
@@ -71,7 +71,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		}
 
 		var cache handler.Cache
-		if cacher, ok := h.(handler.Cacher); ok {
+		if cacher, ok := target.(handler.Cacher); ok {
 			cache = cacher.GetCache()
 		}
 
@@ -81,7 +81,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			err = cache.Add(relPath, processedData)
 			if err != nil {
 				// Use a different key than the driver to avoid clobbering errors.
-				errMap[target] = err
+				errMap[name] = err
 
 				continue
 			}
@@ -89,10 +89,10 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		driverPath := createDataPath(target, relPath)
+		driverPath := createDataPath(name, relPath)
 		err = c.driver.PutData(ctx, driverPath, processedData)
 		if err != nil {
-			errMap[target] = err
+			errMap[name] = err
 
 			if cache != nil {
 				cache.Remove(relPath)
@@ -100,7 +100,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			continue
 		}
 
-		resp.Handled[target] = true
+		resp.Handled[name] = true
 	}
 
 	if len(errMap) == 0 {
@@ -294,6 +294,7 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to validate targets for template %s: %w", templ.Name, err)
 	}
+
 	return targetSpec, targetHandler, nil
 }
 
@@ -302,13 +303,16 @@ func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
 			clienterrors.ErrInvalidConstraintTemplate)
 	}
+
 	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
 		return err
 	}
+
 	if dr, ok := c.driver.(*local.Driver); ok {
 		_, _, err := dr.ValidateConstraintTemplate(templ)
 		return err
 	}
+
 	return fmt.Errorf("driver %T is not supported", c.driver)
 }
 
@@ -343,9 +347,11 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		Targets:  []string{basicArtifacts.targetHandler.GetName()},
 	}
 
-	if _, ok := c.constraints[basicArtifacts.gk]; !ok {
-		c.constraints[basicArtifacts.gk] = make(map[string]*unstructured.Unstructured)
+	gk := basicArtifacts.gk
+	if _, ok := c.constraints[gk]; !ok {
+		c.constraints[gk] = make(map[string]*unstructured.Unstructured)
 	}
+
 	resp.Handled[basicArtifacts.targetHandler.GetName()] = true
 	return resp, nil
 }
@@ -378,21 +384,27 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	if err := c.driver.RemoveTemplate(templ); err != nil {
+	err = c.driver.RemoveTemplate(templ)
+	if err != nil {
 		return resp, err
 	}
 
 	for _, cstr := range c.constraints[artifacts.gk] {
-		if r, err := c.removeConstraintNoLock(ctx, cstr); err != nil {
+		r, err := c.removeConstraintNoLock(ctx, cstr)
+		if err != nil {
 			return r, err
 		}
 	}
+
 	delete(c.constraints, artifacts.gk)
 	// Also clean up root path to avoid memory leaks
 	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
-	if _, err := c.driver.DeleteData(ctx, constraintRoot); err != nil {
+
+	_, err = c.driver.DeleteData(ctx, constraintRoot)
+	if err != nil {
 		return resp, err
 	}
+
 	delete(c.templates, artifacts.Key())
 	resp.Handled[artifacts.targetHandler.GetName()] = true
 	return resp, nil
@@ -448,8 +460,8 @@ func createConstraintGKSubPath(gk schema.GroupKind) string {
 }
 
 // createConstraintGKPath returns the storage path for a given constrain GK: constraints.<target>.cluster.<group>.<kind>.
-func createConstraintGKPath(target string, gk schema.GroupKind) string {
-	return constraintPathMerge(target, createConstraintGKSubPath(gk))
+func createConstraintGKPath(targetName string, gk schema.GroupKind) string {
+	return constraintPathMerge(targetName, createConstraintGKSubPath(gk))
 }
 
 // constraintPathMerge is a shared function for creating constraint paths to
@@ -518,16 +530,22 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, nil
 	}
 
-	if err := c.validateConstraint(constraint, false); err != nil {
+	err = c.validateConstraint(constraint, false)
+	if err != nil {
 		return resp, err
 	}
-	if err := c.driver.AddConstraint(ctx, constraint); err != nil {
+
+	err = c.driver.AddConstraint(ctx, constraint)
+	if err != nil {
 		return resp, err
 	}
+
 	for _, target := range entry.Targets {
 		resp.Handled[target] = true
 	}
+
 	c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
+
 	return resp, nil
 }
 
@@ -591,12 +609,15 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 	if err != nil {
 		return err
 	}
-	if err = crds.ValidateCR(constraint, entry.CRD); err != nil {
+
+	err = crds.ValidateCR(constraint, entry.CRD)
+	if err != nil {
 		return err
 	}
 
-	for _, target := range entry.Targets {
-		if err := c.targets[target].ValidateConstraint(constraint); err != nil {
+	for _, targetName := range entry.Targets {
+		err := c.targets[targetName].ValidateConstraint(constraint)
+		if err != nil {
 			return err
 		}
 	}
@@ -611,9 +632,9 @@ func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error
 
 // init initializes the OPA backend for the client.
 func (c *Client) init() error {
-	for _, t := range c.targets {
-		hooks := fmt.Sprintf(`hooks["%s"]`, t.GetName())
-		templMap := map[string]string{"Target": t.GetName()}
+	for targetName, t := range c.targets {
+		hooks := fmt.Sprintf(`hooks["%s"]`, targetName)
+		templMap := map[string]string{"Target": targetName}
 
 		libBuiltin := &bytes.Buffer{}
 		if err := regolib.TargetLib.Execute(libBuiltin, templMap); err != nil {
@@ -629,13 +650,13 @@ func (c *Client) init() error {
 		libTempl := t.Library()
 		if libTempl == nil {
 			return fmt.Errorf("%w: target %q has no Rego library template",
-				ErrCreatingClient, t.GetName())
+				ErrCreatingClient, targetName)
 		}
 
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, t.GetName(), constraints.Group),
-			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, t.GetName()),
+			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, targetName, constraints.Group),
+			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, targetName),
 		}); err != nil {
 			return err
 		}
@@ -656,7 +677,7 @@ func (c *Client) init() error {
 		err = RequireModuleRules(libModule, req)
 		if err != nil {
 			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%w",
-				t.GetName(), lib, err)
+				targetName, lib, err)
 		}
 
 		err = rewriteModulePackage(modulePath, libModule)
