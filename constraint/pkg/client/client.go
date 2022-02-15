@@ -41,6 +41,7 @@ type Client struct {
 	templates map[templateKey]*templateEntry
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
+	matchers    constraintMatchers
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
@@ -384,28 +385,29 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	err = c.driver.RemoveTemplate(templ)
+	// Also clean up root path to avoid memory leaks
+	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
+	_, err = c.driver.DeleteData(ctx, constraintRoot)
 	if err != nil {
 		return resp, err
 	}
 
-	for _, cstr := range c.constraints[artifacts.gk] {
+	gk := artifacts.gk
+	for _, cstr := range c.constraints[gk] {
 		r, err := c.removeConstraintNoLock(ctx, cstr)
 		if err != nil {
 			return r, err
 		}
 	}
 
-	delete(c.constraints, artifacts.gk)
-	// Also clean up root path to avoid memory leaks
-	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
-
-	_, err = c.driver.DeleteData(ctx, constraintRoot)
+	err = c.driver.RemoveTemplate(templ)
 	if err != nil {
 		return resp, err
 	}
 
+	delete(c.constraints, gk)
 	delete(c.templates, artifacts.Key())
+	c.matchers.RemoveKind(gk.Kind)
 	resp.Handled[artifacts.targetHandler.GetName()] = true
 	return resp, nil
 }
@@ -516,6 +518,21 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
+	var targets []handler.TargetHandler
+	for _, name := range entry.Targets {
+		target, ok := c.targets[name]
+		if !ok {
+			return resp, fmt.Errorf("missing target %q", name)
+		}
+
+		targets = append(targets, target)
+	}
+
+	matchers, err := c.makeMatchers(targets, constraint)
+	if err != nil {
+		return resp, err
+	}
+
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
 		return resp, fmt.Errorf("creating Constraint subpath: %w", err)
@@ -544,6 +561,9 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		resp.Handled[target] = true
 	}
 
+	key := drivers.ConstraintKeyFor(constraint)
+	c.matchers.Upsert(key, matchers)
+
 	c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
 
 	return resp, nil
@@ -564,16 +584,24 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 	if err != nil {
 		return resp, err
 	}
+
 	subPath, err := createConstraintSubPath(constraint)
 	if err != nil {
 		return resp, err
 	}
-	if err := c.driver.RemoveConstraint(ctx, constraint); err != nil {
+
+	err = c.driver.RemoveConstraint(ctx, constraint)
+	if err != nil {
 		return resp, err
 	}
+
 	for _, target := range entry.Targets {
 		resp.Handled[target] = true
 	}
+
+	key := drivers.ConstraintKeyFor(constraint)
+	c.matchers.RemoveConstraint(key)
+
 	delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
 	return resp, nil
 }
@@ -790,4 +818,25 @@ func (c *Client) knownTargets() []string {
 	sort.Strings(knownTargets)
 
 	return knownTargets
+}
+
+func (c *Client) makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unstructured) (map[string]constraintlib.Matcher, error) {
+	result := make(map[string]constraintlib.Matcher)
+	errs := clienterrors.ErrorMap{}
+
+	for _, target := range targets {
+		name := target.GetName()
+		matcher, err := target.ToMatcher(constraint)
+		if err != nil {
+			errs.Add(name, err)
+		}
+
+		result[name] = matcher
+	}
+
+	if len(errs) > 0 {
+		return nil, &errs
+	}
+
+	return result, nil
 }

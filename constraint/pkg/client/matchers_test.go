@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
@@ -12,17 +13,19 @@ import (
 
 func TestConstraintMatchers_Add(t *testing.T) {
 	tests := []struct {
-		name    string
-		before  *constraintMatchers
-		key     matcherKey
-		matcher constraints.Matcher
-		want    *constraintMatchers
+		name     string
+		before   *constraintMatchers
+		key      drivers.ConstraintKey
+		matchers map[string]constraints.Matcher
+		want     *constraintMatchers
 	}{
 		{
-			name:    "add to empty",
-			before:  &constraintMatchers{},
-			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
-			matcher: handlertest.Matcher{},
+			name:   "add to empty",
+			before: &constraintMatchers{},
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
+			matchers: map[string]constraints.Matcher{
+				"foo": handlertest.Matcher{},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -48,8 +51,10 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
-			matcher: handlertest.Matcher{},
+			key: drivers.ConstraintKey{Kind: "bar", Name: "qux"},
+			matchers: map[string]constraints.Matcher{
+				"foo": handlertest.Matcher{},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -75,8 +80,10 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
-			matcher: handlertest.Matcher{Namespace: "bbb"},
+			key: drivers.ConstraintKey{Kind: "bar", Name: "qux"},
+			matchers: map[string]constraints.Matcher{
+				"foo": handlertest.Matcher{Namespace: "bbb"},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -102,8 +109,10 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{Target: "foo", Kind: "bar", Name: "cog"},
-			matcher: handlertest.Matcher{Namespace: "bbb"},
+			key: drivers.ConstraintKey{Kind: "bar", Name: "cog"},
+			matchers: map[string]constraints.Matcher{
+				"foo": handlertest.Matcher{Namespace: "bbb"},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -130,8 +139,10 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{Target: "foo", Kind: "cog", Name: "qux"},
-			matcher: handlertest.Matcher{Namespace: "bbb"},
+			key: drivers.ConstraintKey{Kind: "cog", Name: "qux"},
+			matchers: map[string]constraints.Matcher{
+				"foo": handlertest.Matcher{Namespace: "bbb"},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -160,16 +171,14 @@ func TestConstraintMatchers_Add(t *testing.T) {
 					},
 				},
 			},
-			key:     matcherKey{Target: "cog", Kind: "bar", Name: "qux"},
-			matcher: handlertest.Matcher{Namespace: "bbb"},
+			key: drivers.ConstraintKey{Kind: "bar", Name: "qux"},
+			matchers: map[string]constraints.Matcher{
+				"cog": handlertest.Matcher{Namespace: "bbb"},
+			},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
-						matchers: map[string]map[string]constraints.Matcher{
-							"bar": {
-								"qux": handlertest.Matcher{Namespace: "aaa"},
-							},
-						},
+						matchers: map[string]map[string]constraints.Matcher{},
 					},
 					"cog": {
 						matchers: map[string]map[string]constraints.Matcher{
@@ -187,9 +196,9 @@ func TestConstraintMatchers_Add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.before
 
-			got.Add(tt.key, tt.matcher)
+			got.Upsert(tt.key, tt.matchers)
 
-			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmp.AllowUnexported(targetMatchers{})}
 			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
@@ -201,13 +210,14 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 	tests := []struct {
 		name   string
 		before *constraintMatchers
-		key    matcherKey
+		target string
+		key    drivers.ConstraintKey
 		want   *constraintMatchers
 	}{
 		{
 			name:   "remove from empty",
 			before: &constraintMatchers{},
-			key:    matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want:   &constraintMatchers{},
 		},
 		{
@@ -217,9 +227,12 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					"foo": {},
 				},
 			},
-			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			target: "foo",
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]targetMatchers{},
+				matchers: map[string]targetMatchers{
+					"foo": {},
+				},
 			},
 		},
 		{
@@ -233,9 +246,14 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			target: "foo",
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]targetMatchers{},
+				matchers: map[string]targetMatchers{
+					"foo": {
+						matchers: map[string]map[string]constraints.Matcher{},
+					},
+				},
 			},
 		},
 		{
@@ -251,9 +269,14 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			target: "foo",
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
-				matchers: map[string]targetMatchers{},
+				matchers: map[string]targetMatchers{
+					"foo": {
+						matchers: map[string]map[string]constraints.Matcher{},
+					},
+				},
 			},
 		},
 		{
@@ -272,7 +295,8 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			target: "foo",
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -299,7 +323,8 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 					},
 				},
 			},
-			key: matcherKey{Target: "foo", Kind: "bar", Name: "qux"},
+			target: "foo",
+			key:    drivers.ConstraintKey{Kind: "bar", Name: "qux"},
 			want: &constraintMatchers{
 				matchers: map[string]targetMatchers{
 					"foo": {
@@ -318,9 +343,9 @@ func TestConstraintMatchers_Remove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.before
 
-			got.Remove(tt.key)
+			got.Remove(tt.target, tt.key)
 
-			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmp.AllowUnexported(targetMatchers{})}
 			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
@@ -433,7 +458,7 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 
 			got.RemoveKind(tt.kind)
 
-			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmpopts.IgnoreFields(constraintMatchers{}, "mtx"), cmp.AllowUnexported(targetMatchers{})}
+			opts := []cmp.Option{cmp.AllowUnexported(constraintMatchers{}), cmp.AllowUnexported(targetMatchers{})}
 			if diff := cmp.Diff(tt.want, got, opts...); diff != "" {
 				t.Error(diff)
 			}
@@ -459,7 +484,7 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 		matchers *constraintMatchers
 		handler  string
 		review   interface{}
-		want     []matcherKey
+		want     []drivers.ConstraintKey
 		wantErrs error
 	}{
 		{
@@ -469,7 +494,7 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want:     []matcherKey{},
+			want:     []drivers.ConstraintKey{},
 			wantErrs: nil,
 		},
 		{
@@ -489,8 +514,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: []matcherKey{
-				{Target: "foo", Kind: "bar", Name: "qux"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -512,9 +537,9 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: []matcherKey{
-				{Target: "foo", Kind: "bar", Name: "cog"},
-				{Target: "foo", Kind: "bar", Name: "qux"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "cog"},
+				{Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -538,9 +563,9 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: []matcherKey{
-				{Target: "foo", Kind: "bar", Name: "qux"},
-				{Target: "foo", Kind: "cog", Name: "qux"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "qux"},
+				{Kind: "cog", Name: "qux"},
 			},
 			wantErrs: nil,
 		},
@@ -568,8 +593,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: []matcherKey{
-				{Target: "foo", Kind: "bar", Name: "qux1"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "qux1"},
 			},
 			wantErrs: nil,
 		},
@@ -597,8 +622,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{},
 			},
-			want: []matcherKey{
-				{Target: "cog", Kind: "bar", Name: "qux2"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "qux2"},
 			},
 			wantErrs: nil,
 		},
@@ -626,8 +651,8 @@ func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 			review: &handlertest.Review{
 				Object: handlertest.Object{Namespace: "aaa"},
 			},
-			want: []matcherKey{
-				{Target: "foo", Kind: "bar", Name: "qux"},
+			want: []drivers.ConstraintKey{
+				{Kind: "bar", Name: "qux"},
 			},
 			wantErrs: nil,
 		},

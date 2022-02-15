@@ -3,82 +3,78 @@ package client
 import (
 	"fmt"
 	"sort"
-	"sync"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 )
 
-// matcherKey uniquely identifies a Matcher.
-// For a given Constraint (uniquely identified by Kind/Name), there is at most
-// one Matcher for each Target.
-type matcherKey struct {
-	Target string
-	Kind   string
-	Name   string
-}
-
-func (k matcherKey) String() string {
-	return fmt.Sprintf("%s %s %s", k.Target, k.Kind, k.Name)
-}
-
 // constraintMatchers tracks the Matchers for each Constraint.
 // Filters Constraints relevant to a passed review.
-// Threadsafe.
+// Not threadsafe.
+//
+// Assumes that the possible set of target names is bounded.
+// Leaks memory if target names change during runtime.
 type constraintMatchers struct {
 	// matchers is the set of Constraint matchers by their Target, Kind, and Name.
 	// matchers is a map from Target to a map from Kind to a map from Name to matcher.
 	matchers map[string]targetMatchers
-
-	mtx sync.RWMutex
 }
 
-// Add inserts the Matcher for the Constraint with kind and name.
-// Replaces the current Matcher if one already exists.
-func (c *constraintMatchers) Add(key matcherKey, matcher constraints.Matcher) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+// Upsert updates the Matchers for the Constraint uniquely identified by kind
+// and name. For Matchers which already exist for the Constraint, they are:
+// 1) Removed if not present in matchers,
+// 2) Replaced if present in matchers.
+func (c *constraintMatchers) Upsert(key drivers.ConstraintKey, matchers map[string]constraints.Matcher) {
 	if c.matchers == nil {
 		c.matchers = make(map[string]targetMatchers)
 	}
 
-	target := c.matchers[key.Target]
-	target.Add(key, matcher)
+	for targetName, m := range c.matchers {
+		_, keep := matchers[targetName]
+		if !keep {
+			m.Remove(key)
+		}
+	}
 
-	c.matchers[key.Target] = target
+	for targetName, matcher := range matchers {
+		tMatchers := c.matchers[targetName]
+		tMatchers.Add(key, matcher)
+		c.matchers[targetName] = tMatchers
+	}
 }
 
-// Remove deletes the Matcher for the Constraint with kind and name.
-// Returns normally if no entry for the Constraint existed.
-func (c *constraintMatchers) Remove(key matcherKey) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+// Remove deletes the Matcher for the referenced Constraint and Target.
+func (c *constraintMatchers) Remove(target string, key drivers.ConstraintKey) {
 	if len(c.matchers) == 0 {
 		return
 	}
 
-	target, ok := c.matchers[key.Target]
-	if !ok {
+	matchers := c.matchers[target]
+	matchers.Remove(key)
+}
+
+// RemoveConstraint deletes all Matchers for the Constraint with kind and name.
+// Returns normally if no entry for the Constraint existed.
+func (c *constraintMatchers) RemoveConstraint(key drivers.ConstraintKey) {
+	if len(c.matchers) == 0 {
 		return
 	}
 
-	target.Remove(key)
+	for target, matchers := range c.matchers {
+		matchers.Remove(key)
 
-	if len(target.matchers) == 0 {
-		delete(c.matchers, key.Target)
-	} else {
-		c.matchers[key.Target] = target
+		if len(matchers.matchers) == 0 {
+			delete(c.matchers, target)
+		} else {
+			c.matchers[target] = matchers
+		}
 	}
 }
 
 // RemoveKind removes all Matchers for Constraints with kind.
 // Returns normally if no entry for the kind exists for any target.
 func (c *constraintMatchers) RemoveKind(kind string) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
 	if len(c.matchers) == 0 {
 		return
 	}
@@ -103,26 +99,23 @@ func (c *constraintMatchers) RemoveKind(kind string) {
 //
 // Returns errors for each Constraint which was unable to properly run match
 // criteria.
-func (c *constraintMatchers) ConstraintsFor(targetName string, review interface{}) ([]matcherKey, error) {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
-	result := make([]matcherKey, 0)
+func (c *constraintMatchers) ConstraintsFor(targetName string, review interface{}) ([]drivers.ConstraintKey, error) {
+	result := make([]drivers.ConstraintKey, 0)
 	target := c.matchers[targetName]
 	errs := errors.ErrorMap{}
 
 	for kind, kindMatchers := range target.matchers {
 		for name, matcher := range kindMatchers {
-			key := matcherKey{
-				Target: targetName,
-				Kind:   kind,
-				Name:   name,
+			key := drivers.ConstraintKey{
+				Kind: kind,
+				Name: name,
 			}
 
 			if matches, err := matcher.Match(review); err != nil {
 				// key uniquely identifies the Constraint whose matcher was unable to
 				// run, for use in debugging.
-				errs[key.String()] = err
+				errKey := fmt.Sprintf("%s %s", targetName, key)
+				errs[errKey] = err
 			} else if matches {
 				result = append(result, key)
 			}
@@ -146,7 +139,7 @@ type targetMatchers struct {
 	matchers map[string]map[string]constraints.Matcher
 }
 
-func (t *targetMatchers) Add(key matcherKey, matcher constraints.Matcher) {
+func (t *targetMatchers) Add(key drivers.ConstraintKey, matcher constraints.Matcher) {
 	if t.matchers == nil {
 		t.matchers = make(map[string]map[string]constraints.Matcher)
 	}
@@ -160,7 +153,7 @@ func (t *targetMatchers) Add(key matcherKey, matcher constraints.Matcher) {
 	t.matchers[key.Kind] = kindMatchers
 }
 
-func (t *targetMatchers) Remove(key matcherKey) {
+func (t *targetMatchers) Remove(key drivers.ConstraintKey) {
 	kindMatchers, ok := t.matchers[key.Kind]
 	if !ok {
 		return
