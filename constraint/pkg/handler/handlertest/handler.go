@@ -168,7 +168,7 @@ func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.
 		return nil, fmt.Errorf("unable to get spec.matchNamespace: %w", err)
 	}
 
-	return Matcher{namespace: ns, cache: h.Cache}, nil
+	return Matcher{Namespace: ns, Cache: h.Cache}, nil
 }
 
 func (h *Handler) GetCache() handler.Cache {
