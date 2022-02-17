@@ -561,8 +561,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		resp.Handled[target] = true
 	}
 
-	key := drivers.ConstraintKeyFor(constraint)
-	c.matchers.Upsert(key, matchers)
+	c.matchers.Upsert(constraint, matchers)
 
 	c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
 
@@ -599,8 +598,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 		resp.Handled[target] = true
 	}
 
-	key := drivers.ConstraintKeyFor(constraint)
-	c.matchers.RemoveConstraint(key)
+	c.matchers.RemoveConstraint(constraint)
 
 	delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
 	return resp, nil

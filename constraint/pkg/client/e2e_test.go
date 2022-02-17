@@ -206,12 +206,12 @@ func TestClient_Review(t *testing.T) {
 			},
 			// TODO(willbeason): Before merging, make sure we return the autoreject
 			//  results, and conditionally exit early based on enforcement action.
-			//wantResults: []*types.Result{{
+			// wantResults: []*types.Result{{
 			//	Msg:               "autoreject",
 			//	EnforcementAction: "deny",
 			//	Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 			//		cts.WantData("bar")),
-			//}},
+			// }},
 		},
 		{
 			name:       "namespace matches",
