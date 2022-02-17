@@ -21,7 +21,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/open-policy-agent/opa/format"
 	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -45,6 +44,7 @@ type Client struct {
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 	matchers    constraintMatchers
+	objects     map[string]map[string]interface{}
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
@@ -60,6 +60,10 @@ func createDataPath(targetName string, subpath string) string {
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
+	if c.objects == nil {
+		c.objects = make(map[string]map[string]interface{})
+	}
+
 	// TODO(#189): Make AddData atomic across all Drivers/Targets.
 
 	resp := types.NewResponses()
@@ -73,6 +77,13 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
+
+		targetObjects := c.objects[name]
+		if targetObjects == nil {
+			targetObjects = make(map[string]interface{})
+		}
+		targetObjects[relPath] = processedData
+		c.objects[name] = targetObjects
 
 		var cache handler.Cache
 		if cacher, ok := target.(handler.Cacher); ok {
@@ -127,6 +138,13 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		}
 		if !handled {
 			continue
+		}
+
+		if c.objects != nil {
+			targetObjects := c.objects[target]
+			if targetObjects != nil {
+				delete(targetObjects, relPath)
+			}
 		}
 
 		if _, err := c.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
@@ -661,7 +679,7 @@ func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error
 
 // init initializes the OPA backend for the client.
 func (c *Client) init() error {
-	for targetName, t := range c.targets {
+	for targetName := range c.targets {
 		hooks := fmt.Sprintf(`hooks["%s"]`, targetName)
 		templMap := map[string]string{"Target": targetName}
 
@@ -674,56 +692,6 @@ func (c *Client) init() error {
 		err := c.driver.PutModule(builtinPath, libBuiltin.String())
 		if err != nil {
 			return err
-		}
-
-		libTempl := t.Library()
-		if libTempl == nil {
-			return fmt.Errorf("%w: target %q has no Rego library template",
-				ErrCreatingClient, targetName)
-		}
-
-		libBuf := &bytes.Buffer{}
-		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, targetName, apiconstraints.Group),
-			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, targetName),
-		}); err != nil {
-			return err
-		}
-
-		lib := libBuf.String()
-		req := map[string]struct{}{
-			"matching_reviews_and_constraints":  {},
-			"matching_reviews_and_constraints2": {},
-			"matching_constraints":              {},
-		}
-
-		modulePath := fmt.Sprintf("%s.library", hooks)
-		libModule, err := ParseModule(modulePath, lib)
-		if err != nil {
-			return fmt.Errorf("failed to parse module: %w", err)
-		}
-
-		err = RequireModuleRules(libModule, req)
-		if err != nil {
-			return fmt.Errorf("problem with the below Rego for %q target:\n\n====%s\n====\n%w",
-				targetName, lib, err)
-		}
-
-		err = rewriteModulePackage(modulePath, libModule)
-		if err != nil {
-			return err
-		}
-
-		src, err := format.Ast(libModule)
-		if err != nil {
-			return fmt.Errorf("%w: could not re-format Rego source: %v",
-				ErrCreatingClient, err)
-		}
-
-		err = c.driver.PutModule(modulePath, string(src))
-		if err != nil {
-			return fmt.Errorf("%w: error %s from compiled source:\n%s",
-				ErrCreatingClient, err, src)
 		}
 	}
 
@@ -833,36 +801,39 @@ func (c *Client) Audit(ctx context.Context, opts ...drivers.QueryOpt) (*types.Re
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 
-TargetLoop:
 	for name, target := range c.targets {
-		for _, constraints := range c.matchers.matchers[name].matchers {
-			for _, cm := range constraints {
-				input := map[string]interface{}{
-					"constraint": cm.Constraint,
-				}
+		targetResponse := &types.Response{}
+		targetTrace := strings.Builder{}
 
-				// Short-circuiting question applies here as well
-				resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit2`, name), input, opts...)
-				if err != nil {
-					errMap[name] = err
-					continue
-				}
-				for _, r := range resp.Results {
-					if err := target.HandleViolation(r); err != nil {
-						errMap[name] = err
-						continue TargetLoop
-					}
-				}
-				resp.Target = name
-				responses.ByTarget[name] = resp
+		for relPath, obj := range c.objects[name] {
+			resp, err := c.review(ctx, target, obj, opts...)
+			if err != nil {
+				key := fmt.Sprintf("%s/%s", name, relPath)
+				errMap.Add(key, err)
+				continue
 			}
+
+			if resp.Trace != nil {
+				targetTrace.WriteString(*resp.Trace)
+				targetTrace.WriteString("\n\n")
+			}
+
+			targetResponse.Results = append(targetResponse.Results, resp.Results...)
 		}
 
+		trace := targetTrace.String()
+		if len(trace) > 0 {
+			targetResponse.Trace = pointer.String(trace)
+		}
+
+		responses.ByTarget[name] = targetResponse
 	}
-	if len(errMap) == 0 {
-		return responses, nil
+
+	if len(errMap) != 0 {
+		return responses, &errMap
 	}
-	return responses, &errMap
+
+	return responses, nil
 }
 
 // Dump dumps the state of OPA to aid in debugging.

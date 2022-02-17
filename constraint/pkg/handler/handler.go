@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"text/template"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -17,39 +15,6 @@ type TargetHandler interface {
 	// spec.target object, so if GetName returns validation.xyz.org, the user
 	// will populate target specific rego into .spec.targets."validation.xyz.org".
 	GetName() string
-
-	// Library returns the pieces of Rego code required to stitch together constraint
-	// evaluation for the target.
-	//
-	// Templated Parameters:
-	//	`{{.ConstraintsRoot}}`: All constraints are found here and are placed under
-	//		data["{{.ConstraintsRoot}}"][KIND][NAME] where $KIND is the Kind indicated in the
-	//		CT .spec.crd.spec.names.kind field and NAME is the .metadata.name of the
-	//		Constraint resource.
-	//	`{{.DataRoot}}`: The data root, use data["{{.DataRoot}}"] instead of
-	//		"data.inventory"
-	//
-	//
-	// Required Rules:
-	// `matching_constraints[constraint]`
-	//		summary:
-	// 			This rule defines constraint as any constraint where the spec.match
-	// 			field evaluates to true for input.review.
-	//		params:
-	//			constraint: the matching constraint, typically you will evaluate this
-	//				this against the list of all constraints `{{.ConstraintsRoot}}[_][_]`
-	//
-	// `matching_reviews_and_constraints[[review, constraint]]`
-	//		summary:
-	//			This rule evaluates creating all reviews for items in the inventory
-	//		params:
-	//			review: the value for input.review when evaluating `matching_constraints`
-	//			constraint: constraint that satisfies `matching_constraints`
-	//
-	// Libraries are currently templates that have the following parameters:
-	//   ConstraintsRoot: The root path under which all constraints for the target are stored
-	//   DataRoot: The root path under which all data for the target is stored
-	Library() *template.Template
 
 	// ProcessData takes inputs to AddData and converts them into the format that
 	// will be stored in data.inventory and returns the relative storage path.

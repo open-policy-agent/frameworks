@@ -452,7 +452,7 @@ func (d *Driver) Query2(ctx context.Context, target string, constraint *unstruct
 		"constraint": constraint.Object,
 	}
 
-	p := fmt.Sprintf("data.hooks[%q].violation2[result]", target)
+	p := fmt.Sprintf("data.hooks[%q].violation[result]", target)
 
 	rs, trace, err := d.eval(ctx, p, input, cfg)
 	if err != nil {

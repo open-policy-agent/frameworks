@@ -70,6 +70,7 @@ func (r *Responses) Results() []*Result {
 	if r == nil {
 		return nil
 	}
+
 	var res []*Result
 	for _, resp := range r.ByTarget {
 		res = append(res, resp.Results...)

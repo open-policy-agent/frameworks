@@ -3,7 +3,6 @@ package handlertest
 import (
 	"encoding/json"
 	"fmt"
-	"text/template"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -42,10 +41,6 @@ func (h *Handler) GetName() string {
 	return HandlerName
 }
 
-func (h *Handler) Library() *template.Template {
-	return libTempl
-}
-
 func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
@@ -70,6 +65,8 @@ func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 		return true, &data, nil
 	case *Review:
 		return true, data, nil
+	case *Object:
+		return true, &Review{Object: *data}, nil
 	default:
 		return false, nil, fmt.Errorf("unrecognized type %T", obj)
 	}
