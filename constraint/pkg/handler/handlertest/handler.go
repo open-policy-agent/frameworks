@@ -42,53 +42,6 @@ func (h *Handler) GetName() string {
 	return HandlerName
 }
 
-var libTempl = template.Must(template.New("library").Parse(`
-package foo
-
-matching_constraints[constraint] {
-  constraint = {{.ConstraintsRoot}}[_][_]
-  spec := object.get(constraint, "spec", {})
-  matchNamespace := object.get(spec, "matchNamespace", "")
-  matches_namespace(matchNamespace)
-}
-
-matches_namespace(matchNamespace) = true {
-  matchNamespace == ""
-}
-
-matches_namespace(matchNamespace) = true {
-  matchNamespace != ""
-  namespace := object.get(input.review.object, "namespace", "")
-  namespace == matchNamespace
-}
-
-# Cluster scope
-matching_reviews_and_constraints[[review, constraint]] {
-  review := {"object": {{.DataRoot}}.cluster[_]}
-  matching_constraints[constraint] with input as {"review": review}
-}
-
-# Namespace scope
-matching_reviews_and_constraints[[review, constraint]] {
-  review := {"object": {{.DataRoot}}.namespace[_][_]}
-  matching_constraints[constraint] with input as {"review": review}
-}
-
-has_field(object, field) = true {
-  object[field]
-}
-
-has_field(object, field) = true {
-  object[field] == false
-}
-
-has_field(object, field) = false {
-  not object[field]
-  not object[field] == false
-}
-
-`))
-
 func (h *Handler) Library() *template.Template {
 	return libTempl
 }

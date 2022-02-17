@@ -333,14 +333,6 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
 
-	// TODO: Determine if this can be removed. No tests exercise this path, and
-	//  as far as I can tell storage.MakeDir fails where this might return an error.
-	if errs := ast.CheckPathConflicts(d.compiler, storage.NonEmpty(ctx, d.storage, txn)); len(errs) > 0 {
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: %q conflicts with existing path: %v",
-			clienterrors.ErrPathConflict, path, errs)
-	}
-
 	err = d.storage.Commit(ctx, txn)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
@@ -444,6 +436,30 @@ func (d *Driver) Query(ctx context.Context, path string, input interface{}, opts
 		Results: results,
 		Input:   pointer.StringPtr(string(inp)),
 	}, nil
+}
+
+func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	cfg := &drivers.QueryCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	input := map[string]interface{}{
+		"review":     review,
+		"constraint": constraint.Object,
+	}
+
+	p := fmt.Sprintf("data.hooks[%q].violation2[result]", target)
+
+	rs, trace, err := d.eval(ctx, p, input, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return rs, trace, nil
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {

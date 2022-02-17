@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -10,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
@@ -21,9 +22,11 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/format"
+	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/pointer"
 )
 
 type templateEntry struct {
@@ -481,9 +484,9 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 	}
 
 	group := constraint.GroupVersionKind().Group
-	if group != constraints.Group {
+	if group != apiconstraints.Group {
 		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, got %q but need %q",
-			crds.ErrInvalidConstraint, constraint.GetName(), group, constraints.Group)
+			crds.ErrInvalidConstraint, constraint.GetName(), group, apiconstraints.Group)
 	}
 
 	if lock {
@@ -681,7 +684,7 @@ func (c *Client) init() error {
 
 		libBuf := &bytes.Buffer{}
 		if err := libTempl.Execute(libBuf, map[string]string{
-			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, targetName, constraints.Group),
+			"ConstraintsRoot": fmt.Sprintf(`data.constraints["%s"].cluster["%s"]`, targetName, apiconstraints.Group),
 			"DataRoot":        fmt.Sprintf(`data.external["%s"]`, targetName),
 		}); err != nil {
 			return err
@@ -689,8 +692,9 @@ func (c *Client) init() error {
 
 		lib := libBuf.String()
 		req := map[string]struct{}{
-			"matching_reviews_and_constraints": {},
-			"matching_constraints":             {},
+			"matching_reviews_and_constraints":  {},
+			"matching_reviews_and_constraints2": {},
+			"matching_constraints":              {},
 		}
 
 		modulePath := fmt.Sprintf("%s.library", hooks)
@@ -761,7 +765,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 	}
 
 	name := target.GetName()
-	_, err = c.matchers.ConstraintsFor(name, obj)
+	constraints, err := c.matchers.ConstraintsFor(name, obj)
 	if err != nil {
 		// TODO(willbeason): This is where we'll make the determination about whether
 		//  to continue, or just insert the autorejection into responses based on
@@ -770,19 +774,56 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 	}
 
 	input := map[string]interface{}{"review": review}
-	resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].violation`, name), input, opts...)
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range resp.Results {
-		err = target.HandleViolation(r)
+
+	var resultSet rego.ResultSet
+	var tracesBuilder strings.Builder
+	for _, constraint := range constraints {
+		result, trace, err := c.driver.(*local.Driver).Query2(ctx, name, constraint, review, opts...)
 		if err != nil {
 			return nil, err
 		}
+		resultSet = append(resultSet, result...)
+
+		if trace != nil {
+			tracesBuilder.WriteString(*trace)
+			tracesBuilder.WriteString("\n\n")
+		}
 	}
 
-	resp.Target = name
-	return resp, nil
+	var results []*types.Result
+	for _, r := range resultSet {
+		result := &types.Result{}
+		b, err := json.Marshal(r.Bindings["result"])
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, result); err != nil {
+			return nil, err
+		}
+		err = target.HandleViolation(result)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, result)
+	}
+
+	inputJsn, err := json.MarshalIndent(input, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+
+	trace := pointer.String(tracesBuilder.String())
+	if len(*trace) == 0 {
+		trace = nil
+	}
+
+	return &types.Response{
+		Trace:   trace,
+		Input:   pointer.String(string(inputJsn)),
+		Target:  name,
+		Results: results,
+	}, nil
 }
 
 // Audit makes sure the cached state of the system satisfies all stored constraints.
@@ -791,22 +832,32 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 func (c *Client) Audit(ctx context.Context, opts ...drivers.QueryOpt) (*types.Responses, error) {
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
+
 TargetLoop:
 	for name, target := range c.targets {
-		// Short-circuiting question applies here as well
-		resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit`, name), nil, opts...)
-		if err != nil {
-			errMap[name] = err
-			continue
-		}
-		for _, r := range resp.Results {
-			if err := target.HandleViolation(r); err != nil {
-				errMap[name] = err
-				continue TargetLoop
+		for _, constraints := range c.matchers.matchers[name].matchers {
+			for _, cm := range constraints {
+				input := map[string]interface{}{
+					"constraint": cm.Constraint,
+				}
+
+				// Short-circuiting question applies here as well
+				resp, err := c.driver.Query(ctx, fmt.Sprintf(`hooks["%s"].audit2`, name), input, opts...)
+				if err != nil {
+					errMap[name] = err
+					continue
+				}
+				for _, r := range resp.Results {
+					if err := target.HandleViolation(r); err != nil {
+						errMap[name] = err
+						continue TargetLoop
+					}
+				}
+				resp.Target = name
+				responses.ByTarget[name] = resp
 			}
 		}
-		resp.Target = name
-		responses.ByTarget[name] = resp
+
 	}
 	if len(errMap) == 0 {
 		return responses, nil

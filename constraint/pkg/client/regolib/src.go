@@ -4,6 +4,29 @@ const (
 	targetLibSrc = `
 package hooks["{{.Target}}"]
 
+violation2[response] {
+  review := get_default(input, "review", {})
+  constraint := get_default(input, "constraint", {})
+
+	inp := {
+		"review": review,
+		"parameters": get_default(get_default(constraint, "spec", {}), "parameters", {}),
+	}
+	inventory[inv]
+	data.templates["{{.Target}}"][constraint.kind].violation[r] with input as inp with data.inventory as inv
+
+	spec := get_default(constraint, "spec", {})
+	enforcementAction := get_default(spec, "enforcementAction", "deny")
+
+	response = {
+		"msg": r.msg,
+		"metadata": {"details": get_default(r, "details", {})},
+		"constraint": constraint,
+		"review": review,
+		"enforcementAction": enforcementAction,
+	}
+}
+
 # Finds all violations for a given target
 violation[response] {
 	data.hooks["{{.Target}}"].library.matching_constraints[constraint]
@@ -29,6 +52,26 @@ violation[response] {
 # Finds all violations in the cached state of a given target
 audit[response] {
 	data.hooks["{{.Target}}"].library.matching_reviews_and_constraints[[review, constraint]]
+	inp := {
+		"review": review,
+		"parameters": get_default(get_default(constraint, "spec", {}), "parameters", {}),
+	}
+	inventory[inv]
+	data.templates["{{.Target}}"][constraint.kind].violation[r] with input as inp with data.inventory as inv
+	spec := get_default(constraint, "spec", {})
+	enforcementAction := get_default(spec, "enforcementAction", "deny")
+	response = {
+		"msg": r.msg,
+		"metadata": {"details": get_default(r, "details", {})},
+		"constraint": constraint,
+		"review": review,
+		"enforcementAction": enforcementAction,
+	}
+}
+
+audit2[response] {
+  data.hooks["{{.Target}}"].library.matching_reviews_and_constraints2[review]
+  constraint := object.get(input, "constraint", {})
 	inp := {
 		"review": review,
 		"parameters": get_default(get_default(constraint, "spec", {}), "parameters", {}),
