@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -34,6 +34,6 @@ type Driver interface {
 	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 	PutData(ctx context.Context, path string, data interface{}) error
 	DeleteData(ctx context.Context, path string) (bool, error)
-	Query(ctx context.Context, path string, input interface{}, opts ...QueryOpt) (*types.Response, error)
+	Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
 	Dump(ctx context.Context) (string, error)
 }

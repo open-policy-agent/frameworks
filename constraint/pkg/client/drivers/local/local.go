@@ -25,7 +25,6 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
@@ -137,6 +136,7 @@ func (d *Driver) Init() error {
 				if err != nil {
 					return externaldata.HandleError(http.StatusInternalServerError, err)
 				}
+
 				defer resp.Body.Close()
 				respBody, err := ioutil.ReadAll(resp.Body)
 				if err != nil {
@@ -396,49 +396,7 @@ func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-
-	cfg := &drivers.QueryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	// Add a variable binding to the path.
-	path = fmt.Sprintf("data.%s[result]", path)
-
-	rs, trace, err := d.eval(ctx, path, input, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	var results []*types.Result
-	for _, r := range rs {
-		result := &types.Result{}
-		b, err := json.Marshal(r.Bindings["result"])
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(b, result); err != nil {
-			return nil, err
-		}
-		results = append(results, result)
-	}
-
-	inp, err := json.MarshalIndent(input, "", "   ")
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.Response{
-		Trace:   trace,
-		Results: results,
-		Input:   pointer.StringPtr(string(inp)),
-	}, nil
-}
-
-func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
