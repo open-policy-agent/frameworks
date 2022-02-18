@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,7 +15,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -647,27 +645,6 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 // the registered CRD for that constraint.
 func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error {
 	return c.validateConstraint(constraint, true)
-}
-
-// init initializes the OPA backend for the client.
-func (c *Client) init() error {
-	for targetName := range c.targets {
-		hooks := fmt.Sprintf(`hooks["%s"]`, targetName)
-		templMap := map[string]string{"Target": targetName}
-
-		libBuiltin := &bytes.Buffer{}
-		if err := regolib.TargetLib.Execute(libBuiltin, templMap); err != nil {
-			return err
-		}
-
-		builtinPath := fmt.Sprintf("%s.hooks_builtin", hooks)
-		err := c.driver.PutModule(builtinPath, libBuiltin.String())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Review makes sure the provided object satisfies all stored constraints.

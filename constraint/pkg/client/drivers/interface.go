@@ -21,7 +21,6 @@ func Tracing(enabled bool) QueryOpt {
 }
 
 type Driver interface {
-	Init() error
 	PutModule(name string, src string) error
 
 	// AddTemplate adds the template source code to OPA

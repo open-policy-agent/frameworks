@@ -16,9 +16,12 @@ func ToResults(target handler.TargetHandler, resultSet rego.ResultSet) ([]*types
 		if err != nil {
 			return nil, err
 		}
-		if err := json.Unmarshal(b, result); err != nil {
+
+		err = json.Unmarshal(b, result)
+		if err != nil {
 			return nil, err
 		}
+
 		err = target.HandleViolation(result)
 		if err != nil {
 			return nil, err
