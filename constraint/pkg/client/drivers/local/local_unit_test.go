@@ -10,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 )
 
@@ -42,334 +41,6 @@ fooisbar[msg] {
 }
 `
 )
-
-func TestDriver_PutModule(t *testing.T) {
-	testCases := []struct {
-		name          string
-		beforeModules map[string]*ast.Module
-		moduleName    string
-		moduleSrc     string
-
-		wantErr     error
-		wantModules []string
-	}{
-		{
-			name:       "empty module name",
-			moduleName: "",
-			moduleSrc:  Module,
-
-			wantErr:     clienterrors.ErrModuleName,
-			wantModules: nil,
-		},
-		{
-			name:       "module set prefix",
-			moduleName: moduleSetPrefix + "foo",
-			moduleSrc:  "",
-
-			wantErr:     clienterrors.ErrModuleName,
-			wantModules: nil,
-		},
-		{
-			name:       "module set suffix allowed",
-			moduleName: "foo" + moduleSetPrefix,
-			moduleSrc:  Module,
-
-			wantErr:     nil,
-			wantModules: []string{"foo" + moduleSetPrefix},
-		},
-		{
-			name:       "valid module",
-			moduleName: "foo",
-			moduleSrc:  Module,
-
-			wantErr:     nil,
-			wantModules: []string{"foo"},
-		},
-		{
-			name:       "unparseable module",
-			moduleName: "foo",
-			moduleSrc:  UnparseableModule,
-
-			wantErr:     clienterrors.ErrParse,
-			wantModules: nil,
-		},
-		{
-			name:       "uncompilable module",
-			moduleName: "foo",
-			moduleSrc:  UncompilableModule,
-
-			wantErr:     clienterrors.ErrCompile,
-			wantModules: nil,
-		},
-		{
-			name: "replace module",
-			beforeModules: map[string]*ast.Module{
-				"foo": {},
-			},
-			moduleName: "foo",
-			moduleSrc:  Module,
-
-			wantErr:     nil,
-			wantModules: []string{"foo"},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			d, err := New(Modules(tc.beforeModules))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			gotErr := d.PutModule(tc.moduleName, tc.moduleSrc)
-			if !errors.Is(gotErr, tc.wantErr) {
-				t.Fatalf("got PutModule() error = %v, want %v", gotErr, tc.wantErr)
-			}
-
-			gotModules := make([]string, 0, len(d.modules))
-			for gotModule := range d.modules {
-				gotModules = append(gotModules, gotModule)
-			}
-			sort.Strings(gotModules)
-
-			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-func TestDriver_PutModules(t *testing.T) {
-	testCases := []struct {
-		name          string
-		beforeModules map[string][]string
-
-		prefix string
-		srcs   []string
-
-		wantErr     error
-		wantModules []string
-	}{
-		{
-			name:   "empty module prefix",
-			prefix: "",
-			srcs:   []string{},
-
-			wantErr:     clienterrors.ErrModulePrefix,
-			wantModules: nil,
-		},
-		{
-			name:   "module prefix with separator",
-			prefix: "a_idx_b",
-			srcs:   []string{},
-
-			wantErr:     clienterrors.ErrModulePrefix,
-			wantModules: nil,
-		},
-		{
-			name:   "no sources in module set",
-			prefix: "foo",
-			srcs:   []string{},
-
-			wantErr:     nil,
-			wantModules: nil,
-		},
-		{
-			name:   "add one module",
-			prefix: "foo",
-			srcs:   []string{Module},
-
-			wantErr:     nil,
-			wantModules: []string{toModuleSetName("foo", 0)},
-		},
-		{
-			name:   "add unparseable module",
-			prefix: "foo",
-			srcs:   []string{UnparseableModule},
-
-			wantErr:     clienterrors.ErrParse,
-			wantModules: nil,
-		},
-		{
-			name:   "add uncompilable module",
-			prefix: "foo",
-			srcs:   []string{UncompilableModule},
-
-			wantErr:     clienterrors.ErrCompile,
-			wantModules: nil,
-		},
-		{
-			name:   "add two modules",
-			prefix: "foo",
-			srcs:   []string{Module, Module},
-
-			wantErr: nil,
-			wantModules: []string{
-				toModuleSetName("foo", 0),
-				toModuleSetName("foo", 1),
-			},
-		},
-		{
-			name: "add to module set",
-			beforeModules: map[string][]string{
-				"foo": {Module},
-			},
-			prefix: "foo",
-			srcs:   []string{Module, Module},
-
-			wantErr: nil,
-			wantModules: []string{
-				toModuleSetName("foo", 0),
-				toModuleSetName("foo", 1),
-			},
-		},
-		{
-			name: "remove from module set",
-			beforeModules: map[string][]string{
-				"foo": {Module, Module},
-			},
-			prefix: "foo",
-			srcs:   []string{Module},
-
-			wantErr: nil,
-			wantModules: []string{
-				toModuleSetName("foo", 0),
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			d, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			for prefix, src := range tc.beforeModules {
-				err := d.putModules(prefix, src)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			gotErr := d.putModules(tc.prefix, tc.srcs)
-			if !errors.Is(gotErr, tc.wantErr) {
-				t.Fatalf("got PutModules() error = %v, want %v", gotErr, tc.wantErr)
-			}
-
-			gotModules := make([]string, 0, len(d.modules))
-			for gotModule := range d.modules {
-				gotModules = append(gotModules, gotModule)
-			}
-			sort.Strings(gotModules)
-
-			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-func TestDriver_DeleteModules(t *testing.T) {
-	testCases := []struct {
-		name          string
-		beforeModules map[string]int
-
-		prefix string
-
-		wantErr     error
-		wantDeleted int
-		wantModules []string
-	}{
-		{
-			name: "empty module prefix",
-			beforeModules: map[string]int{
-				"foo": 1,
-				"bar": 2,
-			},
-
-			prefix: "",
-
-			wantErr:     clienterrors.ErrModulePrefix,
-			wantDeleted: 0,
-			wantModules: []string{
-				toModuleSetName("bar", 0),
-				toModuleSetName("bar", 1),
-				toModuleSetName("foo", 0),
-			},
-		},
-		{
-			name: "delete one module",
-			beforeModules: map[string]int{
-				"foo": 1,
-				"bar": 2,
-			},
-
-			prefix: "foo",
-
-			wantErr:     nil,
-			wantDeleted: 1,
-			wantModules: []string{
-				toModuleSetName("bar", 0),
-				toModuleSetName("bar", 1),
-			},
-		},
-		{
-			name: "delete two modules",
-			beforeModules: map[string]int{
-				"foo": 1,
-				"bar": 2,
-			},
-
-			prefix: "bar",
-
-			wantErr:     nil,
-			wantDeleted: 2,
-			wantModules: []string{
-				toModuleSetName("foo", 0),
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			d, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			for prefix, count := range tc.beforeModules {
-				modules := make([]string, count)
-				for i := 0; i < count; i++ {
-					modules[i] = Module
-				}
-				err := d.putModules(prefix, modules)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			gotDeleted, gotErr := d.deleteModules(tc.prefix)
-			if gotDeleted != tc.wantDeleted {
-				t.Errorf("got DeleteModules() = %v, want %v", gotDeleted, tc.wantDeleted)
-			}
-
-			if !errors.Is(gotErr, tc.wantErr) {
-				t.Fatalf("got DeleteModules() error = %v, want %v", gotErr, tc.wantErr)
-			}
-
-			gotModules := make([]string, 0, len(d.modules))
-			for gotModule := range d.modules {
-				gotModules = append(gotModules, gotModule)
-			}
-			sort.Strings(gotModules)
-
-			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
 
 func TestDriver_AddTemplates(t *testing.T) {
 	testCases := []struct {
@@ -442,8 +113,8 @@ violation[{"msg": "msg"}] {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(d.modules))
-			for gotModule := range d.modules {
+			gotModules := make([]string, 0, len(d.compilers))
+			for gotModule := range d.compilers {
 				gotModules = append(gotModules, gotModule)
 			}
 			sort.Strings(gotModules)
@@ -496,7 +167,7 @@ violation[{"msg": "msg"}] {
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
-			if len(d.modules) == 0 {
+			if len(d.compilers) == 0 {
 				t.Errorf("driver failed to add module")
 			}
 
@@ -504,8 +175,9 @@ violation[{"msg": "msg"}] {
 			if gotErr != nil {
 				t.Errorf("err = %v; want nil", gotErr)
 			}
-			if len(d.modules) != 0 {
-				t.Errorf("driver has module = %v; want nil", len(d.modules))
+
+			if len(d.compilers) != 0 {
+				t.Errorf("driver has module = %v; want nil", len(d.compilers))
 			}
 		})
 	}

@@ -21,8 +21,6 @@ func Tracing(enabled bool) QueryOpt {
 }
 
 type Driver interface {
-	PutModule(name string, src string) error
-
 	// AddTemplate adds the template source code to OPA
 	AddTemplate(ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the template source code from OPA

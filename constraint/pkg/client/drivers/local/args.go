@@ -16,13 +16,6 @@ type Arg func(*Driver) error
 
 func Defaults() Arg {
 	return func(d *Driver) error {
-		if d.compiler == nil {
-			d.compiler = ast.NewCompiler()
-		}
-
-		if d.modules == nil {
-			d.modules = make(map[string]*ast.Module)
-		}
 		if d.storage == nil {
 			d.storage = inmem.New()
 		}
@@ -69,14 +62,6 @@ func PrintEnabled(enabled bool) Arg {
 func PrintHook(hook print.Hook) Arg {
 	return func(d *Driver) error {
 		d.printHook = hook
-
-		return nil
-	}
-}
-
-func Modules(modules map[string]*ast.Module) Arg {
-	return func(d *Driver) error {
-		d.modules = modules
 
 		return nil
 	}

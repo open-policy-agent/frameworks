@@ -3,7 +3,6 @@ package client
 import (
 	"fmt"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -24,11 +23,6 @@ func NewClient(opts ...Opt) (*Client, error) {
 	if len(c.targets) == 0 {
 		return nil, fmt.Errorf("%w: must specify at least one target with client.Targets",
 			ErrCreatingClient)
-	}
-
-	err := c.driver.PutModule(regolib.TargetLibSrcPath, regolib.TargetLibSrc)
-	if err != nil {
-		return nil, err
 	}
 
 	return c, nil

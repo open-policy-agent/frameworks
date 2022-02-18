@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -64,8 +63,6 @@ func New(args ...Arg) (*Driver, error) {
 		return nil, err
 	}
 
-	d.compiler.WithCapabilities(d.capabilities)
-
 	if d.providerCache != nil {
 		rego.RegisterBuiltin1(
 			&rego.Function{
@@ -89,8 +86,6 @@ type Driver struct {
 	// compiler for that Template.
 	compilers map[string]map[string]*ast.Compiler
 
-	compiler      *ast.Compiler
-	modules       map[string]*ast.Module
 	storage       storage.Store
 	capabilities  *ast.Capabilities
 	traceEnabled  bool
@@ -142,102 +137,6 @@ func toModuleSetPrefix(prefix string) string {
 
 func toModuleSetName(prefix string, idx int) string {
 	return fmt.Sprintf("%s%d", toModuleSetPrefix(prefix), idx)
-}
-
-func (d *Driver) PutModule(name string, src string) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	if err := d.checkModuleName(name); err != nil {
-		return err
-	}
-
-	insert := insertParam{}
-	if err := insert.add(name, src); err != nil {
-		return err
-	}
-
-	_, err := d.alterModules(insert, nil)
-	return err
-}
-
-// putModules upserts a number of modules under a given prefix.
-func (d *Driver) putModules(namePrefix string, srcs []string) error {
-	if err := d.checkModuleSetName(namePrefix); err != nil {
-		return err
-	}
-
-	insert := insertParam{}
-
-	for idx, src := range srcs {
-		name := toModuleSetName(namePrefix, idx)
-		if err := insert.add(name, src); err != nil {
-			return err
-		}
-	}
-
-	var remove []string
-	for _, name := range d.listModuleSet(namePrefix) {
-		if _, found := insert[name]; !found {
-			remove = append(remove, name)
-		}
-	}
-
-	_, err := d.alterModules(insert, remove)
-	return err
-}
-
-// alterModules alters the modules in the driver by inserting and removing
-// the provided modules then returns the count of modules removed.
-// alterModules expects that the caller is holding the modulesMux lock.
-func (d *Driver) alterModules(insert insertParam, remove []string) (int, error) {
-	updatedModules := copyModules(d.modules)
-	for _, name := range remove {
-		delete(updatedModules, name)
-	}
-
-	for name, mod := range insert {
-		updatedModules[name] = mod.parsed
-	}
-
-	c := ast.NewCompiler().
-		WithCapabilities(d.capabilities).
-		WithEnablePrintStatements(d.printEnabled)
-
-	if c.Compile(updatedModules); c.Failed() {
-		return 0, fmt.Errorf("%w: %v", clienterrors.ErrCompile, c.Errors)
-	}
-
-	d.compiler = c
-	d.modules = updatedModules
-
-	return len(remove), nil
-}
-
-// deleteModules deletes all modules under a given prefix and returns the
-// count of modules deleted.  Deletion of non-existing prefix will
-// result in 0, nil being returned.
-func (d *Driver) deleteModules(namePrefix string) (int, error) {
-	if err := d.checkModuleSetName(namePrefix); err != nil {
-		return 0, err
-	}
-
-	return d.alterModules(nil, d.listModuleSet(namePrefix))
-}
-
-// listModuleSet returns the list of names corresponding to a given module
-// prefix.
-func (d *Driver) listModuleSet(namePrefix string) []string {
-	prefix := toModuleSetPrefix(namePrefix)
-
-	var names []string
-	for name := range d.modules {
-		if strings.HasPrefix(name, prefix) {
-			names = append(names, name)
-		}
-	}
-
-	return names
 }
 
 func parsePath(path string) ([]string, error) {
@@ -314,9 +213,14 @@ func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *drivers.QueryCfg) (rego.ResultSet, *string, error) {
+func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path string, input interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+	cfg := &drivers.QueryCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	args := []func(*rego.Rego){
-		rego.Compiler(d.compiler),
+		rego.Compiler(compiler),
 		rego.Store(d.storage),
 		rego.Input(input),
 		rego.Query(path),
@@ -360,77 +264,37 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 		return nil, nil, nil
 	}
 
-	cfg := &drivers.QueryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
 	input := map[string]interface{}{
 		"review":     review,
 		"constraint": constraint.Object,
 	}
 	path := "data.hooks.violation[result]"
 
-	args := []func(*rego.Rego){
-		rego.Compiler(compiler),
-		rego.Store(d.storage),
-		rego.Input(input),
-		rego.Query(path),
-		rego.EnablePrintStatements(d.printEnabled),
-		rego.PrintHook(d.printHook),
-	}
-
-	buf := topdown.NewBufferTracer()
-	if d.traceEnabled || cfg.TracingEnabled {
-		args = append(args, rego.QueryTracer(buf))
-	}
-
-	r := rego.New(args...)
-	res, err := r.Eval(ctx)
-
-	var t *string
-	if d.traceEnabled || cfg.TracingEnabled {
-		b := &bytes.Buffer{}
-		topdown.PrettyTrace(b, *buf)
-		t = pointer.StringPtr(b.String())
-	}
-
-	return res, t, err
+	return d.eval(ctx, compiler, path, input, opts...)
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
-	mods := make(map[string]string, len(d.modules))
-	for k, v := range d.modules {
-		mods[k] = v.String()
-	}
+	dt := make(map[string]map[string]rego.ResultSet)
 
-	data, _, err := d.eval(ctx, "data", nil, &drivers.QueryCfg{})
-	if err != nil {
-		return "", err
-	}
+	for targetName, targetCompilers := range d.compilers {
+		targetData := make(map[string]rego.ResultSet)
 
-	var dt interface{}
-	// There should be only 1 or 0 expression values
-	if len(data) > 1 {
-		return "", errors.New("too many dump results")
-	}
-
-	for _, da := range data {
-		if len(data) > 1 {
-			return "", errors.New("too many expressions results")
+		for kind, compiler := range targetCompilers {
+			rs, _, err := d.eval(ctx, compiler, "data", nil)
+			if err != nil {
+				return "", err
+			}
+			targetData[kind] = rs
 		}
 
-		for _, e := range da.Expressions {
-			dt = e.Value
-		}
+		dt[targetName] = targetData
 	}
 
 	resp := map[string]interface{}{
-		"modules": mods,
-		"data":    dt,
+		"data": dt,
 	}
 
 	b, err := json.MarshalIndent(resp, "", "   ")
@@ -580,22 +444,7 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	namePrefix, mods, err := d.ValidateConstraintTemplate(templ)
-	if err != nil {
-		return err
-	}
-
-	err = d.putModules(namePrefix, mods)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrCompile, err)
-	}
-
-	if d.kinds == nil {
-		d.kinds = make(map[string]bool)
-	}
-	d.kinds[templ.Spec.CRD.Spec.Names.Kind] = true
-
-	err = d.compileTemplate(templ)
+	err := d.compileTemplate(templ)
 	if err != nil {
 		return err
 	}
@@ -683,16 +532,6 @@ func (d *Driver) compileTemplateTarget(prefix string, rego string, libs []string
 func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
-
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	namePrefix := createTemplatePath(kind)
-
-	_, err := d.deleteModules(namePrefix)
-	if err != nil {
-		return err
-	}
-
-	delete(d.kinds, kind)
 
 	for target, templateCompilers := range d.compilers {
 		delete(templateCompilers, templ.Spec.CRD.Spec.Names.Kind)
