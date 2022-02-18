@@ -568,7 +568,7 @@ func TestDeleteData(t *testing.T) {
 }
 
 const queryModule = `
-package hooks.target
+package hooks
 
 violation[r] {
   review := object.get(input, "review", {})

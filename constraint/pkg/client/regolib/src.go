@@ -1,8 +1,8 @@
 package regolib
 
 const (
-	targetLibSrc = `
-package hooks["{{.Target}}"]
+	TargetLibSrc = `
+package hooks
 
 # Determine if the object under review violates constraint.
 violation[response] {
@@ -14,7 +14,7 @@ violation[response] {
 		"parameters": object.get(object.get(constraint, "spec", {}), "parameters", {}),
 	}
 	inventory[inv]
-	data.templates["{{.Target}}"][constraint.kind].violation[r] with input as inp with data.inventory as inv
+	data.templates[constraint.kind].violation[r] with input as inp with data.inventory as inv
 
 	spec := object.get(constraint, "spec", {})
 	enforcementAction := object.get(spec, "enforcementAction", "deny")
@@ -29,11 +29,11 @@ violation[response] {
 }
 
 inventory[inv] {
-	inv = data.external["{{.Target}}"]
+	inv = data.external
 }
 
 inventory[{}] {
-	not data.external["{{.Target}}"]
+	not data.external
 }
 `
 )

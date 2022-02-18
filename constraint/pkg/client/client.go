@@ -166,8 +166,8 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 }
 
 // createTemplatePath returns the package path for a given template: templates.<target>.<name>.
-func createTemplatePath(target, name string) string {
-	return fmt.Sprintf(`templates["%s"]["%s"]`, target, name)
+func createTemplatePath(name string) string {
+	return fmt.Sprintf(`templates["%s"]`, name)
 }
 
 // validateTargets handles validating the targets section of the CT.
@@ -272,7 +272,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
-	entryPointPath := createTemplatePath(targetHandler.GetName(), templ.Spec.CRD.Spec.Names.Kind)
+	entryPointPath := createTemplatePath(templ.Spec.CRD.Spec.Names.Kind)
 
 	return &basicCTArtifacts{
 		rawCTArtifacts: *rawArtifacts,

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
-
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -357,7 +355,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 		"constraint": constraint.Object,
 	}
 
-	p := fmt.Sprintf("data.hooks[%q].violation[result]", target)
+	p := "data.hooks.violation[result]"
 
 	rs, trace, err := d.eval(ctx, p, input, cfg)
 	if err != nil {
@@ -524,12 +522,12 @@ func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 
 // templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
 func templateLibPrefix(name string) string {
-	return fmt.Sprintf("libs.%s.%s", handlertest.HandlerName, name)
+	return fmt.Sprintf("libs.%s", name)
 }
 
 // createTemplatePath returns the package path for a given template: templates.<target>.<name>.
 func createTemplatePath(name string) string {
-	return fmt.Sprintf(`templates["%s"]["%s"]`, handlertest.HandlerName, name)
+	return fmt.Sprintf(`templates["%s"]`, name)
 }
 
 // parseModule parses the module and also fails empty modules.

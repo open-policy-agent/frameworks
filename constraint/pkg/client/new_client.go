@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
@@ -27,20 +26,10 @@ func NewClient(opts ...Opt) (*Client, error) {
 			ErrCreatingClient)
 	}
 
-	for targetName := range c.targets {
-		hooks := fmt.Sprintf(`hooks["%s"]`, targetName)
-		templMap := map[string]string{"Target": targetName}
-
-		libBuiltin := &bytes.Buffer{}
-		if err := regolib.TargetLib.Execute(libBuiltin, templMap); err != nil {
-			return nil, err
-		}
-
-		builtinPath := fmt.Sprintf("%s.hooks_builtin", hooks)
-		err := c.driver.PutModule(builtinPath, libBuiltin.String())
-		if err != nil {
-			return nil, err
-		}
+	builtinPath := "hooks.hooks_builtin"
+	err := c.driver.PutModule(builtinPath, regolib.TargetLibSrc)
+	if err != nil {
+		return nil, err
 	}
 
 	return c, nil
