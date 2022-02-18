@@ -1,7 +1,6 @@
 package client_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -11,8 +10,6 @@ import (
 )
 
 func BenchmarkClient_AddConstraint(b *testing.B) {
-	ctx := context.Background()
-
 	c := clienttest.New(b)
 
 	_, err := c.AddTemplate(clienttest.TemplateCheckData())
@@ -26,7 +23,7 @@ func BenchmarkClient_AddConstraint(b *testing.B) {
 		name := fmt.Sprintf("foo-%d", i)
 		constraint := cts.MakeConstraint(b, clienttest.KindCheckData, name, cts.WantData("bar"))
 
-		_, err = c.AddConstraint(ctx, constraint)
+		_, err = c.AddConstraint(constraint)
 		if err != nil {
 			b.Fatal(err)
 		}

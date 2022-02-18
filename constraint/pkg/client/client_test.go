@@ -384,7 +384,7 @@ r = 5
 				t.Error("cached template does not equal stored template")
 			}
 
-			r2, err := c.RemoveTemplate(context.Background(), tc.template)
+			r2, err := c.RemoveTemplate(tc.template)
 			if err != nil {
 				t.Fatal("could not remove template")
 			}
@@ -449,7 +449,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 					err, tc.wantError)
 			}
 
-			r, err := c.RemoveTemplate(context.Background(), tc.template)
+			r, err := c.RemoveTemplate(tc.template)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -513,7 +513,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tc.template.Name
 
-			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
+			r, err := c.RemoveTemplate(sparseTemplate)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -678,12 +678,12 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	}
 
 	cst1 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete")
-	if _, err = c.AddConstraint(context.Background(), cst1); err != nil {
+	if _, err = c.AddConstraint(cst1); err != nil {
 		t.Fatalf("could not add first constraint: %v", err)
 	}
 
 	cst2 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete2")
-	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
+	if _, err = c.AddConstraint(cst2); err != nil {
 		t.Fatalf("could not add second constraint: %v", err)
 	}
 
@@ -693,12 +693,12 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	}
 
 	cst3 := cts.MakeConstraint(t, "StillPersists", "stillpersists")
-	if _, err = c.AddConstraint(context.Background(), cst3); err != nil {
+	if _, err = c.AddConstraint(cst3); err != nil {
 		t.Fatalf("could not add third constraint: %v", err)
 	}
 
 	cst4 := cts.MakeConstraint(t, "StillPersists", "stillpersists2")
-	if _, err = c.AddConstraint(context.Background(), cst4); err != nil {
+	if _, err = c.AddConstraint(cst4); err != nil {
 		t.Fatalf("could not add fourth constraint: %v", err)
 	}
 
@@ -718,7 +718,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Errorf("preservation candidate not cached: %s", orig)
 	}
 
-	if _, err = c.RemoveTemplate(context.Background(), templ); err != nil {
+	if _, err = c.RemoveTemplate(templ); err != nil {
 		t.Error("could not remove template")
 	}
 
@@ -840,7 +840,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				}
 			}
 
-			r, err := c.AddConstraint(context.Background(), tc.constraint)
+			r, err := c.AddConstraint(tc.constraint)
 			if !errors.Is(err, tc.wantAddConstraintError) {
 				t.Fatalf("got AddConstraint() error = %v, want %v",
 					err, tc.wantAddConstraintError)
@@ -868,7 +868,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				t.Error("cached constraint does not equal stored constraint")
 			}
 
-			r2, err := c.RemoveConstraint(context.Background(), tc.constraint)
+			r2, err := c.RemoveConstraint(tc.constraint)
 			if err != nil {
 				t.Error("could not remove constraint")
 			}
@@ -938,8 +938,6 @@ func TestClient_RemoveConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
 			d, err := local.New()
 			if err != nil {
 				t.Fatal(err)
@@ -958,13 +956,13 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			}
 
 			if tc.constraint != nil {
-				_, err = c.AddConstraint(ctx, tc.constraint)
+				_, err = c.AddConstraint(tc.constraint)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			r, err := c.RemoveConstraint(context.Background(), tc.toRemove)
+			r, err := c.RemoveConstraint(tc.toRemove)
 
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got RemoveConstraint error = %v, want %v",

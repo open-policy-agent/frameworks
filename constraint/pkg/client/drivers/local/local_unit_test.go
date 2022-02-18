@@ -4,17 +4,14 @@ import (
 	"context"
 	"errors"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -44,10 +41,6 @@ fooisbar[msg] {
   msg := "input.foo is bar"
 }
 `
-	TemplateModule string = `
-package something
-
-violation[msg] {msg := "always"}`
 )
 
 func TestDriver_PutModule(t *testing.T) {
@@ -510,163 +503,6 @@ violation[{"msg": "msg"}] {
 			}
 			if len(d.modules) != 0 {
 				t.Errorf("driver has module = %v; want nil", len(d.modules))
-			}
-		})
-	}
-}
-
-func TestDriver_AddConstraint(t *testing.T) {
-	testCases := []struct {
-		name                   string
-		constraint             *unstructured.Unstructured
-		wantAddConstraintError error
-	}{
-		{
-			name:       "Good Constraint",
-			constraint: cts.MakeConstraint(t, cts.MockTemplate, "tc_good_constraint"),
-		},
-		{
-			name:                   "No Name",
-			constraint:             cts.MakeConstraint(t, cts.MockTemplate, ""),
-			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
-		},
-		{
-			name:                   "No Kind",
-			constraint:             cts.MakeConstraint(t, "", "foo-constraint"),
-			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
-		},
-		{
-			name:                   "No Template",
-			constraint:             cts.MakeConstraint(t, "TemplateMissing", "foo-constraint"),
-			wantAddConstraintError: clienterrors.ErrMissingConstraintTemplate,
-		},
-		{
-			name: "No Group",
-			constraint: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"kind": cts.MockTemplate,
-					"metadata": map[string]interface{}{
-						"name": "foo-constraint",
-					},
-				},
-			},
-			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
-		},
-		{
-			name: "Incorrect Group",
-			constraint: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "foo-group/v1",
-					"kind":       cts.MockTemplate,
-					"metadata": map[string]interface{}{
-						"name": "foo-constraint",
-					},
-				},
-			},
-			wantAddConstraintError: clienterrors.ErrInvalidConstraint,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			d, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, TemplateModule)))
-			err = d.AddTemplate(tmpl)
-			if err != nil {
-				t.Fatalf("got AddTemplate() error = %v", err)
-			}
-			err = d.AddConstraint(context.Background(), tc.constraint)
-			if !errors.Is(err, tc.wantAddConstraintError) {
-				t.Fatalf("got AddConstraint() error = %v, want %v",
-					err, tc.wantAddConstraintError)
-			}
-			if err == nil {
-				store, err := d.Dump(context.Background())
-				if err != nil {
-					t.Fatalf("could not dump driver %v", err)
-				}
-				if !strings.Contains(store, tc.constraint.GetName()) {
-					t.Errorf("expected constraint %s not added to driver", tc.constraint.GetName())
-				}
-			}
-		})
-	}
-}
-
-func TestDriver_RemoveConstraint(t *testing.T) {
-	tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, TemplateModule)))
-	tcs := []struct {
-		name       string
-		template   *templates.ConstraintTemplate
-		constraint *unstructured.Unstructured
-		toRemove   *unstructured.Unstructured
-		wantError  error
-	}{
-		{
-			name:       "Good Constraint",
-			template:   tmpl,
-			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   cts.MakeConstraint(t, cts.MockTemplate, "foo"),
-			wantError:  nil,
-		},
-		{
-			name:       "No name",
-			template:   tmpl,
-			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   cts.MakeConstraint(t, cts.MockTemplate, ""),
-			wantError:  clienterrors.ErrInvalidConstraint,
-		},
-		{
-			name:       "No Kind",
-			template:   tmpl,
-			constraint: cts.MakeConstraint(t, cts.MockTemplate, "foo"),
-			toRemove:   cts.MakeConstraint(t, "", "foo"),
-			wantError:  clienterrors.ErrInvalidConstraint,
-		},
-		{
-			name:      "No Template",
-			toRemove:  cts.MakeConstraint(t, "Foos", "foo"),
-			wantError: nil,
-		},
-		{
-			name:      "No Constraint",
-			template:  tmpl,
-			toRemove:  cts.MakeConstraint(t, cts.MockTemplate, "foo"),
-			wantError: nil,
-		},
-	}
-
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			d, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if tc.template != nil {
-				err := d.AddTemplate(tc.template)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			if tc.constraint != nil {
-				err := d.AddConstraint(ctx, tc.constraint)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			err = d.RemoveConstraint(context.Background(), tc.toRemove)
-			if !errors.Is(err, tc.wantError) {
-				t.Errorf("got RemoveConstraint error = %v, want %v",
-					err, tc.wantError)
 			}
 		})
 	}

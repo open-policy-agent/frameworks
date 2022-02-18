@@ -22,19 +22,6 @@ func ParseModule(path, rego string) (*ast.Module, error) {
 	return module, nil
 }
 
-// rewriteModulePackage rewrites the module's package path to path.
-func rewriteModulePackage(path string, module *ast.Module) error {
-	pathParts, err := ast.ParseRef(path)
-	if err != nil {
-		return err
-	}
-
-	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
-	newPath := packageRef.Extend(pathParts)
-	module.Package.Path = newPath
-	return nil
-}
-
 // RequireModuleRules makes sure the module contains all of the specified
 // requiredRules.
 func RequireModuleRules(module *ast.Module, requiredRules map[string]struct{}) error {

@@ -2,18 +2,20 @@ package local
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -565,68 +567,69 @@ func TestDeleteData(t *testing.T) {
 	}
 }
 
-func TestQuery(t *testing.T) {
-	rawResponses := `
-[
-	{
-		"msg": "totally invalid",
-		"metadata": {"details": {"not": "good"}},
-		"constraint": {
-			"apiVersion": "constraints.gatekeeper.sh/v1",
-			"kind": "RequiredLabels",
-			"metadata": {
-				"name": "require-a-label"
-			},
-			"spec": {
-				"parameters": {"hello": "world"}
-			}
-		},
-		"resource": {"hi": "there"}
-	},
-	{
-		"msg": "yep"
-	}
-]
+const queryModule = `
+package hooks.target
+
+violation[r] {
+  review := object.get(input, "review", {})
+  constraint := object.get(input, "constraint", {})
+  r := {
+    "constraint": constraint,
+    "msg": "totally invalid",
+    "metadata": {"details": {"not": "good"}},
+    "review": review,
+  }
+}
 `
-	var intResponses []interface{}
-	if err := json.Unmarshal([]byte(rawResponses), &intResponses); err != nil {
-		t.Fatalf("Could not parse JSON: %s", err)
+
+func TestQuery(t *testing.T) {
+	constraint := cts.MakeConstraint(t, "RequiredLabels", "require-a-label")
+	err := unstructured.SetNestedField(constraint.Object, "world", "spec", "parameters", "hello")
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	var responses []*types.Result
-	if err := json.Unmarshal([]byte(rawResponses), &responses); err != nil {
-		t.Fatalf("Could not parse JSON: %s", err)
+	wantResults := []*types.Result{{
+		Msg:        "totally invalid",
+		Metadata:   map[string]interface{}{"details": map[string]interface{}{"not": "good"}},
+		Constraint: constraint.DeepCopy(),
+		Resource:   &handlertest.Review{Object: handlertest.Object{Name: "hi", Namespace: "there"}},
+		Review: map[string]interface{}{
+			"object": map[string]interface{}{"data": "", "name": "hi", "namespace": "there"},
+		},
+	}}
+
+	ctx := context.Background()
+
+	d, err := New()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	t.Run("Parse Response", func(t *testing.T) {
-		ctx := context.Background()
+	if err := d.PutModule("test", queryModule); err != nil {
+		t.Fatal(err)
+	}
 
-		d, err := New()
-		if err != nil {
-			t.Fatal(err)
-		}
+	review := &handlertest.Review{Object: handlertest.Object{Name: "hi", Namespace: "there"}}
 
-		for i, v := range intResponses {
-			if err := d.PutData(ctx, fmt.Sprintf("/constraints/%d", i), v); err != nil {
-				t.Fatal(err)
-			}
-		}
+	res, _, err := d.Query(ctx, "target", constraint, review)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		if err := d.PutModule("test", `package hooks violation[r] { r = data.constraints[_] }`); err != nil {
-			t.Fatal(err)
-		}
-		res, err := d.Query(ctx, "hooks.violation", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		sort.SliceStable(res.Results, func(i, j int) bool {
-			return res.Results[i].Msg < res.Results[j].Msg
-		})
-		sort.SliceStable(responses, func(i, j int) bool {
-			return responses[i].Msg < responses[j].Msg
-		})
-		if !reflect.DeepEqual(res.Results, responses) {
-			t.Errorf("%s != %s", spew.Sprint(res), spew.Sprint(responses))
-		}
+	results, err := ToResults(&handlertest.Handler{}, res)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].Msg < results[j].Msg
 	})
+	sort.SliceStable(wantResults, func(i, j int) bool {
+		return wantResults[i].Msg < wantResults[j].Msg
+	})
+
+	if diff := cmp.Diff(wantResults, results); diff != "" {
+		t.Fatal(diff)
+	}
 }

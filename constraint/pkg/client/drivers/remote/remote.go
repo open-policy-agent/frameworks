@@ -70,9 +70,10 @@ func (d *driver) Init() error {
 	return nil
 }
 
-func (d *driver) addTrace(path string) string {
-	return path + "?explain=full&pretty=true"
-}
+// Re-add once there is an implementation for Query.
+// func (d *driver) addTrace(path string) string {
+//	return path + "?explain=full&pretty=true"
+// }
 
 func (d *driver) PutModule(name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
@@ -176,7 +177,7 @@ func makeURLPath(path string) (string, error) {
 }
 
 func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
-	panic("implement me")
+	return nil, nil, nil
 }
 
 func (d *driver) Dump(_ context.Context) (string, error) {

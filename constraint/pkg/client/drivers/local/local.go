@@ -8,29 +8,25 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"path"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/topdown/print"
 	opatypes "github.com/open-policy-agent/opa/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
 )
 
@@ -575,41 +571,6 @@ func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 	return nil
 }
 
-func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	kind := constraint.GetKind()
-	_, found := d.kinds[kind]
-	if !found {
-		return fmt.Errorf("%w: %q", clienterrors.ErrMissingConstraintTemplate, kind)
-	}
-
-	relPath, err := createConstraintPath(handlertest.HandlerName, constraint)
-	// If we ever create multi-target constraints we will need to handle this more cleverly.
-	// the short-circuiting question, cleanup, etc.
-	if err != nil {
-		return err
-	}
-
-	return d.PutData(ctx, relPath, constraint.Object)
-}
-
-func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	relPath, err := createConstraintPath(handlertest.HandlerName, constraint)
-	// If we ever create multi-target constraints we will need to handle this more cleverly.
-	// the short-circuiting question, cleanup, etc.
-	if err != nil {
-		return err
-	}
-
-	_, err = d.DeleteData(ctx, relPath)
-	return err
-}
-
 // templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
 func templateLibPrefix(name string) string {
 	return fmt.Sprintf("libs.%s.%s", handlertest.HandlerName, name)
@@ -695,45 +656,4 @@ func validateTargets(templ *templates.ConstraintTemplate) error {
 		return fmt.Errorf("%w: multi-target templates are not currently supported",
 			clienterrors.ErrInvalidConstraintTemplate)
 	}
-}
-
-// createConstraintGKPath returns the subpath for given a constraint GK.
-func createConstraintGKSubPath(gk schema.GroupKind) string {
-	return "/" + path.Join("cluster", gk.Group, gk.Kind)
-}
-
-// createConstraintSubPath returns the key where we will store the constraint
-// for each target: cluster.<group>.<kind>.<name>.
-func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
-	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", clienterrors.ErrInvalidConstraint)
-	}
-
-	gvk := constraint.GroupVersionKind()
-	if gvk.Group != constraints.Group {
-		return "", fmt.Errorf("%w: expect group %q for constrant %q, got %q",
-			clienterrors.ErrInvalidConstraint, constraints.Group, constraint.GetName(), gvk.Group)
-	}
-
-	if gvk.Kind == "" {
-		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			clienterrors.ErrInvalidConstraint, constraint.GetName())
-	}
-
-	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
-}
-
-// constraintPathMerge is a shared function for creating constraint paths to
-// ensure uniformity, it is not meant to be called directly.
-func constraintPathMerge(target, subpath string) string {
-	return "/" + path.Join("constraints", target, subpath)
-}
-
-// createConstraintPath returns the storage path for a given constraint: constraints.<target>.cluster.<group>.<kind>.<name>.
-func createConstraintPath(target string, constraint *unstructured.Unstructured) (string, error) {
-	p, err := createConstraintSubPath(constraint)
-	if err != nil {
-		return "", err
-	}
-	return constraintPathMerge(target, p), nil
 }

@@ -382,7 +382,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 // registry. Any constraints relying on the template will also be removed.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
+func (c *Client) RemoveTemplate(templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
 	rawArtifacts, err := c.createRawTemplateArtifacts(templ)
@@ -406,16 +406,9 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	// Also clean up root path to avoid memory leaks
-	constraintRoot := createConstraintGKPath(artifacts.targetHandler.GetName(), artifacts.gk)
-	_, err = c.driver.DeleteData(ctx, constraintRoot)
-	if err != nil {
-		return resp, err
-	}
-
 	gk := artifacts.gk
 	for _, cstr := range c.constraints[gk] {
-		r, err := c.removeConstraintNoLock(ctx, cstr)
+		r, err := c.removeConstraintNoLock(cstr)
 		if err != nil {
 			return r, err
 		}
@@ -482,17 +475,6 @@ func createConstraintGKSubPath(gk schema.GroupKind) string {
 	return "/" + path.Join("cluster", gk.Group, gk.Kind)
 }
 
-// createConstraintGKPath returns the storage path for a given constrain GK: constraints.<target>.cluster.<group>.<kind>.
-func createConstraintGKPath(targetName string, gk schema.GroupKind) string {
-	return constraintPathMerge(targetName, createConstraintGKSubPath(gk))
-}
-
-// constraintPathMerge is a shared function for creating constraint paths to
-// ensure uniformity, it is not meant to be called directly.
-func constraintPathMerge(target, subpath string) string {
-	return "/" + path.Join("constraints", target, subpath)
-}
-
 // getTemplateEntry returns the template entry for a given constraint.
 func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
 	kind := constraint.GetKind()
@@ -529,7 +511,7 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 // AddConstraint validates the constraint and, if valid, inserts it into OPA.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) AddConstraint(constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -573,11 +555,6 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
-	err = c.driver.AddConstraint(ctx, constraint)
-	if err != nil {
-		return resp, err
-	}
-
 	for _, target := range entry.Targets {
 		resp.Handled[target] = true
 	}
@@ -591,14 +568,14 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 
 // RemoveConstraint removes a constraint from OPA. On error, the responses
 // return value will still be populated so that partial results can be analyzed.
-func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) RemoveConstraint(constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	return c.removeConstraintNoLock(ctx, constraint)
+	return c.removeConstraintNoLock(constraint)
 }
 
-func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) removeConstraintNoLock(constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
@@ -606,11 +583,6 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 	}
 
 	subPath, err := createConstraintSubPath(constraint)
-	if err != nil {
-		return resp, err
-	}
-
-	err = c.driver.RemoveConstraint(ctx, constraint)
 	if err != nil {
 		return resp, err
 	}
@@ -746,7 +718,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 	var resultSet rego.ResultSet
 	var tracesBuilder strings.Builder
 	for _, constraint := range constraints {
-		result, trace, err := c.driver.(*local.Driver).Query2(ctx, name, constraint, review, opts...)
+		result, trace, err := c.driver.Query(ctx, name, constraint, review, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -758,22 +730,9 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 		}
 	}
 
-	var results []*types.Result
-	for _, r := range resultSet {
-		result := &types.Result{}
-		b, err := json.Marshal(r.Bindings["result"])
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(b, result); err != nil {
-			return nil, err
-		}
-		err = target.HandleViolation(result)
-		if err != nil {
-			return nil, err
-		}
-
-		results = append(results, result)
+	results, err := local.ToResults(target, resultSet)
+	if err != nil {
+		return nil, err
 	}
 
 	inputJsn, err := json.MarshalIndent(input, "", "  ")
