@@ -499,7 +499,74 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	}
 	d.kinds[templ.Spec.CRD.Spec.Names.Kind] = true
 
+	err = d.compileTemplate(templ)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (d *Driver) compileTemplate(templ *templates.ConstraintTemplate) error {
+	compilers := make(map[string]*ast.Compiler)
+
+	for _, target := range templ.Spec.Targets {
+		compiler, err := d.compileTemplateTarget(target)
+		if err != nil {
+			return err
+		}
+		compilers[target.Target] = compiler
+	}
+
+	for target, targetCompilers := range d.compilers {
+		delete(targetCompilers, templ.Kind)
+		d.compilers[target] = targetCompilers
+	}
+
+	if d.compilers == nil {
+		d.compilers = make(map[string]map[string]*ast.Compiler)
+	}
+
+	for target, compiler := range compilers {
+		targetCompilers := d.compilers[target]
+		if targetCompilers == nil {
+			targetCompilers = make(map[string]*ast.Compiler)
+		}
+		targetCompilers[templ.Kind] = compiler
+	}
+
+	return nil
+}
+
+func (d *Driver) compileTemplateTarget(target templates.Target) (*ast.Compiler, error) {
+	compiler := ast.NewCompiler().
+		WithCapabilities(d.capabilities).
+		WithEnablePrintStatements(d.printEnabled)
+
+	modules := make(map[string]*ast.Module)
+
+	path := "foo"
+	regoModule, err := ast.ParseModule(path, target.Rego)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
+	}
+	modules[path] = regoModule
+
+	for i, lib := range target.Libs {
+		libPath := fmt.Sprintf("%s%d", path, i)
+		libModule, err := ast.ParseModule(libPath, lib)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
+		}
+		modules[libPath] = libModule
+	}
+
+	compiler.Compile(modules)
+	if compiler.Failed() {
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrCompile, compiler.Errors)
+	}
+
+	return compiler, nil
 }
 
 // RemoveTemplate implements driver.Driver.
@@ -516,6 +583,11 @@ func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 	}
 
 	delete(d.kinds, kind)
+
+	for target, templateCompilers := range d.compilers {
+		delete(templateCompilers, templ.GetName())
+		d.compilers[target] = templateCompilers
+	}
 
 	return nil
 }
