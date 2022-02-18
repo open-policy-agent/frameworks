@@ -8,14 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -581,55 +576,3 @@ violation[r] {
   }
 }
 `
-
-func TestQuery(t *testing.T) {
-	constraint := cts.MakeConstraint(t, "RequiredLabels", "require-a-label")
-	err := unstructured.SetNestedField(constraint.Object, "world", "spec", "parameters", "hello")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	wantResults := []*types.Result{{
-		Msg:        "totally invalid",
-		Metadata:   map[string]interface{}{"details": map[string]interface{}{"not": "good"}},
-		Constraint: constraint.DeepCopy(),
-		Resource:   &handlertest.Review{Object: handlertest.Object{Name: "hi", Namespace: "there"}},
-		Review: map[string]interface{}{
-			"object": map[string]interface{}{"data": "", "name": "hi", "namespace": "there"},
-		},
-	}}
-
-	ctx := context.Background()
-
-	d, err := New()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := d.PutModule("test", queryModule); err != nil {
-		t.Fatal(err)
-	}
-
-	review := &handlertest.Review{Object: handlertest.Object{Name: "hi", Namespace: "there"}}
-
-	res, _, err := d.Query(ctx, "target", constraint, review)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	results, err := ToResults(&handlertest.Handler{}, res)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sort.SliceStable(results, func(i, j int) bool {
-		return results[i].Msg < results[j].Msg
-	})
-	sort.SliceStable(wantResults, func(i, j int) bool {
-		return wantResults[i].Msg < wantResults[j].Msg
-	})
-
-	if diff := cmp.Diff(wantResults, results); diff != "" {
-		t.Fatal(diff)
-	}
-}

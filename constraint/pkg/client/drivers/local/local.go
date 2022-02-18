@@ -342,31 +342,7 @@ func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, _ string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-
-	cfg := &drivers.QueryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	input := map[string]interface{}{
-		"review":     review,
-		"constraint": constraint.Object,
-	}
-
-	p := "data.hooks.violation[result]"
-
-	rs, trace, err := d.eval(ctx, p, input, cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return rs, trace, nil
-}
-
-func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -389,12 +365,11 @@ func (d *Driver) Query2(ctx context.Context, target string, constraint *unstruct
 		opt(cfg)
 	}
 
-	path := "data.hooks.violation[result]"
-
 	input := map[string]interface{}{
 		"review":     review,
 		"constraint": constraint.Object,
 	}
+	path := "data.hooks.violation[result]"
 
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
@@ -464,6 +439,69 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+func (d *Driver) normalizeModulePaths(kind string, target templates.Target) (string, []string, error) {
+	entryPrefix := createTemplatePath(kind)
+	entryModule, err := parseModule(entryPrefix, target.Rego)
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
+	}
+
+	if entryModule == nil {
+		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
+			clienterrors.ErrInvalidConstraintTemplate)
+	}
+
+	req := map[string]struct{}{violation: {}}
+
+	if err = requireModuleRules(entryModule, req); err != nil {
+		return "", nil, fmt.Errorf("%w: invalid rego: %v",
+			clienterrors.ErrInvalidConstraintTemplate, err)
+	}
+
+	if err = rewriteModulePackage(entryPrefix, entryModule); err != nil {
+		return "", nil, err
+	}
+
+	libPrefix := templateLibPrefix(kind)
+	rr, err := regorewriter.New(
+		regorewriter.NewPackagePrefixer(libPrefix),
+		[]string{libRoot},
+		d.externs)
+	if err != nil {
+		return "", nil, fmt.Errorf("creating rego rewriter: %w", err)
+	}
+
+	rr.AddEntryPointModule(entryPrefix, entryModule)
+	for idx, src := range target.Libs {
+		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
+		if err = rr.AddLib(libPath, src); err != nil {
+			return "", nil, fmt.Errorf("%w: %v",
+				clienterrors.ErrInvalidConstraintTemplate, err)
+		}
+	}
+
+	sources, err := rr.Rewrite()
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %v",
+			clienterrors.ErrInvalidConstraintTemplate, err)
+	}
+
+	var mods []string
+	err = sources.ForEachModule(func(m *regorewriter.Module) error {
+		content, err2 := m.Content()
+		if err2 != nil {
+			return err2
+		}
+		mods = append(mods, string(content))
+		return nil
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %v",
+			clienterrors.ErrInvalidConstraintTemplate, err)
+	}
+	return entryPrefix, mods, nil
 }
 
 // ValidateConstraintTemplate validates the rego in template target by parsing
@@ -568,16 +606,23 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 func (d *Driver) compileTemplate(templ *templates.ConstraintTemplate) error {
 	compilers := make(map[string]*ast.Compiler)
 
+	kind := templ.Spec.CRD.Spec.Names.Kind
 	for _, target := range templ.Spec.Targets {
-		compiler, err := d.compileTemplateTarget(target)
+		prefix, libs, err := d.normalizeModulePaths(kind, target)
 		if err != nil {
 			return err
 		}
+
+		compiler, err := d.compileTemplateTarget(prefix, target.Rego, libs)
+		if err != nil {
+			return err
+		}
+
 		compilers[target.Target] = compiler
 	}
 
 	for target, targetCompilers := range d.compilers {
-		delete(targetCompilers, templ.Kind)
+		delete(targetCompilers, kind)
 		d.compilers[target] = targetCompilers
 	}
 
@@ -590,13 +635,14 @@ func (d *Driver) compileTemplate(templ *templates.ConstraintTemplate) error {
 		if targetCompilers == nil {
 			targetCompilers = make(map[string]*ast.Compiler)
 		}
-		targetCompilers[templ.Kind] = compiler
+		targetCompilers[kind] = compiler
+		d.compilers[target] = targetCompilers
 	}
 
 	return nil
 }
 
-func (d *Driver) compileTemplateTarget(target templates.Target) (*ast.Compiler, error) {
+func (d *Driver) compileTemplateTarget(prefix string, rego string, libs []string) (*ast.Compiler, error) {
 	compiler := ast.NewCompiler().
 		WithCapabilities(d.capabilities).
 		WithEnablePrintStatements(d.printEnabled)
@@ -609,14 +655,14 @@ func (d *Driver) compileTemplateTarget(target templates.Target) (*ast.Compiler, 
 	}
 	modules[regolib.TargetLibSrcPath] = builtinModule
 
-	path := "foo"
-	regoModule, err := ast.ParseModule(path, target.Rego)
+	path := prefix
+	regoModule, err := ast.ParseModule(path, rego)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
 	}
 	modules[path] = regoModule
 
-	for i, lib := range target.Libs {
+	for i, lib := range libs {
 		libPath := fmt.Sprintf("%s%d", path, i)
 		libModule, err := ast.ParseModule(libPath, lib)
 		if err != nil {
@@ -649,7 +695,7 @@ func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
 	delete(d.kinds, kind)
 
 	for target, templateCompilers := range d.compilers {
-		delete(templateCompilers, templ.GetName())
+		delete(templateCompilers, templ.Spec.CRD.Spec.Names.Kind)
 		d.compilers[target] = templateCompilers
 	}
 
@@ -663,7 +709,7 @@ func templateLibPrefix(name string) string {
 
 // createTemplatePath returns the package path for a given template: templates.<target>.<name>.
 func createTemplatePath(name string) string {
-	return fmt.Sprintf(`templates["%s"]`, name)
+	return fmt.Sprintf(`templates[%q]`, name)
 }
 
 // parseModule parses the module and also fails empty modules.

@@ -399,7 +399,10 @@ func TestDriver_AddTemplates(t *testing.T) {
 			rego: `
 package something
 
-violation[msg] {msg := "always"}`,
+violation[{"msg": "msg"}] {
+  msg := "always"
+}
+`,
 			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
 		},
 		{
@@ -466,7 +469,7 @@ func TestDriver_RemoveTemplates(t *testing.T) {
 			rego: `
 package something
 
-violation[msg] {msg := "always"}`,
+violation[{"msg": msg}] {msg := "always"}`,
 		},
 		{
 			name:          "inventory allowed template",
