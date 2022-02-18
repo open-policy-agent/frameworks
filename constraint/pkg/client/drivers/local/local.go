@@ -12,6 +12,7 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
@@ -341,7 +342,7 @@ func (d *Driver) eval(ctx context.Context, path string, input interface{}, cfg *
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, _ string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -363,6 +364,63 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 	}
 
 	return rs, trace, nil
+}
+
+func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	if len(d.compilers) == 0 {
+		return nil, nil, nil
+	}
+
+	targetCompilers := d.compilers[target]
+	if len(targetCompilers) == 0 {
+		return nil, nil, nil
+	}
+
+	compiler := targetCompilers[constraint.GetKind()]
+	if compiler == nil {
+		return nil, nil, nil
+	}
+
+	cfg := &drivers.QueryCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	path := "data.hooks.violation[result]"
+
+	input := map[string]interface{}{
+		"review":     review,
+		"constraint": constraint.Object,
+	}
+
+	args := []func(*rego.Rego){
+		rego.Compiler(compiler),
+		rego.Store(d.storage),
+		rego.Input(input),
+		rego.Query(path),
+		rego.EnablePrintStatements(d.printEnabled),
+		rego.PrintHook(d.printHook),
+	}
+
+	buf := topdown.NewBufferTracer()
+	if d.traceEnabled || cfg.TracingEnabled {
+		args = append(args, rego.QueryTracer(buf))
+	}
+
+	r := rego.New(args...)
+	res, err := r.Eval(ctx)
+
+	var t *string
+	if d.traceEnabled || cfg.TracingEnabled {
+		b := &bytes.Buffer{}
+		topdown.PrettyTrace(b, *buf)
+		t = pointer.StringPtr(b.String())
+	}
+
+	return res, t, err
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
@@ -544,6 +602,12 @@ func (d *Driver) compileTemplateTarget(target templates.Target) (*ast.Compiler, 
 		WithEnablePrintStatements(d.printEnabled)
 
 	modules := make(map[string]*ast.Module)
+
+	builtinModule, err := ast.ParseModule(regolib.TargetLibSrcPath, regolib.TargetLibSrc)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
+	}
+	modules[regolib.TargetLibSrcPath] = builtinModule
 
 	path := "foo"
 	regoModule, err := ast.ParseModule(path, target.Rego)

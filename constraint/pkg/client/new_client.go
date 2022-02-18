@@ -26,8 +26,7 @@ func NewClient(opts ...Opt) (*Client, error) {
 			ErrCreatingClient)
 	}
 
-	builtinPath := "hooks.hooks_builtin"
-	err := c.driver.PutModule(builtinPath, regolib.TargetLibSrc)
+	err := c.driver.PutModule(regolib.TargetLibSrcPath, regolib.TargetLibSrc)
 	if err != nil {
 		return nil, err
 	}

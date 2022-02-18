@@ -1,6 +1,8 @@
 package regolib
 
 const (
+	TargetLibSrcPath = "hooks.hooks_builtin"
+
 	TargetLibSrc = `
 package hooks
 
