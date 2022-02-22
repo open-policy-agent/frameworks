@@ -25,8 +25,8 @@ type Driver interface {
 	AddTemplate(ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the template source code from OPA
 	RemoveTemplate(ct *templates.ConstraintTemplate) error
-	PutData(ctx context.Context, path string, data interface{}) error
-	DeleteData(ctx context.Context, path string) (bool, error)
+	PutData(ctx context.Context, path []string, data interface{}) error
+	DeleteData(ctx context.Context, path []string) (bool, error)
 	Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
 	Dump(ctx context.Context) (string, error)
 }

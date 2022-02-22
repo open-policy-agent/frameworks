@@ -46,12 +46,12 @@ type Client struct {
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
-func createDataPath(targetName string, subpath string) string {
+func createDataPath(targetName string, subpath string) []string {
 	subpaths := strings.Split(subpath, "/")
 	p := []string{"external", targetName}
 	p = append(p, subpaths...)
 
-	return "/" + path.Join(p...)
+	return p
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.

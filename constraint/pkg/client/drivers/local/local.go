@@ -26,28 +26,9 @@ import (
 )
 
 const (
-	moduleSetPrefix = "__modset_"
-	moduleSetSep    = "_idx_"
-	libRoot         = "data.lib"
-	violation       = "violation"
+	libRoot   = "data.lib"
+	violation = "violation"
 )
-
-type module struct {
-	text   string
-	parsed *ast.Module
-}
-
-type insertParam map[string]*module
-
-func (i insertParam) add(name string, src string) error {
-	m, err := ast.ParseModule(name, src)
-	if err != nil {
-		return fmt.Errorf("%w: %q: %v", clienterrors.ErrParse, name, err)
-	}
-
-	i[name] = &module{text: src, parsed: m}
-	return nil
-}
 
 func New(args ...Arg) (*Driver, error) {
 	d := &Driver{}
@@ -93,68 +74,11 @@ type Driver struct {
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
 	externs       []string
-
-	kinds map[string]bool
 }
 
-func copyModules(modules map[string]*ast.Module) map[string]*ast.Module {
-	m := make(map[string]*ast.Module, len(modules))
-	for k, v := range modules {
-		m[k] = v
-	}
-	return m
-}
-
-func (d *Driver) checkModuleName(name string) error {
-	if name == "" {
-		return fmt.Errorf("%w: module %q has no name",
-			clienterrors.ErrModuleName, name)
-	}
-
-	if strings.HasPrefix(name, moduleSetPrefix) {
-		return fmt.Errorf("%w: module %q has forbidden prefix %q",
-			clienterrors.ErrModuleName, name, moduleSetPrefix)
-	}
-
-	return nil
-}
-
-func (d *Driver) checkModuleSetName(name string) error {
-	if name == "" {
-		return fmt.Errorf("%w: modules name prefix cannot be empty", clienterrors.ErrModulePrefix)
-	}
-
-	if strings.Contains(name, moduleSetSep) {
-		return fmt.Errorf("%w: modules name prefix not allowed to contain the sequence %q", clienterrors.ErrModulePrefix, moduleSetSep)
-	}
-
-	return nil
-}
-
-func toModuleSetPrefix(prefix string) string {
-	return fmt.Sprintf("%s%s%s", moduleSetPrefix, prefix, moduleSetSep)
-}
-
-func toModuleSetName(prefix string, idx int) string {
-	return fmt.Sprintf("%s%d", toModuleSetPrefix(prefix), idx)
-}
-
-func parsePath(path string) ([]string, error) {
-	p, ok := storage.ParsePathEscaped(path)
-	if !ok {
-		return nil, fmt.Errorf("%w: path must begin with '/': %q", clienterrors.ErrPathInvalid, path)
-	}
-	if len(p) == 0 {
-		return nil, fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, path)
-	}
-
-	return p, nil
-}
-
-func (d *Driver) PutData(ctx context.Context, path string, data interface{}) error {
-	p, err := parsePath(path)
-	if err != nil {
-		return err
+func (d *Driver) PutData(ctx context.Context, path []string, data interface{}) error {
+	if len(path) == 0 {
+		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, path)
 	}
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
@@ -162,18 +86,22 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if _, err = d.storage.Read(ctx, txn, p); err != nil {
-		if storage.IsNotFound(err) {
-			if err = storage.MakeDir(ctx, d.storage, txn, p[:len(p)-1]); err != nil {
-				return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
-			}
-		} else {
+	_, err = d.storage.Read(ctx, txn, path)
+	if err != nil {
+		if !storage.IsNotFound(err) {
 			d.storage.Abort(ctx, txn)
 			return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
 		}
+
+		parent := path[:len(path)-1]
+
+		err = storage.MakeDir(ctx, d.storage, txn, parent)
+		if err != nil {
+			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
+		}
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.AddOp, p, data); err != nil {
+	if err = d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
@@ -187,18 +115,13 @@ func (d *Driver) PutData(ctx context.Context, path string, data interface{}) err
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
-	p, err := parsePath(path)
-	if err != nil {
-		return false, err
-	}
-
+func (d *Driver) DeleteData(ctx context.Context, path []string) (bool, error) {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.RemoveOp, p, interface{}(nil)); err != nil {
+	if err = d.storage.Write(ctx, txn, storage.RemoveOp, path, interface{}(nil)); err != nil {
 		d.storage.Abort(ctx, txn)
 		if storage.IsNotFound(err) {
 			return false, nil
@@ -213,17 +136,25 @@ func (d *Driver) DeleteData(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path string, input interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string, input interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
+	queryPath := strings.Builder{}
+	queryPath.WriteString("data")
+	for _, p := range path {
+		queryPath.WriteString(".")
+		queryPath.WriteString(p)
+	}
+	fmt.Println(queryPath.String())
+
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
 		rego.Store(d.storage),
 		rego.Input(input),
-		rego.Query(path),
+		rego.Query(queryPath.String()),
 		rego.EnablePrintStatements(d.printEnabled),
 		rego.PrintHook(d.printHook),
 	}
@@ -268,7 +199,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 		"review":     review,
 		"constraint": constraint.Object,
 	}
-	path := "data.hooks.violation[result]"
+	path := []string{"hooks", "violation[result]"}
 
 	return d.eval(ctx, compiler, path, input, opts...)
 }
@@ -283,7 +214,7 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 		targetData := make(map[string]rego.ResultSet)
 
 		for kind, compiler := range targetCompilers {
-			rs, _, err := d.eval(ctx, compiler, "data", nil)
+			rs, _, err := d.eval(ctx, compiler, []string{"data"}, nil)
 			if err != nil {
 				return "", err
 			}

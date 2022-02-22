@@ -2,13 +2,11 @@ package local
 
 import (
 	"context"
-	"reflect"
-	"sort"
-	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/ast"
 )
 
 // testCase is a legacy test case type that performs a single call on the
@@ -38,54 +36,41 @@ func (r rules) srcs() []string {
 	return srcs
 }
 
-type data map[string]interface{}
-
-func resultsEqual(res rego.ResultSet, exp []string, t *testing.T) bool {
-	var ev []string
-	for _, r := range res {
-		i, ok := r.Bindings["a"].(string)
-		if !ok {
-			t.Fatalf("Unexpected result format: %v", r.Bindings)
-		}
-		ev = append(ev, i)
-	}
-	if len(ev) == 0 && len(exp) == 0 {
-		return true
-	}
-	sort.Strings(ev)
-	sort.Strings(exp)
-	if !reflect.DeepEqual(ev, exp) {
-		t.Errorf("Wanted results %v, got %v", exp, ev)
-		return false
-	}
-	return true
-}
-
-func makeDataPath(s string) string {
-	s = strings.ReplaceAll(s, "/", ".")
-	return "data." + s[1:]
+type data struct {
+	path  []string
+	value string
 }
 
 func TestPutData(t *testing.T) {
 	tc := []testCase{
 		{
-			Name:          "Put One Datum",
-			Data:          []data{{"/key": "my_value"}},
+			Name: "Put One Datum",
+			Data: []data{
+				{path: []string{"key"}, value: "my_value"},
+			},
 			ErrorExpected: false,
 		},
 		{
-			Name:          "Overwrite Data",
-			Data:          []data{{"/key": "my_value"}, {"/key": "new_value"}},
+			Name: "Overwrite Data",
+			Data: []data{
+				{path: []string{"key"}, value: "my_value"},
+				{path: []string{"key"}, value: "new_value"},
+			},
 			ErrorExpected: false,
 		},
 		{
-			Name:          "Multiple Data",
-			Data:          []data{{"/key": "my_value", "/other_key": "new_value"}},
+			Name: "Multiple Data",
+			Data: []data{
+				{path: []string{"key"}, value: "my_value"},
+				{path: []string{"key2"}, value: "other_value"},
+			},
 			ErrorExpected: false,
 		},
 		{
-			Name:          "Add Some Depth",
-			Data:          []data{{"/key/is/really/deep": "my_value"}},
+			Name: "Add Some Depth",
+			Data: []data{
+				{path: []string{"key", "is", "really", "deep"}, value: "my_value"},
+			},
 			ErrorExpected: false,
 		},
 	}
@@ -93,47 +78,35 @@ func TestPutData(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d, err := New()
+			driver, err := New()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			for _, data := range tt.Data {
-				for k, v := range data {
-					err := d.PutData(ctx, k, v)
-					if (err == nil) && tt.ErrorExpected {
-						t.Fatalf("err = nil; want non-nil")
-					}
-					if (err != nil) && !tt.ErrorExpected {
-						t.Fatalf("err = \"%s\"; want nil", err)
-					}
-					res, _, err := d.eval(ctx, nil, k, &drivers.QueryCfg{})
-					if err != nil {
-						t.Errorf("Eval error: %s", err)
-					}
-					if len(res) == 0 || len(res[0].Expressions) == 0 {
-						t.Fatalf("No results: %v", res)
-					}
-					if !reflect.DeepEqual(res[0].Expressions[0].Value, v) {
-						t.Errorf("%v != %v", v, res[0].Expressions[0].Value)
-					}
+			compiler := ast.NewCompiler()
+			compiler.Compile(nil)
+
+			for _, d := range tt.Data {
+				err := driver.PutData(ctx, d.path, d.value)
+				if (err == nil) && tt.ErrorExpected {
+					t.Fatalf("err = nil; want non-nil")
+				}
+				if (err != nil) && !tt.ErrorExpected {
+					t.Fatalf("err = \"%s\"; want nil", err)
+				}
+
+				res, _, err := driver.eval(ctx, compiler, d.path, &drivers.QueryCfg{})
+				if err != nil {
+					t.Fatalf("Eval error: %s", err)
+				}
+				if len(res) == 0 || len(res[0].Expressions) == 0 {
+					t.Fatalf("No results: %v", res)
+				}
+
+				if diff := cmp.Diff(d.value, res[0].Expressions[0].Value); diff != "" {
+					t.Error(diff)
 				}
 			}
 		})
 	}
 }
-
-const queryModule = `
-package hooks
-
-violation[r] {
-  review := object.get(input, "review", {})
-  constraint := object.get(input, "constraint", {})
-  r := {
-    "constraint": constraint,
-    "msg": "totally invalid",
-    "metadata": {"details": {"not": "good"}},
-    "review": review,
-  }
-}
-`

@@ -11,6 +11,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/opa/storage"
+	"github.com/open-policy-agent/opa/storage/inmem"
 )
 
 const (
@@ -19,24 +20,6 @@ package foobar
 
 fooisbar[msg] {
   input.foo == "bar"
-  msg := "input.foo is bar"
-}
-`
-
-	UnparseableModule string = `
-package foobar
-
-fooisbar[msg] 
-  input.foo == "bar"
-  msg := "input.foo is bar"
-}
-`
-
-	UncompilableModule string = `
-package foobar
-
-fooisbar[msg] {
-  foo == "bar"
   msg := "input.foo is bar"
 }
 `
@@ -49,20 +32,20 @@ func TestDriver_AddTemplates(t *testing.T) {
 		targetHandler string
 		externs       []string
 
-		wantErr     error
-		wantModules []string
+		wantErr       error
+		wantCompilers map[string][]string
 	}{
 		{
-			name:        "no target",
-			wantErr:     clienterrors.ErrInvalidConstraintTemplate,
-			wantModules: nil,
+			name:          "no target",
+			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
+			wantCompilers: map[string][]string{},
 		},
 		{
 			name:          "rego missing violation",
 			targetHandler: cts.MockTargetHandler,
 			rego:          Module,
 			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
-			wantModules:   nil,
+			wantCompilers: map[string][]string{},
 		},
 		{
 			name:          "valid template",
@@ -74,7 +57,7 @@ violation[{"msg": "msg"}] {
   msg := "always"
 }
 `,
-			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
+			wantCompilers: map[string][]string{"foo": {"Fakes"}},
 		},
 		{
 			name:          "inventory disallowed template",
@@ -94,9 +77,9 @@ violation[{"msg": "msg"}] {
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }`,
-			externs:     []string{"inventory"},
-			wantErr:     nil,
-			wantModules: []string{toModuleSetName(createTemplatePath(cts.MockTemplate), 0)},
+			externs:       []string{"inventory"},
+			wantErr:       nil,
+			wantCompilers: map[string][]string{"foo": {"Fakes"}},
 		},
 	}
 
@@ -113,17 +96,26 @@ violation[{"msg": "msg"}] {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			gotModules := make([]string, 0, len(d.compilers))
-			for gotModule := range d.compilers {
-				gotModules = append(gotModules, gotModule)
-			}
-			sort.Strings(gotModules)
+			gotCompilers := listCompilers(d)
 
-			if diff := cmp.Diff(tc.wantModules, gotModules, cmpopts.EquateEmpty()); diff != "" {
+			if diff := cmp.Diff(tc.wantCompilers, gotCompilers, cmpopts.EquateEmpty()); diff != "" {
 				t.Error(diff)
 			}
 		})
 	}
+}
+
+func listCompilers(d *Driver) map[string][]string {
+	gotCompilers := make(map[string][]string)
+
+	for target, targetCompilers := range d.compilers {
+		for kind := range targetCompilers {
+			gotCompilers[target] = append(gotCompilers[target], kind)
+		}
+		sort.Strings(gotCompilers[target])
+	}
+
+	return gotCompilers
 }
 
 func TestDriver_RemoveTemplates(t *testing.T) {
@@ -167,6 +159,7 @@ violation[{"msg": "msg"}] {
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
+
 			if len(d.compilers) == 0 {
 				t.Errorf("driver failed to add module")
 			}
@@ -176,8 +169,11 @@ violation[{"msg": "msg"}] {
 				t.Errorf("err = %v; want nil", gotErr)
 			}
 
-			if len(d.compilers) != 0 {
-				t.Errorf("driver has module = %v; want nil", len(d.compilers))
+			gotCompilers := listCompilers(d)
+			wantCompilers := map[string][]string{}
+
+			if diff := cmp.Diff(wantCompilers, gotCompilers); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
@@ -186,67 +182,60 @@ violation[{"msg": "msg"}] {
 func TestDriver_PutData(t *testing.T) {
 	testCases := []struct {
 		name        string
-		beforePath  string
+		beforePath  []string
 		beforeValue interface{}
-		path        string
+		path        []string
 		value       interface{}
 
 		wantErr error
 	}{
 		{
-			name:  "empty path",
-			path:  "",
-			value: map[string]string{},
-
-			wantErr: clienterrors.ErrPathInvalid,
-		},
-		{
 			name:  "root path",
-			path:  "/",
-			value: map[string]string{},
+			path:  []string{},
+			value: map[string]interface{}{},
 
 			wantErr: clienterrors.ErrPathInvalid,
 		},
 		{
 			name:  "valid write",
-			path:  "/foo",
-			value: map[string]string{"foo": "bar"},
+			path:  []string{"foo"},
+			value: map[string]interface{}{"foo": "bar"},
 
 			wantErr: nil,
 		},
 		{
 			name:        "valid overwrite",
-			beforePath:  "/foo",
-			beforeValue: map[string]string{"foo": "bar"},
-			path:        "/foo",
-			value:       map[string]string{"foo": "qux"},
+			beforePath:  []string{"foo"},
+			beforeValue: map[string]interface{}{"foo": "bar"},
+			path:        []string{"foo"},
+			value:       map[string]interface{}{"foo": "qux"},
 
 			wantErr: nil,
 		},
 		{
 			name:        "write to subdirectory of existing data",
-			beforePath:  "/foo",
-			beforeValue: map[string]string{"foo": "bar"},
-			path:        "/foo/bar",
-			value:       map[string]string{"foo": "qux"},
+			beforePath:  []string{"foo"},
+			beforeValue: map[string]interface{}{"foo": "bar"},
+			path:        []string{"foo", "bar"},
+			value:       map[string]interface{}{"foo": "qux"},
 
-			wantErr: clienterrors.ErrWrite,
+			wantErr: nil,
 		},
 		{
 			name:        "write to subdirectory of non-object",
-			beforePath:  "/foo",
+			beforePath:  []string{"foo"},
 			beforeValue: "bar",
-			path:        "/foo/bar",
-			value:       map[string]string{"foo": "qux"},
+			path:        []string{"foo", "bar"},
+			value:       map[string]interface{}{"foo": "qux"},
 
 			wantErr: clienterrors.ErrWrite,
 		},
 		{
 			name:        "write to parent directory of existing data",
-			beforePath:  "/foo/bar",
-			beforeValue: map[string]string{"foo": "bar"},
-			path:        "/foo",
-			value:       map[string]string{"foo": "qux"},
+			beforePath:  []string{"foo", "bar"},
+			beforeValue: map[string]interface{}{"foo": "bar"},
+			path:        []string{"foo"},
+			value:       map[string]interface{}{"foo": "qux"},
 
 			wantErr: nil,
 		},
@@ -256,7 +245,7 @@ func TestDriver_PutData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			s := &fakeStorage{}
+			s := inmem.New()
 			d, err := New(Storage(s))
 			if err != nil {
 				t.Fatal(err)
@@ -281,22 +270,27 @@ func TestDriver_PutData(t *testing.T) {
 
 			// Verify the state of data in storage.
 
-			readPath := tc.path
 			wantValue := tc.value
+			wantPath := tc.path
 			if tc.wantErr != nil {
 				// We encountered an error writing data, so we expect the original data to be unchanged.
-				readPath = tc.beforePath
+				wantPath = tc.beforePath
 				wantValue = tc.beforeValue
 			}
 
-			path, err := parsePath(readPath)
+			txn, err := s.NewTransaction(ctx)
 			if err != nil {
-				t.Fatalf("got parsePath() e = %v, want %v", err, nil)
+				t.Fatal(err)
 			}
 
-			gotValue, err := s.Read(ctx, nil, path)
+			gotValue, err := s.Read(ctx, txn, wantPath)
 			if err != nil {
 				t.Fatalf("got fakeStorage.Read() error = %v, want %v", err, nil)
+			}
+
+			err = s.Commit(ctx, txn)
+			if err != nil {
+				t.Fatal(err)
 			}
 
 			if diff := cmp.Diff(wantValue, gotValue); diff != "" {
@@ -349,7 +343,7 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			path := "/foo"
+			path := []string{"foo"}
 			value := map[string]string{"bar": "qux"}
 			err = d.PutData(ctx, path, value)
 
@@ -363,36 +357,36 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 func TestDriver_DeleteData(t *testing.T) {
 	testCases := []struct {
 		name        string
-		beforePath  string
+		beforePath  []string
 		beforeValue interface{}
-		path        string
+		path        []string
 
 		wantDeleted bool
 		wantErr     error
 	}{
 		{
-			name:        "empty path",
-			beforePath:  "/foo",
+			name:        "cannot delete root",
+			beforePath:  []string{"foo"},
 			beforeValue: "bar",
-			path:        "",
+			path:        []string{},
 
 			wantDeleted: false,
-			wantErr:     clienterrors.ErrPathInvalid,
+			wantErr:     clienterrors.ErrWrite,
 		},
 		{
 			name:        "success",
-			beforePath:  "/foo",
+			beforePath:  []string{"foo"},
 			beforeValue: "bar",
-			path:        "/foo",
+			path:        []string{"foo"},
 
 			wantDeleted: true,
 			wantErr:     nil,
 		},
 		{
 			name:        "non existent",
-			beforePath:  "/foo",
+			beforePath:  []string{"foo"},
 			beforeValue: "bar",
-			path:        "/qux",
+			path:        []string{"qux"},
 
 			wantDeleted: false,
 			wantErr:     nil,
@@ -403,7 +397,7 @@ func TestDriver_DeleteData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			s := &fakeStorage{}
+			s := inmem.New()
 			d, err := New(Storage(s))
 			if err != nil {
 				t.Fatal(err)
@@ -427,7 +421,29 @@ func TestDriver_DeleteData(t *testing.T) {
 				wantValue = tc.beforeValue
 			}
 
-			if diff := cmp.Diff(wantValue, s.values[tc.beforePath]); diff != "" {
+			txn, err := s.NewTransaction(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			gotValue, err := s.Read(ctx, txn, tc.beforePath)
+			if tc.wantDeleted {
+				if !storage.IsNotFound(err) {
+					t.Fatalf("got err %v, want not found", err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = s.Commit(ctx, txn)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(wantValue, gotValue); diff != "" {
 				t.Errorf(diff)
 			}
 		})
@@ -476,7 +492,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			path := "/foo"
+			path := []string{"foo"}
 			_, err = d.DeleteData(ctx, path)
 
 			if !errors.Is(err, tc.wantErr) {

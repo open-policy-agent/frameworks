@@ -12,6 +12,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -112,14 +113,16 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) PutData(_ context.Context, path string, data interface{}) error {
-	return d.opa.PutData(path, data)
+func (d *driver) PutData(_ context.Context, path []string, data interface{}) error {
+	storagePath := storage.Path(path)
+	return d.opa.PutData(storagePath.String(), data)
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) DeleteData(_ context.Context, path string) (bool, error) {
-	err := d.opa.DeleteData(path)
+func (d *driver) DeleteData(_ context.Context, path []string) (bool, error) {
+	storagePath := storage.Path(path)
+	err := d.opa.DeleteData(storagePath.String())
 	if err != nil {
 		e := &Error{}
 		if errors.As(err, &e) {
