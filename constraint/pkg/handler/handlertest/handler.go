@@ -41,20 +41,20 @@ func (h *Handler) GetName() string {
 	return HandlerName
 }
 
-func (h *Handler) ProcessData(obj interface{}) (bool, string, interface{}, error) {
+func (h *Handler) ProcessData(obj interface{}) (bool, handler.Key, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
 		if h.ProcessDataError != nil {
-			return false, "", nil, h.ProcessDataError
+			return false, nil, nil, h.ProcessDataError
 		}
 
 		if h.ShouldHandle != nil && !h.ShouldHandle(o) {
-			return false, "", nil, nil
+			return false, nil, nil, nil
 		}
 
 		return true, o.Key(), obj, nil
 	default:
-		return false, "", nil, fmt.Errorf("%w: got object type %T, want %T",
+		return false, nil, nil, fmt.Errorf("%w: got object type %T, want %T",
 			ErrInvalidType, obj, &Object{})
 	}
 }

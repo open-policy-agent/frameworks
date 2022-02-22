@@ -515,12 +515,12 @@ func TestConstraintMatchers_RemoveKind(t *testing.T) {
 func TestConstraintMatchers_ConstraintsFor(t *testing.T) {
 	c := &handlertest.Cache{}
 	namespaceA := &handlertest.Object{Namespace: "aaa"}
-	err := c.Add(namespaceA.Key(), namespaceA)
+	err := c.Add(namespaceA.Key())
 	if err != nil {
 		t.Fatal(err)
 	}
 	namespaceB := &handlertest.Object{Namespace: "bbb"}
-	err = c.Add(namespaceB.Key(), namespaceB)
+	err = c.Add(namespaceB.Key())
 	if err != nil {
 		t.Fatal(err)
 	}

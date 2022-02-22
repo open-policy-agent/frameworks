@@ -42,7 +42,7 @@ type Client struct {
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 	matchers    constraintMatchers
-	objects     map[string]map[string]interface{}
+	objects     map[string]map[string]bool
 }
 
 // createDataPath compiles the data destination: data.external.<target>.<path>.
@@ -59,7 +59,7 @@ func createDataPath(targetName string, subpath string) []string {
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	if c.objects == nil {
-		c.objects = make(map[string]map[string]interface{})
+		c.objects = make(map[string]map[string]bool)
 	}
 
 	// TODO(#189): Make AddData atomic across all Drivers/Targets.
@@ -78,9 +78,11 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		targetObjects := c.objects[name]
 		if targetObjects == nil {
-			targetObjects = make(map[string]interface{})
+			targetObjects = make(map[string]bool)
 		}
-		targetObjects[relPath] = processedData
+
+		key := relPath.String()
+		targetObjects[key] = true
 		c.objects[name] = targetObjects
 
 		var cache handler.Cache
@@ -102,8 +104,8 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		driverPath := createDataPath(name, relPath)
-		err = c.driver.PutData(ctx, driverPath, processedData)
+		targetPath := append([]string{name}, relPath...)
+		err = c.driver.PutData(ctx, targetPath, processedData)
 		if err != nil {
 			errMap[name] = err
 
@@ -141,14 +143,17 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		if c.objects != nil {
 			targetObjects := c.objects[target]
 			if targetObjects != nil {
-				delete(targetObjects, relPath)
+				delete(targetObjects, relPath.String())
 			}
 		}
 
-		if _, err := c.driver.DeleteData(ctx, createDataPath(target, relPath)); err != nil {
+		targetPath := append([]string{target}, relPath...)
+		_, err = c.driver.DeleteData(ctx, targetPath)
+		if err != nil {
 			errMap[target] = err
 			continue
 		}
+
 		resp.Handled[target] = true
 
 		if cacher, ok := h.(handler.Cacher); ok {

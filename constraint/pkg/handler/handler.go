@@ -22,10 +22,12 @@ type TargetHandler interface {
 	//	data: the object passed to client.Client.AddData
 	// Returns:
 	//	handle: true if the target handles the data type
-	//	relPath: the relative path under which the data should be stored in OPA under data.inventory, for example, an item to be stored at data.inventory.x.y.z would return x.y.z
+	//	key: the unique relative path under which the data should be stored in OPA
+	//	under data.inventory, for example, an item to be stored at
+	//	data.inventory.x.y.z would return []string{"x", "y", "z"}
 	//	inventoryFormat: the data as an object that can be cast into JSON and suitable for storage in the inventory
 	//	err: any error encountered
-	ProcessData(data interface{}) (handle bool, relPath string, inventoryFormat interface{}, err error)
+	ProcessData(data interface{}) (handle bool, key Key, inventoryFormat interface{}, err error)
 
 	// HandleReview determines if this target handler will handle an individual
 	// resource review and if so, builds the `review` field of the input object.

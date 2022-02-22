@@ -19,7 +19,7 @@ type Cache struct {
 var _ handler.Cache = &Cache{}
 
 // Add inserts object into Cache if object is a Namespace.
-func (c *Cache) Add(key string, object interface{}) error {
+func (c *Cache) Add(key handler.Key, object interface{}) error {
 	obj, ok := object.(*Object)
 	if !ok {
 		return fmt.Errorf("%w: got object type %T, want %T", ErrInvalidType, object, &Object{})
@@ -37,6 +37,6 @@ func (c *Cache) Add(key string, object interface{}) error {
 	return nil
 }
 
-func (c *Cache) Remove(key string) {
+func (c *Cache) Remove(key handler.Key) {
 	c.Namespaces.Delete(key)
 }
