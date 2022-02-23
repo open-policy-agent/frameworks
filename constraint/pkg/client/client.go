@@ -42,17 +42,12 @@ type Client struct {
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 	matchers    constraintMatchers
-	objects     map[string]map[string]handler.Key
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
-	if c.objects == nil {
-		c.objects = make(map[string]map[string]handler.Key)
-	}
-
 	// TODO(#189): Make AddData atomic across all Drivers/Targets.
 
 	resp := types.NewResponses()
@@ -66,14 +61,6 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		if !handled {
 			continue
 		}
-
-		targetObjects := c.objects[name]
-		if targetObjects == nil {
-			targetObjects = make(map[string]handler.Key)
-		}
-
-		targetObjects[key.String()] = key
-		c.objects[name] = targetObjects
 
 		var cache handler.Cache
 		if cacher, ok := target.(handler.Cacher); ok {
@@ -128,13 +115,6 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		}
 		if !handled {
 			continue
-		}
-
-		if c.objects != nil {
-			targetObjects := c.objects[target]
-			if targetObjects != nil {
-				delete(targetObjects, relPath.String())
-			}
 		}
 
 		targetPath := append([]string{target}, relPath...)

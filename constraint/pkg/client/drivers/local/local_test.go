@@ -28,14 +28,6 @@ type rule struct {
 // rules is a list of rules.
 type rules []rule
 
-func (r rules) srcs() []string {
-	var srcs []string
-	for _, rule := range r {
-		srcs = append(srcs, rule.Content)
-	}
-	return srcs
-}
-
 type data struct {
 	path  []string
 	value string
