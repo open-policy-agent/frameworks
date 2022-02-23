@@ -384,7 +384,8 @@ r = 5
 				t.Error("cached template does not equal stored template")
 			}
 
-			r2, err := c.RemoveTemplate(tc.template)
+			ctx := context.Background()
+			r2, err := c.RemoveTemplate(ctx, tc.template)
 			if err != nil {
 				t.Fatal("could not remove template")
 			}
@@ -449,7 +450,8 @@ func TestClient_RemoveTemplate(t *testing.T) {
 					err, tc.wantError)
 			}
 
-			r, err := c.RemoveTemplate(tc.template)
+			ctx := context.Background()
+			r, err := c.RemoveTemplate(ctx, tc.template)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -513,7 +515,8 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tc.template.Name
 
-			r, err := c.RemoveTemplate(sparseTemplate)
+			ctx := context.Background()
+			r, err := c.RemoveTemplate(ctx, sparseTemplate)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -718,7 +721,8 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Errorf("preservation candidate not cached: %s", orig)
 	}
 
-	if _, err = c.RemoveTemplate(templ); err != nil {
+	ctx := context.Background()
+	if _, err = c.RemoveTemplate(ctx, templ); err != nil {
 		t.Error("could not remove template")
 	}
 

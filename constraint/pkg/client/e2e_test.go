@@ -515,7 +515,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		t.Fatal(diff)
 	}
 
-	_, err = c.RemoveTemplate(clienttest.TemplateDeny())
+	_, err = c.RemoveTemplate(ctx, clienttest.TemplateDeny())
 	if err != nil {
 		t.Fatal(err)
 	}

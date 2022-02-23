@@ -102,7 +102,7 @@ func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate implements driver.Driver.
-func (d *driver) RemoveTemplate(ct *templates.ConstraintTemplate) error {
+func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 
@@ -114,14 +114,14 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) PutData(_ context.Context, key handler.Key, data interface{}) error {
+func (d *driver) AddData(_ context.Context, key handler.Key, data interface{}) error {
 	storagePath := storage.Path(key)
 	return d.opa.PutData(storagePath.String(), data)
 }
 
-// DeleteData deletes data from OPA and returns true if data was found and deleted, false
+// RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) DeleteData(_ context.Context, key handler.Key) (bool, error) {
+func (d *driver) RemoveData(_ context.Context, key handler.Key) (bool, error) {
 	storagePath := storage.Path(key)
 	err := d.opa.DeleteData(storagePath.String())
 	if err != nil {

@@ -82,7 +82,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
 		targetPath := append([]string{name}, key...)
-		err = c.driver.PutData(ctx, targetPath, processedData)
+		err = c.driver.AddData(ctx, targetPath, processedData)
 		if err != nil {
 			errMap[name] = err
 
@@ -118,7 +118,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		}
 
 		targetPath := append([]string{target}, relPath...)
-		_, err = c.driver.DeleteData(ctx, targetPath)
+		_, err = c.driver.RemoveData(ctx, targetPath)
 		if err != nil {
 			errMap[target] = err
 			continue
@@ -355,7 +355,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 // registry. Any constraints relying on the template will also be removed.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) RemoveTemplate(templ *templates.ConstraintTemplate) (*types.Responses, error) {
+func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
 	rawArtifacts, err := c.createRawTemplateArtifacts(templ)
@@ -387,7 +387,7 @@ func (c *Client) RemoveTemplate(templ *templates.ConstraintTemplate) (*types.Res
 		}
 	}
 
-	err = c.driver.RemoveTemplate(templ)
+	err = c.driver.RemoveTemplate(ctx, templ)
 	if err != nil {
 		return resp, err
 	}

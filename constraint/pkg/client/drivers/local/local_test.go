@@ -79,7 +79,7 @@ func TestPutData(t *testing.T) {
 			compiler.Compile(nil)
 
 			for _, d := range tt.Data {
-				err := driver.PutData(ctx, d.path, d.value)
+				err := driver.AddData(ctx, d.path, d.value)
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}

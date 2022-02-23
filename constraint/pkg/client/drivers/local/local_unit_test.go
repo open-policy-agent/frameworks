@@ -164,7 +164,8 @@ violation[{"msg": "msg"}] {
 				t.Errorf("driver failed to add module")
 			}
 
-			gotErr = d.RemoveTemplate(tmpl)
+			ctx := context.Background()
+			gotErr = d.RemoveTemplate(ctx, tmpl)
 			if gotErr != nil {
 				t.Errorf("err = %v; want nil", gotErr)
 			}
@@ -252,13 +253,13 @@ func TestDriver_PutData(t *testing.T) {
 			}
 
 			if tc.beforeValue != nil {
-				err := d.PutData(ctx, tc.beforePath, tc.beforeValue)
+				err := d.AddData(ctx, tc.beforePath, tc.beforeValue)
 				if err != nil {
 					t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 				}
 			}
 
-			err = d.PutData(ctx, tc.path, tc.value)
+			err = d.AddData(ctx, tc.path, tc.value)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got PutData() error = %v, want %v",
 					err, tc.wantErr)
@@ -345,7 +346,7 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 
 			path := []string{"foo"}
 			value := map[string]string{"bar": "qux"}
-			err = d.PutData(ctx, path, value)
+			err = d.AddData(ctx, path, value)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got PutData() error = %v, want %v", err, tc.wantErr)
@@ -403,12 +404,12 @@ func TestDriver_DeleteData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err = d.PutData(ctx, tc.beforePath, tc.beforeValue)
+			err = d.AddData(ctx, tc.beforePath, tc.beforeValue)
 			if err != nil {
 				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 			}
 
-			deleted, err := d.DeleteData(ctx, tc.path)
+			deleted, err := d.RemoveData(ctx, tc.path)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got DeleteData() error = %v, want %v", err, tc.wantErr)
 			}
@@ -493,7 +494,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 			}
 
 			path := []string{"foo"}
-			_, err = d.DeleteData(ctx, path)
+			_, err = d.RemoveData(ctx, path)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)

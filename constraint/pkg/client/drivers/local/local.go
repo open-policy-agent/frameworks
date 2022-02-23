@@ -77,7 +77,47 @@ type Driver struct {
 	externs       []string
 }
 
-func (d *Driver) PutData(ctx context.Context, key handler.Key, data interface{}) error {
+// AddTemplate implements drivers.Driver.
+func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	err := d.compileTemplate(templ)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemoveTemplate implements driver.Driver.
+func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	for target, templateCompilers := range d.compilers {
+		delete(templateCompilers, kind)
+		d.compilers[target] = templateCompilers
+	}
+
+	constraintParent := handler.Key{"constraint", kind}
+	_, err := d.RemoveData(ctx, constraintParent)
+	return err
+}
+
+func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	key := handler.Key{"constraint", constraint.GetKind(), constraint.GetName()}
+	return d.AddData(ctx, key, constraint.Object)
+}
+
+func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	key := handler.Key{"constraint", constraint.GetKind(), constraint.GetName()}
+	_, err := d.RemoveData(ctx, key)
+	return err
+}
+
+func (d *Driver) AddData(ctx context.Context, key handler.Key, data interface{}) error {
 	if len(key) == 0 {
 		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, []string(key))
 	}
@@ -114,9 +154,9 @@ func (d *Driver) PutData(ctx context.Context, key handler.Key, data interface{})
 	return nil
 }
 
-// DeleteData deletes data from OPA and returns true if data was found and deleted, false
+// RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *Driver) DeleteData(ctx context.Context, key handler.Key) (bool, error) {
+func (d *Driver) RemoveData(ctx context.Context, key handler.Key) (bool, error) {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
@@ -374,19 +414,6 @@ func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate)
 	return namePrefix, mods, nil
 }
 
-// AddTemplate implements drivers.Driver.
-func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	err := d.compileTemplate(templ)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (d *Driver) compileTemplate(templ *templates.ConstraintTemplate) error {
 	compilers := make(map[string]*ast.Compiler)
 
@@ -461,19 +488,6 @@ func (d *Driver) compileTemplateTarget(prefix string, rego string, libs []string
 	}
 
 	return compiler, nil
-}
-
-// RemoveTemplate implements driver.Driver.
-func (d *Driver) RemoveTemplate(templ *templates.ConstraintTemplate) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	for target, templateCompilers := range d.compilers {
-		delete(templateCompilers, templ.Spec.CRD.Spec.Names.Kind)
-		d.compilers[target] = templateCompilers
-	}
-
-	return nil
 }
 
 // templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
