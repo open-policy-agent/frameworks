@@ -671,7 +671,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 	var tracesBuilder strings.Builder
 	for _, constraint := range constraints {
 		constraintKey := drivers.ConstraintKeyFrom(constraint)
-		result, trace, err := c.driver.(*local.Driver).Query2(ctx, name, constraint, constraintKey, key, review, opts...)
+		result, trace, err := c.driver.Query(ctx, name, constraintKey, key, review, opts...)
 		if err != nil {
 			return nil, err
 		}

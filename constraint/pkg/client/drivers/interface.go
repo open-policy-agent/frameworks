@@ -33,7 +33,7 @@ type Driver interface {
 	AddData(ctx context.Context, key handler.StoragePath, data interface{}) error
 	RemoveData(ctx context.Context, key handler.StoragePath) (bool, error)
 
-	Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
+	Query(ctx context.Context, target string, constraint ConstraintKey, key handler.StoragePath, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
 
 	Dump(ctx context.Context) (string, error)
 }

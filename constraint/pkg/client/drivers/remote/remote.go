@@ -180,7 +180,7 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *driver) Query(ctx context.Context, target string, constraint drivers.ConstraintKey, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	return nil, nil, nil
 }
 

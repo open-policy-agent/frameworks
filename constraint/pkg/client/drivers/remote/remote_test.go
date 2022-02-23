@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 )
 
 type testClient struct {
@@ -79,7 +81,7 @@ func TestQuery(t *testing.T) {
 		ctx := context.Background()
 
 		d := driver{opa: newTestClient(response)}
-		_, _, _ = d.Query(ctx, "random", nil, nil, nil)
+		_, _, _ = d.Query(ctx, "random", drivers.ConstraintKey{}, nil, nil)
 	})
 }
 

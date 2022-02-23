@@ -209,9 +209,6 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	r := rego.New(args...)
 	res, err := r.Eval(ctx)
 
-	jsn, _ := json.MarshalIndent(res, "", "  ")
-	fmt.Println(string(jsn))
-
 	var t *string
 	if d.traceEnabled || cfg.TracingEnabled {
 		b := &bytes.Buffer{}
@@ -222,7 +219,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraint drivers.ConstraintKey, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -235,42 +232,14 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 		return nil, nil, nil
 	}
 
-	compiler := targetCompilers[constraint.GetKind()]
+	compiler := targetCompilers[constraint.Kind]
 	if compiler == nil {
 		return nil, nil, nil
 	}
 
 	input := map[string]interface{}{
-		"constraint": constraint.Object,
+		"constraint": constraint,
 		"review":     review,
-	}
-
-	path := []string{"hooks", "violation[result]"}
-
-	return d.eval(ctx, compiler, path, input, opts...)
-}
-
-func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, ck drivers.ConstraintKey, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-
-	if len(d.compilers) == 0 {
-		return nil, nil, nil
-	}
-
-	targetCompilers := d.compilers[target]
-	if len(targetCompilers) == 0 {
-		return nil, nil, nil
-	}
-
-	compiler := targetCompilers[ck.Kind]
-	if compiler == nil {
-		return nil, nil, nil
-	}
-
-	input := map[string]interface{}{
-		"key":    ck,
-		"review": review,
 	}
 
 	path := []string{"hooks", "violation[result]"}
