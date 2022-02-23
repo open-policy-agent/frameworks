@@ -248,6 +248,37 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 	return d.eval(ctx, compiler, path, input, opts...)
 }
 
+func (d *Driver) Query2(ctx context.Context, target string, constraint handler.Key, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+
+	if len(d.compilers) == 0 {
+		return nil, nil, nil
+	}
+
+	targetCompilers := d.compilers[target]
+	if len(targetCompilers) == 0 {
+		return nil, nil, nil
+	}
+
+	compiler := targetCompilers[key[1]]
+	if compiler == nil {
+		return nil, nil, nil
+	}
+
+	input := map[string]interface{}{
+		"constraint": key,
+	}
+
+	if review != nil {
+		input["review"] = review
+	}
+
+	path := []string{"hooks", "violation[result]"}
+
+	return d.eval(ctx, compiler, path, input, opts...)
+}
+
 func (d *Driver) Dump(ctx context.Context) (string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()

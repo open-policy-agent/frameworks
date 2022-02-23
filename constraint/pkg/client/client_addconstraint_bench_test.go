@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -17,13 +18,15 @@ func BenchmarkClient_AddConstraint(b *testing.B) {
 		b.Fatal(err)
 	}
 
+	ctx := context.Background()
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		name := fmt.Sprintf("foo-%d", i)
 		constraint := cts.MakeConstraint(b, clienttest.KindCheckData, name, cts.WantData("bar"))
 
-		_, err = c.AddConstraint(constraint)
+		_, err = c.AddConstraint(ctx, constraint)
 		if err != nil {
 			b.Fatal(err)
 		}

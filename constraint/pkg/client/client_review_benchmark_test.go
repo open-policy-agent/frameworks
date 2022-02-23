@@ -96,7 +96,7 @@ func BenchmarkClient_Review(b *testing.B) {
 					name := fmt.Sprintf("wantbar-%d", cid)
 					constraint := tt.makeConstraint(tid, name)
 
-					_, err := c.AddConstraint(constraint)
+					_, err := c.AddConstraint(ctx, constraint)
 					if err != nil {
 						b.Fatal(err)
 					}

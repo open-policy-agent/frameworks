@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -379,19 +378,12 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	gk := artifacts.gk
-	for _, cstr := range c.constraints[gk] {
-		r, err := c.removeConstraintNoLock(cstr)
-		if err != nil {
-			return r, err
-		}
-	}
-
 	err = c.driver.RemoveTemplate(ctx, templ)
 	if err != nil {
 		return resp, err
 	}
 
+	gk := artifacts.gk
 	delete(c.constraints, gk)
 	delete(c.templates, artifacts.Key())
 	c.matchers.RemoveKind(gk.Kind)
@@ -420,32 +412,6 @@ func (c *Client) getTemplateNoLock(key templateKey) (*templates.ConstraintTempla
 
 	ret := t.template.DeepCopy()
 	return ret, nil
-}
-
-// createConstraintSubPath returns the key where we will store the constraint
-// for each target: cluster.<group>.<kind>.<name>.
-func createConstraintSubPath(constraint *unstructured.Unstructured) (string, error) {
-	if constraint.GetName() == "" {
-		return "", fmt.Errorf("%w: missing name", crds.ErrInvalidConstraint)
-	}
-
-	gvk := constraint.GroupVersionKind()
-	if gvk.Group == "" {
-		return "", fmt.Errorf("%w: empty group for constrant %q",
-			crds.ErrInvalidConstraint, constraint.GetName())
-	}
-
-	if gvk.Kind == "" {
-		return "", fmt.Errorf("%w: empty kind for constraint %q",
-			crds.ErrInvalidConstraint, constraint.GetName())
-	}
-
-	return path.Join(createConstraintGKSubPath(gvk.GroupKind()), constraint.GetName()), nil
-}
-
-// createConstraintGKPath returns the subpath for given a constraint GK.
-func createConstraintGKSubPath(gk schema.GroupKind) string {
-	return "/" + path.Join("cluster", gk.Group, gk.Kind)
 }
 
 // getTemplateEntry returns the template entry for a given constraint.
@@ -484,7 +450,7 @@ func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bo
 // AddConstraint validates the constraint and, if valid, inserts it into OPA.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) AddConstraint(constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -509,11 +475,6 @@ func (c *Client) AddConstraint(constraint *unstructured.Unstructured) (*types.Re
 		return resp, err
 	}
 
-	subPath, err := createConstraintSubPath(constraint)
-	if err != nil {
-		return resp, fmt.Errorf("creating Constraint subpath: %w", err)
-	}
-
 	// return immediately if no change
 	cached, err := c.getConstraintNoLock(constraint)
 	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
@@ -528,36 +489,49 @@ func (c *Client) AddConstraint(constraint *unstructured.Unstructured) (*types.Re
 		return resp, err
 	}
 
+	err = c.driver.AddConstraint(ctx, constraint)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, target := range entry.Targets {
 		resp.Handled[target] = true
 	}
 
 	c.matchers.Upsert(constraint, matchers)
 
-	c.constraints[constraint.GroupVersionKind().GroupKind()][subPath] = constraint.DeepCopy()
+	gk := constraint.GroupVersionKind().GroupKind()
+	name := constraint.GetName()
+	c.constraints[gk][name] = constraint.DeepCopy()
 
 	return resp, nil
 }
 
 // RemoveConstraint removes a constraint from OPA. On error, the responses
 // return value will still be populated so that partial results can be analyzed.
-func (c *Client) RemoveConstraint(constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	return c.removeConstraintNoLock(constraint)
+	return c.removeConstraintNoLock(ctx, constraint)
 }
 
-func (c *Client) removeConstraintNoLock(constraint *unstructured.Unstructured) (*types.Responses, error) {
+func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
+
+	err := validateConstraintMetadata(constraint)
+	if err != nil {
+		return resp, err
+	}
+
 	entry, err := c.getTemplateEntry(constraint, false)
 	if err != nil {
 		return resp, err
 	}
 
-	subPath, err := createConstraintSubPath(constraint)
+	err = c.driver.RemoveConstraint(ctx, constraint)
 	if err != nil {
-		return resp, err
+		return nil, err
 	}
 
 	for _, target := range entry.Targets {
@@ -566,23 +540,28 @@ func (c *Client) removeConstraintNoLock(constraint *unstructured.Unstructured) (
 
 	c.matchers.RemoveConstraint(constraint)
 
-	delete(c.constraints[constraint.GroupVersionKind().GroupKind()], subPath)
+	kindConstraints := c.constraints[constraint.GroupVersionKind().GroupKind()]
+	delete(kindConstraints, constraint.GetName())
+	c.constraints[constraint.GroupVersionKind().GroupKind()] = kindConstraints
+
 	return resp, nil
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.
 func (c *Client) getConstraintNoLock(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	subPath, err := createConstraintSubPath(constraint)
+	err := validateConstraintMetadata(constraint)
 	if err != nil {
 		return nil, err
 	}
 
 	gk := constraint.GroupVersionKind().GroupKind()
-	cstr, ok := c.constraints[gk][subPath]
+	name := constraint.GetName()
+	cstr, ok := c.constraints[gk][name]
 	if !ok {
 		return nil, fmt.Errorf("%w %v %q",
 			ErrMissingConstraint, gk, constraint.GetName())
 	}
+
 	return cstr.DeepCopy(), nil
 }
 
@@ -594,9 +573,31 @@ func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstruct
 	return c.getConstraintNoLock(constraint)
 }
 
+func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
+	if constraint.GetName() == "" {
+		return fmt.Errorf("%w: missing metadata.name", crds.ErrInvalidConstraint)
+	}
+
+	gk := constraint.GroupVersionKind()
+	if gk.Kind == "" {
+		return fmt.Errorf("%w: missing kind", crds.ErrInvalidConstraint)
+	}
+
+	if gk.Group != apiconstraints.Group {
+		return fmt.Errorf("%w: incorrect group %q", crds.ErrInvalidConstraint, gk.Group)
+	}
+
+	return nil
+}
+
 // validateConstraint is an internal function that allows us to toggle whether we use a read lock
 // when validating a constraint.
 func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock bool) error {
+	err := validateConstraintMetadata(constraint)
+	if err != nil {
+		return err
+	}
+
 	entry, err := c.getTemplateEntry(constraint, lock)
 	if err != nil {
 		return err
@@ -608,7 +609,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 	}
 
 	for _, targetName := range entry.Targets {
-		err := c.targets[targetName].ValidateConstraint(constraint)
+		err = c.targets[targetName].ValidateConstraint(constraint)
 		if err != nil {
 			return err
 		}

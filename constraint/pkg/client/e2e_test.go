@@ -285,7 +285,7 @@ func TestClient_Review(t *testing.T) {
 			}
 
 			for _, constraint := range tt.constraints {
-				_, err := c.AddConstraint(constraint)
+				_, err := c.AddConstraint(ctx, constraint)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -318,7 +318,7 @@ func TestClient_Review_Details(t *testing.T) {
 	}
 
 	constraint := cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar"))
-	_, err = c.AddConstraint(constraint)
+	_, err = c.AddConstraint(ctx, constraint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +415,7 @@ func TestClient_Review_Print(t *testing.T) {
 			}
 
 			cstr := cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint")
-			if _, err = c.AddConstraint(cstr); err != nil {
+			if _, err = c.AddConstraint(ctx, cstr); err != nil {
 				t.Fatalf("got AddConstraint: %v", err)
 			}
 
@@ -446,7 +446,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = c.AddConstraint(cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+	_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +467,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		t.Fatal(diff)
 	}
 
-	_, err = c.RemoveConstraint(cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+	_, err = c.RemoveConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +494,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = c.AddConstraint(cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+	_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,7 +558,7 @@ func TestE2E_Tracing(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddConstraint(cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
 			if err != nil {
 				t.Fatal(err)
 			}
