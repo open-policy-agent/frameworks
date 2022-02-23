@@ -20,25 +20,25 @@ type Cacher interface {
 type Cache interface {
 	// Add inserts a new object into Cache with identifier key. If an object
 	// already exists, replaces the object at key.
-	Add(relPath Key, object interface{}) error
+	Add(relPath StoragePath, object interface{}) error
 
 	// Remove deletes the object at key from Cache. Deletion succeeds if key
 	// does not exist.
 	// Remove always succeeds; if for some reason key cannot be deleted the application
 	// should panic.
-	Remove(relPath Key)
+	Remove(relPath StoragePath)
 }
 
 type NoCache struct{}
 
-func (n NoCache) Add(relPath Key, object interface{}) error {
+func (n NoCache) Add(relPath StoragePath, object interface{}) error {
 	return nil
 }
 
-func (n NoCache) Get(relPath Key) (interface{}, error) {
+func (n NoCache) Get(relPath StoragePath) (interface{}, error) {
 	return nil, nil
 }
 
-func (n NoCache) Remove(relPath Key) {}
+func (n NoCache) Remove(relPath StoragePath) {}
 
 var _ Cache = NoCache{}

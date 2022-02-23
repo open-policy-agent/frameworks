@@ -291,6 +291,9 @@ func TestClient_Review(t *testing.T) {
 				}
 			}
 
+			out, _ := c.Dump(ctx)
+			t.Log(out)
+
 			responses, err := c.Review(ctx, tt.toReview)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got error %v, want %v", err, tt.wantErr)

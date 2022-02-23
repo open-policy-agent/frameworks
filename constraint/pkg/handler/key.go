@@ -2,8 +2,8 @@ package handler
 
 import "strings"
 
-type Key []string
+type StoragePath []string
 
-func (k Key) String() string {
-	return strings.Join(k, "/")
+func (p StoragePath) String() string {
+	return strings.Join(p, "/")
 }

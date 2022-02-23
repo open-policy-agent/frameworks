@@ -655,7 +655,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target handler.TargetHandler, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
+func (c *Client) review(ctx context.Context, target handler.TargetHandler, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	name := target.GetName()
 	constraints, err := c.matchers.ConstraintsFor(name, review)
 	if err != nil {
@@ -670,7 +670,8 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 	var resultSet rego.ResultSet
 	var tracesBuilder strings.Builder
 	for _, constraint := range constraints {
-		result, trace, err := c.driver.Query(ctx, name, constraint, key, review, opts...)
+		constraintKey := drivers.ConstraintKeyFrom(constraint)
+		result, trace, err := c.driver.(*local.Driver).Query2(ctx, name, constraint, constraintKey, key, review, opts...)
 		if err != nil {
 			return nil, err
 		}

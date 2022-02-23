@@ -114,14 +114,14 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) AddData(_ context.Context, key handler.Key, data interface{}) error {
+func (d *driver) AddData(_ context.Context, key handler.StoragePath, data interface{}) error {
 	storagePath := storage.Path(key)
 	return d.opa.PutData(storagePath.String(), data)
 }
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) RemoveData(_ context.Context, key handler.Key) (bool, error) {
+func (d *driver) RemoveData(_ context.Context, key handler.StoragePath) (bool, error) {
 	storagePath := storage.Path(key)
 	err := d.opa.DeleteData(storagePath.String())
 	if err != nil {
@@ -180,7 +180,7 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	return nil, nil, nil
 }
 

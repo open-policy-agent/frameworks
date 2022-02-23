@@ -30,10 +30,26 @@ type Driver interface {
 	AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 
-	AddData(ctx context.Context, key handler.Key, data interface{}) error
-	RemoveData(ctx context.Context, key handler.Key) (bool, error)
+	AddData(ctx context.Context, key handler.StoragePath, data interface{}) error
+	RemoveData(ctx context.Context, key handler.StoragePath) (bool, error)
 
-	Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.Key, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
+	Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...QueryOpt) (rego.ResultSet, *string, error)
 
 	Dump(ctx context.Context) (string, error)
+}
+
+type ConstraintKey struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+func ConstraintKeyFrom(constraint *unstructured.Unstructured) ConstraintKey {
+	return ConstraintKey{
+		Kind: constraint.GetKind(),
+		Name: constraint.GetName(),
+	}
+}
+
+func (k ConstraintKey) StoragePath() handler.StoragePath {
+	return handler.StoragePath{"constraints", k.Kind, k.Name}
 }

@@ -18,7 +18,7 @@ type Object struct {
 	Data string `json:"data"`
 }
 
-func (o Object) Key() handler.Key {
+func (o Object) Key() handler.StoragePath {
 	if o.Namespace == "" {
 		return []string{"cluster", o.Name}
 	}

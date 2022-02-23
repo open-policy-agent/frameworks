@@ -41,7 +41,7 @@ func (h *Handler) GetName() string {
 	return HandlerName
 }
 
-func (h *Handler) ProcessData(obj interface{}) (bool, handler.Key, interface{}, error) {
+func (h *Handler) ProcessData(obj interface{}) (bool, handler.StoragePath, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
 		if h.ProcessDataError != nil {
@@ -59,7 +59,7 @@ func (h *Handler) ProcessData(obj interface{}) (bool, handler.Key, interface{}, 
 	}
 }
 
-func (h *Handler) HandleReview(obj interface{}) (bool, handler.Key, interface{}, error) {
+func (h *Handler) HandleReview(obj interface{}) (bool, handler.StoragePath, interface{}, error) {
 	switch data := obj.(type) {
 	case Review:
 		return true, data.Object.Key(), &data, nil

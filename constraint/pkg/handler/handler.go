@@ -27,7 +27,7 @@ type TargetHandler interface {
 	//	data.inventory.x.y.z would return []string{"x", "y", "z"}
 	//	inventoryFormat: the data as an object that can be cast into JSON and suitable for storage in the inventory
 	//	err: any error encountered
-	ProcessData(data interface{}) (handle bool, key Key, inventoryFormat interface{}, err error)
+	ProcessData(data interface{}) (handle bool, key StoragePath, inventoryFormat interface{}, err error)
 
 	// HandleReview determines if this target handler will handle an individual
 	// resource review and if so, builds the `review` field of the input object.
@@ -38,7 +38,7 @@ type TargetHandler interface {
 	//  key: a unique path for the object to review
 	//	review: the data for the `review` field
 	//	err: any error encountered.
-	HandleReview(object interface{}) (handle bool, key Key, review interface{}, err error)
+	HandleReview(object interface{}) (handle bool, key StoragePath, review interface{}, err error)
 
 	// HandleViolation allows for post-processing of the result object. The object
 	// can be mutated if desired.

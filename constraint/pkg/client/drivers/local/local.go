@@ -101,48 +101,50 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		d.compilers[target] = templateCompilers
 	}
 
-	constraintParent := handler.Key{"constraint", kind}
+	constraintParent := handler.StoragePath{"constraint", kind}
 	_, err := d.RemoveData(ctx, constraintParent)
 	return err
 }
 
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	key := handler.Key{"constraint", constraint.GetKind(), constraint.GetName()}
-	return d.AddData(ctx, key, constraint.Object)
+	key := drivers.ConstraintKeyFrom(constraint)
+	return d.AddData(ctx, key.StoragePath(), constraint.Object)
 }
 
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	key := handler.Key{"constraint", constraint.GetKind(), constraint.GetName()}
-	_, err := d.RemoveData(ctx, key)
+	key := drivers.ConstraintKeyFrom(constraint)
+	_, err := d.RemoveData(ctx, key.StoragePath())
 	return err
 }
 
-func (d *Driver) AddData(ctx context.Context, key handler.Key, data interface{}) error {
+func (d *Driver) AddData(ctx context.Context, key handler.StoragePath, data interface{}) error {
 	if len(key) == 0 {
 		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, []string(key))
 	}
+
+	path := []string(key)
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	_, err = d.storage.Read(ctx, txn, []string(key))
+	_, err = d.storage.Read(ctx, txn, path)
 	if err != nil {
 		if !storage.IsNotFound(err) {
 			d.storage.Abort(ctx, txn)
 			return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
 		}
 
-		parent := key[:len(key)-1]
+		parent := path[:len(path)-1]
 
-		err = storage.MakeDir(ctx, d.storage, txn, []string(parent))
+		err = storage.MakeDir(ctx, d.storage, txn, parent)
 		if err != nil {
 			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
 		}
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.AddOp, []string(key), data); err != nil {
+	if err = d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
@@ -156,7 +158,7 @@ func (d *Driver) AddData(ctx context.Context, key handler.Key, data interface{})
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *Driver) RemoveData(ctx context.Context, key handler.Key) (bool, error) {
+func (d *Driver) RemoveData(ctx context.Context, key handler.StoragePath) (bool, error) {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
@@ -207,6 +209,9 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	r := rego.New(args...)
 	res, err := r.Eval(ctx)
 
+	jsn, _ := json.MarshalIndent(res, "", "  ")
+	fmt.Println(string(jsn))
+
 	var t *string
 	if d.traceEnabled || cfg.TracingEnabled {
 		b := &bytes.Buffer{}
@@ -217,7 +222,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -237,10 +242,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 
 	input := map[string]interface{}{
 		"constraint": constraint.Object,
-	}
-
-	if review != nil {
-		input["review"] = review
+		"review":     review,
 	}
 
 	path := []string{"hooks", "violation[result]"}
@@ -248,7 +250,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 	return d.eval(ctx, compiler, path, input, opts...)
 }
 
-func (d *Driver) Query2(ctx context.Context, target string, constraint handler.Key, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query2(ctx context.Context, target string, constraint *unstructured.Unstructured, ck drivers.ConstraintKey, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -261,17 +263,14 @@ func (d *Driver) Query2(ctx context.Context, target string, constraint handler.K
 		return nil, nil, nil
 	}
 
-	compiler := targetCompilers[key[1]]
+	compiler := targetCompilers[ck.Kind]
 	if compiler == nil {
 		return nil, nil, nil
 	}
 
 	input := map[string]interface{}{
-		"constraint": key,
-	}
-
-	if review != nil {
-		input["review"] = review
+		"key":    ck,
+		"review": review,
 	}
 
 	path := []string{"hooks", "violation[result]"}
