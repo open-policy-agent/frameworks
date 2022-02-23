@@ -14,6 +14,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
@@ -76,9 +77,9 @@ type Driver struct {
 	externs       []string
 }
 
-func (d *Driver) PutData(ctx context.Context, path []string, data interface{}) error {
-	if len(path) == 0 {
-		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, path)
+func (d *Driver) PutData(ctx context.Context, key handler.Key, data interface{}) error {
+	if len(key) == 0 {
+		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, []string(key))
 	}
 
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
@@ -86,22 +87,22 @@ func (d *Driver) PutData(ctx context.Context, path []string, data interface{}) e
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	_, err = d.storage.Read(ctx, txn, path)
+	_, err = d.storage.Read(ctx, txn, []string(key))
 	if err != nil {
 		if !storage.IsNotFound(err) {
 			d.storage.Abort(ctx, txn)
 			return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
 		}
 
-		parent := path[:len(path)-1]
+		parent := key[:len(key)-1]
 
-		err = storage.MakeDir(ctx, d.storage, txn, parent)
+		err = storage.MakeDir(ctx, d.storage, txn, []string(parent))
 		if err != nil {
 			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
 		}
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
+	if err = d.storage.Write(ctx, txn, storage.AddOp, []string(key), data); err != nil {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
@@ -115,13 +116,13 @@ func (d *Driver) PutData(ctx context.Context, path []string, data interface{}) e
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *Driver) DeleteData(ctx context.Context, path []string) (bool, error) {
+func (d *Driver) DeleteData(ctx context.Context, key handler.Key) (bool, error) {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.RemoveOp, path, interface{}(nil)); err != nil {
+	if err = d.storage.Write(ctx, txn, storage.RemoveOp, []string(key), interface{}(nil)); err != nil {
 		d.storage.Abort(ctx, txn)
 		if storage.IsNotFound(err) {
 			return false, nil
@@ -148,7 +149,6 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 		queryPath.WriteString(".")
 		queryPath.WriteString(p)
 	}
-	fmt.Println(queryPath.String())
 
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
@@ -177,7 +177,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -196,9 +196,13 @@ func (d *Driver) Query(ctx context.Context, target string, constraint *unstructu
 	}
 
 	input := map[string]interface{}{
-		"review":     review,
 		"constraint": constraint.Object,
 	}
+
+	if review != nil {
+		input["review"] = review
+	}
+
 	path := []string{"hooks", "violation[result]"}
 
 	return d.eval(ctx, compiler, path, input, opts...)

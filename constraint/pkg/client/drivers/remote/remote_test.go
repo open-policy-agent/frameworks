@@ -79,7 +79,7 @@ func TestQuery(t *testing.T) {
 		ctx := context.Background()
 
 		d := driver{opa: newTestClient(response)}
-		_, _, _ = d.Query(ctx, "random", nil, nil)
+		_, _, _ = d.Query(ctx, "random", nil, nil, nil)
 	})
 }
 

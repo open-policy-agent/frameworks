@@ -8,7 +8,7 @@ package hooks
 
 # Determine if the object under review violates constraint.
 violation[response] {
-  review := object.get(input, "review", {})
+  review_object[review]
   constraint := object.get(input, "constraint", {})
 
 	inp := {
@@ -28,6 +28,15 @@ violation[response] {
 		"review": review,
 		"enforcementAction": enforcementAction,
 	}
+}
+
+review_object[review] {
+  review := input.review
+}
+
+review_object[review] {
+  not input.review
+  review := ""
 }
 
 inventory[inv] {

@@ -351,140 +351,6 @@ func TestClient_Review_Details(t *testing.T) {
 	}
 }
 
-func TestClient_Audit(t *testing.T) {
-	tests := []struct {
-		name        string
-		templates   []*templates.ConstraintTemplate
-		constraints []*unstructured.Unstructured
-		objects     []*handlertest.Object
-		want        []*types.Result
-	}{
-		{
-			name:        "empty client returns empty audit",
-			templates:   nil,
-			constraints: nil,
-			objects:     nil,
-		},
-		{
-			name:        "no template returns empty audit",
-			templates:   nil,
-			constraints: nil,
-			objects: []*handlertest.Object{
-				{Name: "foo", Data: "qux"},
-			},
-			want: nil,
-		},
-		{
-			name: "no constraint returns empty audit",
-			templates: []*templates.ConstraintTemplate{
-				clienttest.TemplateCheckData(),
-			},
-			constraints: nil,
-			objects: []*handlertest.Object{
-				{Name: "foo", Data: "qux"},
-			},
-			want: nil,
-		},
-		{
-			name: "no objects returns empty audit",
-			templates: []*templates.ConstraintTemplate{
-				clienttest.TemplateCheckData(),
-			},
-			constraints: []*unstructured.Unstructured{
-				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-			},
-			objects: nil,
-			want:    nil,
-		},
-		{
-			name: "valid objects returns empty audit",
-			templates: []*templates.ConstraintTemplate{
-				clienttest.TemplateCheckData(),
-			},
-			constraints: []*unstructured.Unstructured{
-				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-			},
-			objects: []*handlertest.Object{
-				{Name: "foo", Data: "bar"},
-				{Name: "foo2", Namespace: "bar", Data: "bar"},
-			},
-			want: nil,
-		},
-		{
-			name: "failing object returns responses",
-			templates: []*templates.ConstraintTemplate{
-				clienttest.TemplateCheckData(),
-			},
-			constraints: []*unstructured.Unstructured{
-				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-			},
-			objects: []*handlertest.Object{
-				{Name: "foo", Data: "qux"},
-				{Name: "foo2", Namespace: "bar", Data: "zab"},
-			},
-			want: []*types.Result{
-				{
-					Msg:        "got qux but want bar for data",
-					Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-					Resource: &handlertest.Review{
-						Object: handlertest.Object{Name: "foo", Data: "qux"},
-					},
-					EnforcementAction: "deny",
-				},
-				{
-					Msg:        "got zab but want bar for data",
-					Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-					Resource: &handlertest.Review{
-						Object: handlertest.Object{Name: "foo2", Namespace: "bar", Data: "zab"},
-					},
-					EnforcementAction: "deny",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			c := clienttest.New(t)
-
-			for _, ct := range tt.templates {
-				_, err := c.AddTemplate(ct)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			for _, constraint := range tt.constraints {
-				_, err := c.AddConstraint(constraint)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			for _, object := range tt.objects {
-				_, err := c.AddData(ctx, object)
-				if err != nil {
-					t.Fatal(err)
-				}
-			}
-
-			responses, err := c.Audit(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			results := responses.Results()
-
-			if diff := cmp.Diff(tt.want, results,
-				cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
-				t.Fatal(diff)
-			}
-		})
-	}
-}
-
 type appendingPrintHook struct {
 	printed *[]string
 }
@@ -667,7 +533,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	}
 }
 
-func TestE2E_Review_Tracing(t *testing.T) {
+func TestE2E_Tracing(t *testing.T) {
 	tests := []struct {
 		name           string
 		tracingEnabled bool
@@ -706,7 +572,7 @@ func TestE2E_Review_Tracing(t *testing.T) {
 
 			trace := rsps.ByTarget[handlertest.HandlerName].Trace
 			if trace == nil && tt.tracingEnabled {
-				t.Fatal("got nil trace but tracing enabled")
+				t.Fatal("got nil trace but tracing enabled for Review")
 			} else if trace != nil && !tt.tracingEnabled {
 				t.Fatalf("got trace but tracing disabled: %v", *trace)
 			}
@@ -714,18 +580,6 @@ func TestE2E_Review_Tracing(t *testing.T) {
 			_, err = c.AddData(ctx, &obj.Object)
 			if err != nil {
 				t.Fatal(err)
-			}
-
-			rsps2, err := c.Audit(ctx, drivers.Tracing(tt.tracingEnabled))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			trace2 := rsps2.ByTarget[handlertest.HandlerName].Trace
-			if trace2 == nil && tt.tracingEnabled {
-				t.Fatal("got nil trace but tracing enabled")
-			} else if trace2 != nil && !tt.tracingEnabled {
-				t.Fatalf("got trace but tracing disabled: %v", *trace)
 			}
 		})
 	}

@@ -33,10 +33,10 @@ func (c *Cache) Add(key handler.Key, object interface{}) error {
 		return fmt.Errorf("%w: must specify one of Name or Namespace", ErrInvalidObject)
 	}
 
-	c.Namespaces.Store(key, object)
+	c.Namespaces.Store(key.String(), object)
 	return nil
 }
 
 func (c *Cache) Remove(key handler.Key) {
-	c.Namespaces.Delete(key)
+	c.Namespaces.Delete(key.String())
 }

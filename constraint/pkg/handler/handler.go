@@ -35,9 +35,10 @@ type TargetHandler interface {
 	//	object: the object passed to client.Client.Review
 	// Returns:
 	//	handle: true if the target handler will review this input
+	//  key: a unique path for the object to review
 	//	review: the data for the `review` field
-	//	err: any error encountered
-	HandleReview(object interface{}) (handle bool, review interface{}, err error)
+	//	err: any error encountered.
+	HandleReview(object interface{}) (handle bool, key Key, review interface{}, err error)
 
 	// HandleViolation allows for post-processing of the result object. The object
 	// can be mutated if desired.
@@ -51,7 +52,6 @@ type TargetHandler interface {
 	ValidateConstraint(constraint *unstructured.Unstructured) error
 
 	// ToMatcher converts a Constraint to its corresponding Matcher.
-	// CURRENTLY UNIMPLEMENTED.
 	// Allows caching Constraint-specific logic for matching objects under
 	// review.
 	ToMatcher(constraint *unstructured.Unstructured) (constraints.Matcher, error)

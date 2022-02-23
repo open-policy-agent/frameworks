@@ -40,7 +40,7 @@ func (m Matcher) Match(review interface{}) (bool, error) {
 	}
 
 	key := Object{Namespace: reviewObj.Object.Namespace}.Key()
-	_, exists := m.Cache.Namespaces.Load(key)
+	_, exists := m.Cache.Namespaces.Load(key.String())
 	if !exists {
 		return false, fmt.Errorf("%w: namespace %q not in cache",
 			ErrNotFound, m.Namespace)

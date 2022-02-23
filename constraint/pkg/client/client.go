@@ -42,16 +42,7 @@ type Client struct {
 	// TODO: https://github.com/open-policy-agent/frameworks/issues/187
 	constraints map[schema.GroupKind]map[string]*unstructured.Unstructured
 	matchers    constraintMatchers
-	objects     map[string]map[string]bool
-}
-
-// createDataPath compiles the data destination: data.external.<target>.<path>.
-func createDataPath(targetName string, subpath string) []string {
-	subpaths := strings.Split(subpath, "/")
-	p := []string{"external", targetName}
-	p = append(p, subpaths...)
-
-	return p
+	objects     map[string]map[string]handler.Key
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.
@@ -59,7 +50,7 @@ func createDataPath(targetName string, subpath string) []string {
 // partial results can be analyzed.
 func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	if c.objects == nil {
-		c.objects = make(map[string]map[string]bool)
+		c.objects = make(map[string]map[string]handler.Key)
 	}
 
 	// TODO(#189): Make AddData atomic across all Drivers/Targets.
@@ -67,7 +58,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 	for name, target := range c.targets {
-		handled, relPath, processedData, err := target.ProcessData(data)
+		handled, key, processedData, err := target.ProcessData(data)
 		if err != nil {
 			errMap[name] = err
 			continue
@@ -78,11 +69,10 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		targetObjects := c.objects[name]
 		if targetObjects == nil {
-			targetObjects = make(map[string]bool)
+			targetObjects = make(map[string]handler.Key)
 		}
 
-		key := relPath.String()
-		targetObjects[key] = true
+		targetObjects[key.String()] = key
 		c.objects[name] = targetObjects
 
 		var cache handler.Cache
@@ -93,7 +83,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 		// Add to the target cache first because cache.Remove cannot fail. Thus, we
 		// can prevent the system from getting into an inconsistent state.
 		if cache != nil {
-			err = cache.Add(relPath, processedData)
+			err = cache.Add(key, processedData)
 			if err != nil {
 				// Use a different key than the driver to avoid clobbering errors.
 				errMap[name] = err
@@ -104,13 +94,13 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		targetPath := append([]string{name}, relPath...)
+		targetPath := append([]string{name}, key...)
 		err = c.driver.PutData(ctx, targetPath, processedData)
 		if err != nil {
 			errMap[name] = err
 
 			if cache != nil {
-				cache.Remove(relPath)
+				cache.Remove(key)
 			}
 			continue
 		}
@@ -660,7 +650,16 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	errMap := make(clienterrors.ErrorMap)
 
 	for name, target := range c.targets {
-		resp, err := c.review(ctx, target, obj, opts...)
+		// Short-circuiting question applies here as well
+		handled, key, review, err := target.HandleReview(obj)
+		if err != nil {
+			return nil, err
+		}
+		if !handled {
+			continue
+		}
+
+		resp, err := c.review(ctx, target, key, review, opts...)
 		if err != nil {
 			errMap.Add(name, err)
 			continue
@@ -675,19 +674,9 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
-	// Short-circuiting question applies here as well
-	handled, review, err := target.HandleReview(obj)
-	if err != nil {
-		return nil, err
-	}
-
-	if !handled {
-		return nil, err
-	}
-
+func (c *Client) review(ctx context.Context, target handler.TargetHandler, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	name := target.GetName()
-	constraints, err := c.matchers.ConstraintsFor(name, obj)
+	constraints, err := c.matchers.ConstraintsFor(name, review)
 	if err != nil {
 		// TODO(willbeason): This is where we'll make the determination about whether
 		//  to continue, or just insert the autorejection into responses based on
@@ -700,7 +689,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 	var resultSet rego.ResultSet
 	var tracesBuilder strings.Builder
 	for _, constraint := range constraints {
-		result, trace, err := c.driver.Query(ctx, name, constraint, review, opts...)
+		result, trace, err := c.driver.Query(ctx, name, constraint, key, review, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -733,48 +722,6 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, obj i
 		Target:  name,
 		Results: results,
 	}, nil
-}
-
-// Audit makes sure the cached state of the system satisfies all stored constraints.
-// On error, the responses return value will still be populated so that
-// partial results can be analyzed.
-func (c *Client) Audit(ctx context.Context, opts ...drivers.QueryOpt) (*types.Responses, error) {
-	responses := types.NewResponses()
-	errMap := make(clienterrors.ErrorMap)
-
-	for name, target := range c.targets {
-		targetResponse := &types.Response{}
-		targetTrace := strings.Builder{}
-
-		for relPath, obj := range c.objects[name] {
-			resp, err := c.review(ctx, target, obj, opts...)
-			if err != nil {
-				key := fmt.Sprintf("%s/%s", name, relPath)
-				errMap.Add(key, err)
-				continue
-			}
-
-			if resp.Trace != nil {
-				targetTrace.WriteString(*resp.Trace)
-				targetTrace.WriteString("\n\n")
-			}
-
-			targetResponse.Results = append(targetResponse.Results, resp.Results...)
-		}
-
-		trace := targetTrace.String()
-		if len(trace) > 0 {
-			targetResponse.Trace = pointer.String(trace)
-		}
-
-		responses.ByTarget[name] = targetResponse
-	}
-
-	if len(errMap) != 0 {
-		return responses, &errMap
-	}
-
-	return responses, nil
 }
 
 // Dump dumps the state of OPA to aid in debugging.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -113,15 +114,15 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) PutData(_ context.Context, path []string, data interface{}) error {
-	storagePath := storage.Path(path)
+func (d *driver) PutData(_ context.Context, key handler.Key, data interface{}) error {
+	storagePath := storage.Path(key)
 	return d.opa.PutData(storagePath.String(), data)
 }
 
 // DeleteData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) DeleteData(_ context.Context, path []string) (bool, error) {
-	storagePath := storage.Path(path)
+func (d *driver) DeleteData(_ context.Context, key handler.Key) (bool, error) {
+	storagePath := storage.Path(key)
 	err := d.opa.DeleteData(storagePath.String())
 	if err != nil {
 		e := &Error{}
@@ -179,7 +180,7 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *driver) Query(ctx context.Context, target string, constraint *unstructured.Unstructured, key handler.Key, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	return nil, nil, nil
 }
 
