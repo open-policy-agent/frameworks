@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/driver"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
@@ -241,17 +240,25 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 	traceBuilder := strings.Builder{}
 
+	kindConstraints := make(map[string][]*unstructured.Unstructured)
 	for _, constraint := range constraints {
-		kind := constraint.GetKind()
+		kindConstraints[constraint.GetKind()] = append(kindConstraints[constraint.GetKind()], constraint)
+	}
+
+	for kind, cs := range kindConstraints {
 		compiler := targetCompilers[kind]
 		if compiler == nil {
 			return nil, nil, nil
 		}
 
-		constraintKey := drivers.ConstraintKeyFrom(constraint)
+		var constraintKeys []drivers.ConstraintKey
+		for _, constraint := range cs {
+			constraintKeys = append(constraintKeys, drivers.ConstraintKeyFrom(constraint))
+		}
+
 		input := map[string]interface{}{
-			"constraint": constraintKey,
-			"reviewKey":  key.String(),
+			"constraints": constraintKeys,
+			"reviewKey":   key.String(),
 		}
 
 		resultSet, trace, err := d.eval(ctx, compiler, path, input, opts...)
@@ -263,7 +270,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 
 		for _, r := range resultSet {
-			result, err := driver.ToResult(constraint, review, r)
+			result, err := drivers.ToResult(constraints, review, r)
 			if err != nil {
 				return nil, nil, err
 			}

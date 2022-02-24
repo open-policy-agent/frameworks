@@ -670,6 +670,9 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 	var tracesBuilder strings.Builder
 
 	results, trace, err := c.driver.Query(ctx, name, constraints, key, review, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, violation := range results {
 		err = target.HandleViolation(violation)

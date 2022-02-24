@@ -1,4 +1,4 @@
-package driver
+package drivers
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ToResult(constraint *unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
+func ToResult(constraints []*unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 
 	resultMapBinding, found := r.Bindings["result"]
@@ -39,6 +39,29 @@ func ToResult(constraint *unstructured.Unstructured, review interface{}, r rego.
 		"details": resultMap["details"],
 	}
 
+	keyBinding, found := resultMap["key"]
+	if !found {
+		return nil, errors.New("no binding for Constraint key")
+	}
+
+	keyMap, ok := keyBinding.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key binding was %T but want %T",
+			keyBinding, map[string]interface{}{})
+	}
+
+	key := ConstraintKey{
+		Kind: keyMap["kind"].(string),
+		Name: keyMap["name"].(string),
+	}
+
+	constraintsMap := make(map[ConstraintKey]*unstructured.Unstructured)
+	for _, constraint := range constraints {
+		constraintKey := ConstraintKeyFrom(constraint)
+		constraintsMap[constraintKey] = constraint
+	}
+
+	constraint := constraintsMap[key]
 	result.Constraint = constraint
 
 	enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
