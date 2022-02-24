@@ -8,27 +8,14 @@ package hooks
 
 # Determine if the object under review violates constraint.
 violation[response] {
-  review := object.get(input, "review", {})
-
-  key := object.get(input, "constraint", {})
-  constraintKind := object.get(key, "kind", "")
-  constraintName := object.get(key, "name", "")
-  constraint := data.constraints[constraintKind][constraintName]
-	spec := object.get(constraint, "spec", {})
+  constraint := data.constraints[input.constraint.kind][input.constraint.name]
 
 	inp := {
-		"review": review,
-		"parameters": object.get(spec, "parameters", {}),
+		"review": input.review,
+		"parameters": constraint.spec.parameters,
 	}
 	inventory[inv]
-	data.templates[constraint.kind].violation[r] with input as inp with data.inventory as inv
-
-  details := {"details": object.get(r, "details", {})}
-
-	response = {
-		"msg": r.msg,
-		"metadata": details,
-	}
+	data.templates[constraint.kind].violation[response] with input as inp with data.inventory as inv
 }
 
 inventory[inv] {

@@ -107,6 +107,17 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 }
 
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	_, exists, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		err = unstructured.SetNestedField(constraint.Object, nil, "spec", "parameters")
+		if err != nil {
+			return err
+		}
+	}
+
 	key := drivers.ConstraintKeyFrom(constraint)
 	return d.AddData(ctx, key.StoragePath(), constraint.Object)
 }

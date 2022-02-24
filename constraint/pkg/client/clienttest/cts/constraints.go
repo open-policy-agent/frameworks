@@ -21,8 +21,13 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	})
 	u.SetName(name)
 
+	err := unstructured.SetNestedField(u.Object, make(map[string]interface{}), "spec", "parameters")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, arg := range args {
-		err := arg(u)
+		err = arg(u)
 		if err != nil {
 			t.Fatal(err)
 		}
