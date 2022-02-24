@@ -9,7 +9,18 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ToResult(constraints []*unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
+func KeyMap(constraints []*unstructured.Unstructured) map[ConstraintKey]*unstructured.Unstructured {
+	result := make(map[ConstraintKey]*unstructured.Unstructured)
+
+	for _, constraint := range constraints {
+		key := ConstraintKeyFrom(constraint)
+		result[key] = constraint
+	}
+
+	return result
+}
+
+func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 
 	resultMapBinding, found := r.Bindings["result"]
@@ -55,13 +66,7 @@ func ToResult(constraints []*unstructured.Unstructured, review interface{}, r re
 		Name: keyMap["name"].(string),
 	}
 
-	constraintsMap := make(map[ConstraintKey]*unstructured.Unstructured)
-	for _, constraint := range constraints {
-		constraintKey := ConstraintKeyFrom(constraint)
-		constraintsMap[constraintKey] = constraint
-	}
-
-	constraint := constraintsMap[key]
+	constraint := constraints[key]
 	result.Constraint = constraint
 
 	enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")

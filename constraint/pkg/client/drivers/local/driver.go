@@ -245,6 +245,8 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		kindConstraints[constraint.GetKind()] = append(kindConstraints[constraint.GetKind()], constraint)
 	}
 
+	constraintsMap := drivers.KeyMap(constraints)
+
 	for kind, cs := range kindConstraints {
 		compiler := targetCompilers[kind]
 		if compiler == nil {
@@ -270,7 +272,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 
 		for _, r := range resultSet {
-			result, err := drivers.ToResult(constraints, review, r)
+			result, err := drivers.ToResult(constraintsMap, review, r)
 			if err != nil {
 				return nil, nil, err
 			}
