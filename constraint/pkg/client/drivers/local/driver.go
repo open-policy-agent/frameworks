@@ -23,7 +23,6 @@ import (
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/topdown/print"
-	opatypes "github.com/open-policy-agent/opa/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
 )
@@ -33,42 +32,16 @@ const (
 	violation = "violation"
 )
 
-func New(args ...Arg) (*Driver, error) {
-	d := &Driver{}
-	for _, arg := range args {
-		err := arg(d)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err := Defaults()(d)
-	if err != nil {
-		return nil, err
-	}
-
-	if d.providerCache != nil {
-		rego.RegisterBuiltin1(
-			&rego.Function{
-				Name:    "external_data",
-				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
-				Memoize: true,
-			},
-			externalDataBuiltin(d),
-		)
-	}
-
-	return d, nil
-}
-
 var _ drivers.Driver = &Driver{}
 
 type Driver struct {
-	mtx sync.RWMutex
+	compilerMtx sync.RWMutex
 
 	// compilers is a map from target name to a map from Template Kind to the
 	// compiler for that Template.
 	compilers map[string]map[string]*ast.Compiler
+
+	objectMtx Sync
 
 	storage       storage.Store
 	capabilities  *ast.Capabilities
@@ -81,8 +54,8 @@ type Driver struct {
 
 // AddTemplate implements drivers.Driver.
 func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
+	d.compilerMtx.Lock()
+	defer d.compilerMtx.Unlock()
 
 	err := d.compileTemplate(templ)
 	if err != nil {
@@ -94,8 +67,8 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 
 // RemoveTemplate implements driver.Driver.
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
+	d.compilerMtx.Lock()
+	defer d.compilerMtx.Unlock()
 
 	kind := templ.Spec.CRD.Spec.Names.Kind
 	for target, templateCompilers := range d.compilers {
@@ -233,8 +206,26 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 }
 
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	d.compilerMtx.RLock()
+	defer d.compilerMtx.RUnlock()
+
+	tmpKey := []string{"tmp", key.String()}
+	syncID := d.objectMtx.ID(tmpKey)
+	d.objectMtx.Lock(syncID)
+
+	defer func() {
+		_, err := d.RemoveData(ctx, tmpKey)
+		if err != nil {
+			panic(err)
+		}
+
+		d.objectMtx.Unlock(syncID)
+	}()
+
+	err := d.AddData(ctx, tmpKey, review)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	if len(d.compilers) == 0 {
 		return nil, nil, nil
@@ -260,7 +251,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		constraintKey := drivers.ConstraintKeyFrom(constraint)
 		input := map[string]interface{}{
 			"constraint": constraintKey,
-			"review":     review,
+			"reviewKey":  key.String(),
 		}
 
 		resultSet, trace, err := d.eval(ctx, compiler, path, input, opts...)
@@ -289,8 +280,8 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	d.compilerMtx.RLock()
+	defer d.compilerMtx.RUnlock()
 
 	dt := make(map[string]map[string]rego.ResultSet)
 

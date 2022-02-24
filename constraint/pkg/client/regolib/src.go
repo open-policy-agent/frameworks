@@ -11,7 +11,7 @@ violation[response] {
   constraint := data.constraints[input.constraint.kind][input.constraint.name]
 
 	inp := {
-		"review": input.review,
+		"review": data.tmp[input.reviewKey],
 		"parameters": constraint.spec.parameters,
 	}
 	inventory[inv]
