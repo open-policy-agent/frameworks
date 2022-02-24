@@ -11,7 +11,6 @@ import (
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/driver"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -669,19 +668,13 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 
 	var results []*types.Result
 	var tracesBuilder strings.Builder
-	for _, constraint := range constraints {
-		constraintKey := drivers.ConstraintKeyFrom(constraint)
-		resultSet, trace, err := c.driver.Query(ctx, name, constraintKey, key, review, opts...)
+
+	results, trace, err := c.driver.Query(ctx, name, constraints, key, review, opts...)
+
+	for _, violation := range results {
+		err = target.HandleViolation(violation)
 		if err != nil {
 			return nil, err
-		}
-
-		for _, r := range resultSet {
-			result, err := driver.ToResult(constraint, review, r)
-			if err != nil {
-				return nil, err
-			}
-			results = append(results, result)
 		}
 
 		if trace != nil {
@@ -690,21 +683,9 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 		}
 	}
 
-	for _, violation := range results {
-		err = target.HandleViolation(violation)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	inputJsn, err := json.MarshalIndent(input, "", "  ")
 	if err != nil {
 		return nil, err
-	}
-
-	trace := pointer.String(tracesBuilder.String())
-	if len(*trace) == 0 {
-		trace = nil
 	}
 
 	return &types.Response{

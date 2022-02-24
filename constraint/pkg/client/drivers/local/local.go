@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/driver"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
@@ -16,6 +17,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
@@ -230,7 +232,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraint drivers.ConstraintKey, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
 
@@ -243,21 +245,47 @@ func (d *Driver) Query(ctx context.Context, target string, constraint drivers.Co
 		return nil, nil, nil
 	}
 
-	compiler := targetCompilers[constraint.Kind]
-	if compiler == nil {
-		return nil, nil, nil
-	}
-
-	input := map[string]interface{}{
-		"constraint": constraint,
-		"review":     review,
-	}
-
 	path := []string{"hooks", "violation[result]"}
+	var results []*types.Result
 
-	result, trace, err := d.eval(ctx, compiler, path, input, opts...)
+	traceBuilder := strings.Builder{}
 
-	return result, trace, err
+	for _, constraint := range constraints {
+		kind := constraint.GetKind()
+		compiler := targetCompilers[kind]
+		if compiler == nil {
+			return nil, nil, nil
+		}
+
+		constraintKey := drivers.ConstraintKeyFrom(constraint)
+		input := map[string]interface{}{
+			"constraint": constraintKey,
+			"review":     review,
+		}
+
+		resultSet, trace, err := d.eval(ctx, compiler, path, input, opts...)
+		if err != nil {
+			return nil, nil, err
+		}
+		if trace != nil {
+			traceBuilder.WriteString(*trace)
+		}
+
+		for _, r := range resultSet {
+			result, err := driver.ToResult(constraint, review, r)
+			if err != nil {
+				return nil, nil, err
+			}
+			results = append(results, result)
+		}
+	}
+
+	traceString := traceBuilder.String()
+	if len(traceString) != 0 {
+		return results, &traceString, nil
+	}
+
+	return results, nil, nil
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
