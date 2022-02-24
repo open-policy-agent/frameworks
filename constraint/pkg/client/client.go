@@ -11,6 +11,7 @@ import (
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/driver"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -676,7 +677,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 		}
 
 		for _, r := range resultSet {
-			result, err := ToResult(target, constraint, review, r)
+			result, err := driver.ToResult(constraint, review, r)
 			if err != nil {
 				return nil, err
 			}
@@ -686,6 +687,13 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 		if trace != nil {
 			tracesBuilder.WriteString(*trace)
 			tracesBuilder.WriteString("\n\n")
+		}
+	}
+
+	for _, violation := range results {
+		err = target.HandleViolation(violation)
+		if err != nil {
+			return nil, err
 		}
 	}
 

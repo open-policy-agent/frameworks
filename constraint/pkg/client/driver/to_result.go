@@ -1,16 +1,15 @@
-package client
+package driver
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ToResult(target handler.TargetHandler, constraint *unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
+func ToResult(constraint *unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 
 	resultMapBinding, found := r.Bindings["result"]
@@ -40,14 +39,12 @@ func ToResult(target handler.TargetHandler, constraint *unstructured.Unstructure
 		"details": resultMap["details"],
 	}
 
-	err := target.HandleViolation(result)
+	result.Constraint = constraint
+
+	enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 	if err != nil {
 		return nil, err
 	}
-
-	result.Constraint = constraint
-
-	enforcementAction, found, _ := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 	if !found {
 		enforcementAction = "deny"
 	}
