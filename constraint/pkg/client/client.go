@@ -18,7 +18,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -667,25 +666,27 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 
 	input := map[string]interface{}{"review": review}
 
-	var resultSet rego.ResultSet
+	var results []*types.Result
 	var tracesBuilder strings.Builder
 	for _, constraint := range constraints {
 		constraintKey := drivers.ConstraintKeyFrom(constraint)
-		result, trace, err := c.driver.Query(ctx, name, constraintKey, key, review, opts...)
+		resultSet, trace, err := c.driver.Query(ctx, name, constraintKey, key, review, opts...)
 		if err != nil {
 			return nil, err
 		}
-		resultSet = append(resultSet, result...)
+
+		for _, r := range resultSet {
+			result, err := ToResult(target, constraint, review, r)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, result)
+		}
 
 		if trace != nil {
 			tracesBuilder.WriteString(*trace)
 			tracesBuilder.WriteString("\n\n")
 		}
-	}
-
-	results, err := local.ToResults(target, resultSet)
-	if err != nil {
-		return nil, err
 	}
 
 	inputJsn, err := json.MarshalIndent(input, "", "  ")

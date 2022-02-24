@@ -244,7 +244,9 @@ func (d *Driver) Query(ctx context.Context, target string, constraint drivers.Co
 
 	path := []string{"hooks", "violation[result]"}
 
-	return d.eval(ctx, compiler, path, input, opts...)
+	result, trace, err := d.eval(ctx, compiler, path, input, opts...)
+
+	return result, trace, err
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {

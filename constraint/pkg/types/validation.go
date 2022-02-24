@@ -21,9 +21,6 @@ type Result struct {
 	// The violating review
 	Review interface{} `json:"review,omitempty"`
 
-	// The violating Resource, filled out by the Target
-	Resource interface{}
-
 	// The enforcement action of the constraint
 	EnforcementAction string `json:"enforcementAction,omitempty"`
 }

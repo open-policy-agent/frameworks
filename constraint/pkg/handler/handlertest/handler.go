@@ -1,7 +1,6 @@
 package handlertest
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
@@ -72,18 +71,7 @@ func (h *Handler) HandleReview(obj interface{}) (bool, handler.StoragePath, inte
 	}
 }
 
-func (h *Handler) HandleViolation(result *types.Result) error {
-	res, err := json.Marshal(result.Review)
-	if err != nil {
-		return err
-	}
-
-	d := &Review{}
-	if err = json.Unmarshal(res, d); err != nil {
-		return err
-	}
-
-	result.Resource = d
+func (h *Handler) HandleViolation(_ *types.Result) error {
 	return nil
 }
 

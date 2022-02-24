@@ -14,25 +14,20 @@ violation[response] {
   constraintKind := object.get(key, "kind", "")
   constraintName := object.get(key, "name", "")
   constraint := data.constraints[constraintKind][constraintName]
+	spec := object.get(constraint, "spec", {})
 
 	inp := {
 		"review": review,
-		"parameters": object.get(object.get(constraint, "spec", {}), "parameters", {}),
+		"parameters": object.get(spec, "parameters", {}),
 	}
 	inventory[inv]
 	data.templates[constraint.kind].violation[r] with input as inp with data.inventory as inv
-
-	spec := object.get(constraint, "spec", {})
-	enforcementAction := object.get(spec, "enforcementAction", "deny")
 
   details := {"details": object.get(r, "details", {})}
 
 	response = {
 		"msg": r.msg,
 		"metadata": details,
-		"constraint": constraint,
-		"review": review,
-		"enforcementAction": enforcementAction,
 	}
 }
 
