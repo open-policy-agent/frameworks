@@ -20,8 +20,8 @@ func Defaults() Arg {
 			d.storage = inmem.New()
 		}
 
-		if d.capabilities == nil {
-			d.capabilities = ast.CapabilitiesForThisVersion()
+		if d.compilers.capabilities == nil {
+			d.compilers.capabilities = ast.CapabilitiesForThisVersion()
 		}
 
 		if d.compilers.externs == nil {
@@ -33,10 +33,11 @@ func Defaults() Arg {
 		// adding external_data builtin otherwise capabilities get overridden
 		// if a capability, like http.send, is disabled
 		if d.providerCache != nil {
-			d.capabilities.Builtins = append(d.capabilities.Builtins, &ast.Builtin{
+			newBuiltin := &ast.Builtin{
 				Name: "external_data",
 				Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
-			})
+			}
+			d.compilers.capabilities.Builtins = append(d.compilers.capabilities.Builtins, newBuiltin)
 		}
 
 		return nil
@@ -85,8 +86,8 @@ func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg
 
 func DisableBuiltins(builtins ...string) Arg {
 	return func(d *Driver) error {
-		if d.capabilities == nil {
-			d.capabilities = ast.CapabilitiesForThisVersion()
+		if d.compilers.capabilities == nil {
+			d.compilers.capabilities = ast.CapabilitiesForThisVersion()
 		}
 
 		disableBuiltins := make(map[string]bool)
@@ -95,13 +96,13 @@ func DisableBuiltins(builtins ...string) Arg {
 		}
 
 		var newBuiltins []*ast.Builtin
-		for _, b := range d.capabilities.Builtins {
+		for _, b := range d.compilers.capabilities.Builtins {
 			if !disableBuiltins[b.Name] {
 				newBuiltins = append(newBuiltins, b)
 			}
 		}
 
-		d.capabilities.Builtins = newBuiltins
+		d.compilers.capabilities.Builtins = newBuiltins
 
 		return nil
 	}

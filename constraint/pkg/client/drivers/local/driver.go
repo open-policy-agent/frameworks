@@ -30,26 +30,42 @@ const (
 
 var _ drivers.Driver = &Driver{}
 
+// Driver is a threadsafe Rego environment for compiling Rego in ConstraintTemplates,
+// registering Constraints, and executing queries.
 type Driver struct {
-	// compilers is a store of.
+	// compilers is a store of Rego Compilers for each Template.
 	compilers Compilers
 
+	// objectMtx ensures multiple queries for the same object are not running
+	// simultaneously.
 	objectMtx Sync
 
-	storage       storage.Store
-	capabilities  *ast.Capabilities
-	traceEnabled  bool
-	printEnabled  bool
-	printHook     print.Hook
+	// storage is the Rego data store for Constraints and objects used in
+	// referential Constraints.
+	storage storage.Store
+
+	// traceEnabled is whether tracing is enabled for Rego queries by default.
+	// If enabled, individual queries cannot disable tracing.
+	traceEnabled bool
+
+	// printEnabled is whether print statements are allowed in Rego. If disabled,
+	// print statements are removed from modules at compile-time.
+	printEnabled bool
+
+	// printHook specifies where to send the output of Rego print() statements.
+	printHook print.Hook
+
+	// providerCache allows Rego to read from external_data in Rego queries.
 	providerCache *externaldata.ProviderCache
 }
 
-// AddTemplate implements drivers.Driver.
+// AddTemplate adds templ to Driver. Normalizes modules into usable forms for
+// use in queries.
 func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 	return d.compilers.addTemplate(templ, d.printEnabled)
 }
 
-// RemoveTemplate implements driver.Driver.
+// RemoveTemplate removes all Compilers and Constraints for templ.
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	kind := templ.Spec.CRD.Spec.Names.Kind
 
@@ -60,13 +76,16 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	return err
 }
 
+// AddConstraint adds Constraint to Rego storage.
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+	// default .spec.parameters so that we don't need to default this in Rego.
 	_, exists, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
 		return err
 	}
+
 	if !exists {
-		err = unstructured.SetNestedField(constraint.Object, nil, "spec", "parameters")
+		err := unstructured.SetNestedField(constraint.Object, nil, "spec", "parameters")
 		if err != nil {
 			return err
 		}
