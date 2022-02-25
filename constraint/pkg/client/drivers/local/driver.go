@@ -35,9 +35,6 @@ type Driver struct {
 	// compilers is a store of Rego Compilers for each Template.
 	compilers Compilers
 
-	// idMaker generates unique identifiers for calls.
-	idMaker Sync
-
 	// storage is the Rego data store for Constraints and objects used in
 	// referential Constraints.
 	// storage internally uses mutexes to guard reads and writes during
@@ -175,7 +172,12 @@ func (d *Driver) RemoveData(ctx context.Context, key storage.Path) (bool, error)
 	return true, nil
 }
 
-func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string, input interface{}, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+// eval runs a query against compiler.
+// path is the path to evaluate.
+// input is the already-parsed Rego Value to use as input.
+// Returns the Rego results, the trace if requested, or an error if there was
+// a problem executing the query.
+func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string, input ast.Value, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -191,7 +193,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
 		rego.Store(d.storage),
-		rego.Input(input),
+		rego.ParsedInput(input),
 		rego.Query(queryPath.String()),
 		rego.EnablePrintStatements(d.printEnabled),
 		rego.PrintHook(d.printHook),
@@ -216,33 +218,29 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 }
 
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
-	syncID := d.idMaker.ID()
-	keyStr := fmt.Sprintf("%d", syncID)
-	tmpKey := []string{"tmp", keyStr}
+	kindConstraints := make(map[string][]*unstructured.Unstructured)
+	for _, constraint := range constraints {
+		kind := constraint.GetKind()
+		kindConstraints[kind] = append(kindConstraints[kind], constraint)
+	}
 
-	defer func() {
-		_, err := d.RemoveData(ctx, tmpKey)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	traceBuilder := strings.Builder{}
+	constraintsMap := drivers.KeyMap(constraints)
+	path := []string{"hooks", "violation[result]"}
 
-	err := d.AddData(ctx, tmpKey, review)
+	var results []*types.Result
+
+	// Round-trip review through JSON so that the review object is round-tripped
+	// once per call to Query instead of once per compiler.
+	reviewJsn, err := json.Marshal(review)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	path := []string{"hooks", "violation[result]"}
-	var results []*types.Result
-
-	traceBuilder := strings.Builder{}
-
-	kindConstraints := make(map[string][]*unstructured.Unstructured)
-	for _, constraint := range constraints {
-		kindConstraints[constraint.GetKind()] = append(kindConstraints[constraint.GetKind()], constraint)
+	reviewMap := make(map[string]interface{})
+	err = json.Unmarshal(reviewJsn, &reviewMap)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	constraintsMap := drivers.KeyMap(constraints)
 
 	for kind, cs := range kindConstraints {
 		compiler := d.compilers.getCompiler(target, kind)
@@ -250,17 +248,30 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			continue
 		}
 
-		var constraintKeys []drivers.ConstraintKey
+		// Store constraint keys in a format InterfaceToValue does not need to
+		// round-trip through JSON.
+		var constraintKeys []interface{}
 		for _, constraint := range cs {
-			constraintKeys = append(constraintKeys, drivers.ConstraintKeyFrom(constraint))
+			key := drivers.ConstraintKeyFrom(constraint)
+			constraintKeys = append(constraintKeys, map[string]interface{}{
+				"kind": key.Kind,
+				"name": key.Name,
+			})
 		}
 
 		input := map[string]interface{}{
 			"constraints": constraintKeys,
-			"reviewKey":   keyStr,
+			"review":      reviewMap,
 		}
 
-		resultSet, trace, err := d.eval(ctx, compiler, path, input, opts...)
+		// Parse input into an ast.Value to avoid round-tripping through JSON when
+		// possible.
+		parsedInput, err := ast.InterfaceToValue(input)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		resultSet, trace, err := d.eval(ctx, compiler, path, parsedInput, opts...)
 		if err != nil {
 			return nil, nil, err
 		}

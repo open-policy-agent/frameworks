@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/opa/ast"
 )
 
@@ -87,7 +86,7 @@ func TestPutData(t *testing.T) {
 					t.Fatalf("err = \"%s\"; want nil", err)
 				}
 
-				res, _, err := driver.eval(ctx, compiler, d.path, &drivers.QueryCfg{})
+				res, _, err := driver.eval(ctx, compiler, d.path, nil)
 				if err != nil {
 					t.Fatalf("Eval error: %s", err)
 				}

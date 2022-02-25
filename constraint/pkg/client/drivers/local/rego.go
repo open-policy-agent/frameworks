@@ -19,7 +19,7 @@ violation[response] {
   # Construct the input object from the Constraint and temporary object in storage.
   # Silently exits if the Constraint no longer exists.
 	inp := {
-		"review": data.tmp[input.reviewKey],
+		"review": input.review,
 		"parameters": data.constraints[key.kind][key.name],
 	}
 	inventory[inv]
