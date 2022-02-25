@@ -70,8 +70,7 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	d.compilers.removeTemplate(kind)
 
 	constraintParent := storage.Path{"constraint", kind}
-	_, err := d.RemoveData(ctx, constraintParent)
-	return err
+	return d.RemoveData(ctx, constraintParent)
 }
 
 // AddConstraint adds Constraint to Rego storage. Future calls to Query will
@@ -96,8 +95,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 // constraint's key will silently not evaluate the Constraint.
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	key := drivers.ConstraintKeyFrom(constraint)
-	_, err := d.RemoveData(ctx, key.StoragePath())
-	return err
+	return d.RemoveData(ctx, key.StoragePath())
 }
 
 // AddData adds data to Rego storage at path.
@@ -149,27 +147,28 @@ func (d *Driver) AddData(ctx context.Context, path storage.Path, data interface{
 	return nil
 }
 
-// RemoveData deletes data from OPA and returns true if data was found and deleted, false
-// if data was not found, and any errors.
-func (d *Driver) RemoveData(ctx context.Context, key storage.Path) (bool, error) {
+// RemoveData deletes data from OPA.
+func (d *Driver) RemoveData(ctx context.Context, key storage.Path) error {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if err := d.storage.Write(ctx, txn, storage.RemoveOp, key, interface{}(nil)); err != nil {
+	err = d.storage.Write(ctx, txn, storage.RemoveOp, key, interface{}(nil))
+	if err != nil {
 		d.storage.Abort(ctx, txn)
 		if storage.IsNotFound(err) {
-			return false, nil
+			return nil
 		}
-		return false, fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
+		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
 
-	if err := d.storage.Commit(ctx, txn); err != nil {
-		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	err = d.storage.Commit(ctx, txn)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	return true, nil
+	return nil
 }
 
 // eval runs a query against compiler.
@@ -218,11 +217,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 }
 
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
-	kindConstraints := make(map[string][]*unstructured.Unstructured)
-	for _, constraint := range constraints {
-		kind := constraint.GetKind()
-		kindConstraints[kind] = append(kindConstraints[kind], constraint)
-	}
+	constraintsByKind := toConstraintsByKind(constraints)
 
 	traceBuilder := strings.Builder{}
 	constraintsMap := drivers.KeyMap(constraints)
@@ -232,41 +227,21 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 	// Round-trip review through JSON so that the review object is round-tripped
 	// once per call to Query instead of once per compiler.
-	reviewJsn, err := json.Marshal(review)
-	if err != nil {
-		return nil, nil, err
-	}
-	reviewMap := make(map[string]interface{})
-	err = json.Unmarshal(reviewJsn, &reviewMap)
+	reviewMap, err := toInterfaceMap(review)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	for kind, cs := range kindConstraints {
+	for kind, kindConstraints := range constraintsByKind {
 		compiler := d.compilers.getCompiler(target, kind)
 		if compiler == nil {
+			// The Template was just removed, so ignore these Constraints.
 			continue
-		}
-
-		// Store constraint keys in a format InterfaceToValue does not need to
-		// round-trip through JSON.
-		var constraintKeys []interface{}
-		for _, constraint := range cs {
-			key := drivers.ConstraintKeyFrom(constraint)
-			constraintKeys = append(constraintKeys, map[string]interface{}{
-				"kind": key.Kind,
-				"name": key.Name,
-			})
-		}
-
-		input := map[string]interface{}{
-			"constraints": constraintKeys,
-			"review":      reviewMap,
 		}
 
 		// Parse input into an ast.Value to avoid round-tripping through JSON when
 		// possible.
-		parsedInput, err := ast.InterfaceToValue(input)
+		parsedInput, err := toParsedInput(kindConstraints, reviewMap)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -279,13 +254,12 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			traceBuilder.WriteString(*trace)
 		}
 
-		for _, r := range resultSet {
-			result, err := drivers.ToResult(constraintsMap, review, r)
-			if err != nil {
-				return nil, nil, err
-			}
-			results = append(results, result)
+		kindResults, err := drivers.ToResults(constraintsMap, review, resultSet)
+		if err != nil {
+			return nil, nil, err
 		}
+
+		results = append(results, kindResults...)
 	}
 
 	traceString := traceBuilder.String()
@@ -387,4 +361,56 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 	}
 
 	return nil
+}
+
+func toInterfaceMap(obj interface{}) (map[string]interface{}, error) {
+	jsn, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]interface{})
+	err = json.Unmarshal(jsn, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func toKeySlice(constraints []*unstructured.Unstructured) []interface{} {
+	var keys []interface{}
+	for _, constraint := range constraints {
+		key := drivers.ConstraintKeyFrom(constraint)
+		keys = append(keys, map[string]interface{}{
+			"kind": key.Kind,
+			"name": key.Name,
+		})
+	}
+
+	return keys
+}
+
+func toConstraintsByKind(constraints []*unstructured.Unstructured) map[string][]*unstructured.Unstructured {
+	constraintsByKind := make(map[string][]*unstructured.Unstructured)
+	for _, constraint := range constraints {
+		kind := constraint.GetKind()
+		constraintsByKind[kind] = append(constraintsByKind[kind], constraint)
+	}
+
+	return constraintsByKind
+}
+
+func toParsedInput(constraints []*unstructured.Unstructured, review map[string]interface{}) (ast.Value, error) {
+	// Store constraint keys in a format InterfaceToValue does not need to
+	// round-trip through JSON.
+	constraintKeys := toKeySlice(constraints)
+
+	input := map[string]interface{}{
+		"constraints": constraintKeys,
+		"review":      review,
+	}
+
+	// Parse input into an ast.Value to avoid round-tripping through JSON when
+	// possible.
+	return ast.InterfaceToValue(input)
 }

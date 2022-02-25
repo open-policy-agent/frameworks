@@ -115,7 +115,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 		}
 
 		targetPath := append([]string{target}, relPath...)
-		_, err = c.driver.RemoveData(ctx, targetPath)
+		err = c.driver.RemoveData(ctx, targetPath)
 		if err != nil {
 			errMap[target] = err
 			continue

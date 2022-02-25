@@ -119,17 +119,18 @@ func (d *driver) AddData(_ context.Context, path storage.Path, data interface{})
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) RemoveData(_ context.Context, path storage.Path) (bool, error) {
+func (d *driver) RemoveData(_ context.Context, path storage.Path) error {
 	err := d.opa.DeleteData(path.String())
 	if err != nil {
 		e := &Error{}
 		if errors.As(err, &e) {
 			if e.Status == 404 {
-				return false, nil
+				return nil
 			}
 		}
 	}
-	return err == nil, err
+
+	return err
 }
 
 // makeURLPath takes a path of the form data.foo["bar.baz"].yes and converts it to an URI path

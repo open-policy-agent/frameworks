@@ -409,12 +409,9 @@ func TestDriver_DeleteData(t *testing.T) {
 				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 			}
 
-			deleted, err := d.RemoveData(ctx, tc.path)
+			err = d.RemoveData(ctx, tc.path)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got DeleteData() error = %v, want %v", err, tc.wantErr)
-			}
-			if deleted != tc.wantDeleted {
-				t.Fatalf("got DeleteData() = %t, want %t", deleted, tc.wantDeleted)
 			}
 
 			var wantValue interface{}
@@ -494,7 +491,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 			}
 
 			path := []string{"foo"}
-			_, err = d.RemoveData(ctx, path)
+			err = d.RemoveData(ctx, path)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)

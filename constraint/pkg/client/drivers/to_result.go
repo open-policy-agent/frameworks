@@ -20,6 +20,19 @@ func KeyMap(constraints []*unstructured.Unstructured) map[ConstraintKey]*unstruc
 	return result
 }
 
+func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, review interface{}, resultSet rego.ResultSet) ([]*types.Result, error) {
+	var results []*types.Result
+	for _, r := range resultSet {
+		result, err := ToResult(constraints, review, r)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
 func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 

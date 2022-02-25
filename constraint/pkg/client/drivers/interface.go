@@ -18,7 +18,7 @@ type Driver interface {
 	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 
 	AddData(ctx context.Context, path storage.Path, data interface{}) error
-	RemoveData(ctx context.Context, path storage.Path) (bool, error)
+	RemoveData(ctx context.Context, path storage.Path) error
 
 	Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...QueryOpt) ([]*types.Result, *string, error)
 
