@@ -27,13 +27,13 @@ func init() {
 
 	versionedScheme = runtime.NewScheme()
 	var err error
-	if err = apiextensionsv1.AddToScheme(versionedScheme); err != nil {
+	if err := apiextensionsv1.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
-	if err = apiextensions.AddToScheme(versionedScheme); err != nil {
+	if err := apiextensions.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
-	if err = sb.AddToScheme(versionedScheme); err != nil {
+	if err := sb.AddToScheme(versionedScheme); err != nil {
 		panic(err)
 	}
 	if structuralSchema, err = ctschema.CRDSchema(versionedScheme, version); err != nil {

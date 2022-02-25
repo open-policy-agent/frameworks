@@ -7,15 +7,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
@@ -34,11 +31,8 @@ const (
 var _ drivers.Driver = &Driver{}
 
 type Driver struct {
-	compilerMtx sync.RWMutex
-
-	// compilers is a map from target name to a map from Template Kind to the
-	// compiler for that Template.
-	compilers map[string]map[string]*ast.Compiler
+	// compilers is a store of.
+	compilers Compilers
 
 	objectMtx Sync
 
@@ -48,32 +42,18 @@ type Driver struct {
 	printEnabled  bool
 	printHook     print.Hook
 	providerCache *externaldata.ProviderCache
-	externs       []string
 }
 
 // AddTemplate implements drivers.Driver.
 func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
-	d.compilerMtx.Lock()
-	defer d.compilerMtx.Unlock()
-
-	err := d.compileTemplate(templ)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return d.compilers.addTemplate(templ, d.printEnabled)
 }
 
 // RemoveTemplate implements driver.Driver.
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
-	d.compilerMtx.Lock()
-	defer d.compilerMtx.Unlock()
-
 	kind := templ.Spec.CRD.Spec.Names.Kind
-	for target, templateCompilers := range d.compilers {
-		delete(templateCompilers, kind)
-		d.compilers[target] = templateCompilers
-	}
+
+	d.compilers.removeTemplate(kind)
 
 	constraintParent := handler.StoragePath{"constraint", kind}
 	_, err := d.RemoveData(ctx, constraintParent)
@@ -129,7 +109,7 @@ func (d *Driver) AddData(ctx context.Context, key handler.StoragePath, data inte
 		}
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
+	if err := d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
@@ -149,7 +129,7 @@ func (d *Driver) RemoveData(ctx context.Context, key handler.StoragePath) (bool,
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if err = d.storage.Write(ctx, txn, storage.RemoveOp, []string(key), interface{}(nil)); err != nil {
+	if err := d.storage.Write(ctx, txn, storage.RemoveOp, []string(key), interface{}(nil)); err != nil {
 		d.storage.Abort(ctx, txn)
 		if storage.IsNotFound(err) {
 			return false, nil
@@ -157,7 +137,7 @@ func (d *Driver) RemoveData(ctx context.Context, key handler.StoragePath) (bool,
 		return false, fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
 
-	if err = d.storage.Commit(ctx, txn); err != nil {
+	if err := d.storage.Commit(ctx, txn); err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
@@ -205,10 +185,8 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 }
 
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
-	d.compilerMtx.RLock()
-	defer d.compilerMtx.RUnlock()
-
-	tmpKey := []string{"tmp", key.String()}
+	keyStr := key.String()
+	tmpKey := []string{"tmp", keyStr}
 	syncID := d.objectMtx.ID(tmpKey)
 	d.objectMtx.Lock(syncID)
 
@@ -226,15 +204,6 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		return nil, nil, err
 	}
 
-	if len(d.compilers) == 0 {
-		return nil, nil, nil
-	}
-
-	targetCompilers := d.compilers[target]
-	if len(targetCompilers) == 0 {
-		return nil, nil, nil
-	}
-
 	path := []string{"hooks", "violation[result]"}
 	var results []*types.Result
 
@@ -248,9 +217,9 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	constraintsMap := drivers.KeyMap(constraints)
 
 	for kind, cs := range kindConstraints {
-		compiler := targetCompilers[kind]
+		compiler := d.compilers.getCompiler(target, kind)
 		if compiler == nil {
-			return nil, nil, nil
+			continue
 		}
 
 		var constraintKeys []drivers.ConstraintKey
@@ -260,7 +229,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		input := map[string]interface{}{
 			"constraints": constraintKeys,
-			"reviewKey":   key.String(),
+			"reviewKey":   keyStr,
 		}
 
 		resultSet, trace, err := d.eval(ctx, compiler, path, input, opts...)
@@ -289,12 +258,10 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
-	d.compilerMtx.RLock()
-	defer d.compilerMtx.RUnlock()
-
 	dt := make(map[string]map[string]rego.ResultSet)
 
-	for targetName, targetCompilers := range d.compilers {
+	compilers := d.compilers.list()
+	for targetName, targetCompilers := range compilers {
 		targetData := make(map[string]rego.ResultSet)
 
 		for kind, compiler := range targetCompilers {
@@ -318,216 +285,6 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	return string(b), nil
-}
-
-func (d *Driver) normalizeModulePaths(kind string, target templates.Target) (string, []string, error) {
-	entryPrefix := createTemplatePath(kind)
-	entryModule, err := parseModule(entryPrefix, target.Rego)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	if entryModule == nil {
-		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
-
-	req := map[string]struct{}{violation: {}}
-
-	if err = requireModuleRules(entryModule, req); err != nil {
-		return "", nil, fmt.Errorf("%w: invalid rego: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	if err = rewriteModulePackage(entryPrefix, entryModule); err != nil {
-		return "", nil, err
-	}
-
-	libPrefix := templateLibPrefix(kind)
-	rr, err := regorewriter.New(
-		regorewriter.NewPackagePrefixer(libPrefix),
-		[]string{libRoot},
-		d.externs)
-	if err != nil {
-		return "", nil, fmt.Errorf("creating rego rewriter: %w", err)
-	}
-
-	rr.AddEntryPointModule(entryPrefix, entryModule)
-	for idx, src := range target.Libs {
-		libPath := fmt.Sprintf(`%s["lib_%d"]`, libPrefix, idx)
-		if err = rr.AddLib(libPath, src); err != nil {
-			return "", nil, fmt.Errorf("%w: %v",
-				clienterrors.ErrInvalidConstraintTemplate, err)
-		}
-	}
-
-	sources, err := rr.Rewrite()
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	var mods []string
-	err = sources.ForEachModule(func(m *regorewriter.Module) error {
-		content, err2 := m.Content()
-		if err2 != nil {
-			return err2
-		}
-		mods = append(mods, string(content))
-		return nil
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-	return entryPrefix, mods, nil
-}
-
-// ValidateConstraintTemplate validates the rego in template target by parsing
-// rego modules.
-func (d *Driver) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) (string, []string, error) {
-	if err := validateTargets(templ); err != nil {
-		return "", nil, err
-	}
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	pkgPrefix := templateLibPrefix(kind)
-
-	rr, err := regorewriter.New(
-		regorewriter.NewPackagePrefixer(pkgPrefix),
-		[]string{libRoot},
-		d.externs)
-	if err != nil {
-		return "", nil, fmt.Errorf("creating rego rewriter: %w", err)
-	}
-
-	namePrefix := createTemplatePath(kind)
-	entryPoint, err := parseModule(namePrefix, templ.Spec.Targets[0].Rego)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	if entryPoint == nil {
-		return "", nil, fmt.Errorf("%w: failed to parse module for unknown reason",
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
-
-	if err = rewriteModulePackage(namePrefix, entryPoint); err != nil {
-		return "", nil, err
-	}
-
-	req := map[string]struct{}{violation: {}}
-
-	if err = requireModuleRules(entryPoint, req); err != nil {
-		return "", nil, fmt.Errorf("%w: invalid rego: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	targetSpec := templ.Spec.Targets[0]
-	rr.AddEntryPointModule(namePrefix, entryPoint)
-	for idx, libSrc := range targetSpec.Libs {
-		libPath := fmt.Sprintf(`%s["lib_%d"]`, pkgPrefix, idx)
-		if err = rr.AddLib(libPath, libSrc); err != nil {
-			return "", nil, fmt.Errorf("%w: %v",
-				clienterrors.ErrInvalidConstraintTemplate, err)
-		}
-	}
-
-	sources, err := rr.Rewrite()
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	var mods []string
-	err = sources.ForEachModule(func(m *regorewriter.Module) error {
-		content, err2 := m.Content()
-		if err2 != nil {
-			return err2
-		}
-		mods = append(mods, string(content))
-		return nil
-	})
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v",
-			clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-	return namePrefix, mods, nil
-}
-
-func (d *Driver) compileTemplate(templ *templates.ConstraintTemplate) error {
-	compilers := make(map[string]*ast.Compiler)
-
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	for _, target := range templ.Spec.Targets {
-		prefix, libs, err := d.normalizeModulePaths(kind, target)
-		if err != nil {
-			return err
-		}
-
-		compiler, err := d.compileTemplateTarget(prefix, target.Rego, libs)
-		if err != nil {
-			return err
-		}
-
-		compilers[target.Target] = compiler
-	}
-
-	for target, targetCompilers := range d.compilers {
-		delete(targetCompilers, kind)
-		d.compilers[target] = targetCompilers
-	}
-
-	if d.compilers == nil {
-		d.compilers = make(map[string]map[string]*ast.Compiler)
-	}
-
-	for target, compiler := range compilers {
-		targetCompilers := d.compilers[target]
-		if targetCompilers == nil {
-			targetCompilers = make(map[string]*ast.Compiler)
-		}
-		targetCompilers[kind] = compiler
-		d.compilers[target] = targetCompilers
-	}
-
-	return nil
-}
-
-func (d *Driver) compileTemplateTarget(prefix string, rego string, libs []string) (*ast.Compiler, error) {
-	compiler := ast.NewCompiler().
-		WithCapabilities(d.capabilities).
-		WithEnablePrintStatements(d.printEnabled)
-
-	modules := make(map[string]*ast.Module)
-
-	builtinModule, err := ast.ParseModule(regolib.TargetLibSrcPath, regolib.TargetLibSrc)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
-	}
-	modules[regolib.TargetLibSrcPath] = builtinModule
-
-	path := prefix
-	regoModule, err := ast.ParseModule(path, rego)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
-	}
-	modules[path] = regoModule
-
-	for i, lib := range libs {
-		libPath := fmt.Sprintf("%s%d", path, i)
-		libModule, err := ast.ParseModule(libPath, lib)
-		if err != nil {
-			return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
-		}
-		modules[libPath] = libModule
-	}
-
-	compiler.Compile(modules)
-	if compiler.Failed() {
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrCompile, compiler.Errors)
-	}
-
-	return compiler, nil
 }
 
 // templateLibPrefix returns the new lib prefix for the libs that are specified in the CT.
@@ -591,28 +348,4 @@ func requireModuleRules(module *ast.Module, requiredRules map[string]struct{}) e
 	}
 
 	return nil
-}
-
-// validateTargets ensures that the targets field has the appropriate values.
-func validateTargets(templ *templates.ConstraintTemplate) error {
-	if templ == nil {
-		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
-	targets := templ.Spec.Targets
-	if targets == nil {
-		return fmt.Errorf(`%w: field "targets" not specified in ConstraintTemplate spec`,
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
-
-	switch len(targets) {
-	case 0:
-		return fmt.Errorf("%w: no targets specified: ConstraintTemplate must specify one target",
-			clienterrors.ErrInvalidConstraintTemplate)
-	case 1:
-		return nil
-	default:
-		return fmt.Errorf("%w: multi-target templates are not currently supported",
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
 }

@@ -12,7 +12,6 @@ import (
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -241,7 +240,7 @@ func (c *Client) createBasicTemplateArtifacts(templ *templates.ConstraintTemplat
 		return nil, err
 	}
 
-	if err = crds.ValidateCRD(crd); err != nil {
+	if err := crds.ValidateCRD(crd); err != nil {
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
@@ -291,24 +290,6 @@ func (c *Client) ValidateConstraintTemplateBasic(templ *templates.ConstraintTemp
 	return targetSpec, targetHandler, nil
 }
 
-func (c *Client) ValidateConstraintTemplate(templ *templates.ConstraintTemplate) error {
-	if templ == nil {
-		return fmt.Errorf(`%w: ConstraintTemplate is nil`,
-			clienterrors.ErrInvalidConstraintTemplate)
-	}
-
-	if _, _, err := c.ValidateConstraintTemplateBasic(templ); err != nil {
-		return err
-	}
-
-	if dr, ok := c.driver.(*local.Driver); ok {
-		_, _, err := dr.ValidateConstraintTemplate(templ)
-		return err
-	}
-
-	return fmt.Errorf("driver %T is not supported", c.driver)
-}
-
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
 // schema validation on calls to AddConstraint. On error, the responses return value
 // will still be populated so that partial results can be analyzed.
@@ -329,7 +310,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if err = c.driver.AddTemplate(templ); err != nil {
+	if err := c.driver.AddTemplate(templ); err != nil {
 		return resp, err
 	}
 	cpy := templ.DeepCopy()

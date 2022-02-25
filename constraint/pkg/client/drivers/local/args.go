@@ -24,9 +24,9 @@ func Defaults() Arg {
 			d.capabilities = ast.CapabilitiesForThisVersion()
 		}
 
-		if d.externs == nil {
+		if d.compilers.externs == nil {
 			for allowed := range validDataFields {
-				d.externs = append(d.externs, fmt.Sprintf("data.%s", allowed))
+				d.compilers.externs = append(d.compilers.externs, fmt.Sprintf("data.%s", allowed))
 			}
 		}
 
@@ -94,15 +94,14 @@ func DisableBuiltins(builtins ...string) Arg {
 			disableBuiltins[b] = true
 		}
 
-		var nb []*ast.Builtin
-		builtins := d.capabilities.Builtins
-		for i, b := range builtins {
+		var newBuiltins []*ast.Builtin
+		for _, b := range d.capabilities.Builtins {
 			if !disableBuiltins[b.Name] {
-				nb = append(nb, builtins[i])
+				newBuiltins = append(newBuiltins, b)
 			}
 		}
 
-		d.capabilities.Builtins = nb
+		d.capabilities.Builtins = newBuiltins
 
 		return nil
 	}
@@ -124,7 +123,7 @@ func Externs(externs ...string) Arg {
 			fields[i] = fmt.Sprintf("data.%s", field)
 		}
 
-		driver.externs = fields
+		driver.compilers.externs = fields
 
 		return nil
 	}

@@ -108,7 +108,7 @@ violation[{"msg": "msg"}] {
 func listCompilers(d *Driver) map[string][]string {
 	gotCompilers := make(map[string][]string)
 
-	for target, targetCompilers := range d.compilers {
+	for target, targetCompilers := range d.compilers.list() {
 		for kind := range targetCompilers {
 			gotCompilers[target] = append(gotCompilers[target], kind)
 		}
@@ -160,7 +160,7 @@ violation[{"msg": "msg"}] {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
 
-			if len(d.compilers) == 0 {
+			if len(d.compilers.list()) == 0 {
 				t.Errorf("driver failed to add module")
 			}
 
@@ -543,7 +543,7 @@ func TestDriver_Externs_Intersection(t *testing.T) {
 				return
 			}
 
-			if diff := cmp.Diff(tc.want, d.externs); diff != "" {
+			if diff := cmp.Diff(tc.want, d.compilers.externs); diff != "" {
 				t.Error(diff)
 			}
 		})
