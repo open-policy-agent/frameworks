@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/regolib"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 	"github.com/open-policy-agent/opa/ast"
@@ -212,11 +211,11 @@ func compileTemplateTarget(prefix string, module TargetModule, capabilities *ast
 
 	modules := make(map[string]*ast.Module)
 
-	builtinModule, err := ast.ParseModule(regolib.TargetLibSrcPath, regolib.TargetLibSrc)
+	builtinModule, err := ast.ParseModule(hookModulePath, hookModule)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)
 	}
-	modules[regolib.TargetLibSrcPath] = builtinModule
+	modules[hookModulePath] = builtinModule
 
 	path := prefix
 	regoModule, err := ast.ParseModule(path, module.Rego)

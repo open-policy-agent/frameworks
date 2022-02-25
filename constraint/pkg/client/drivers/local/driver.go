@@ -78,21 +78,18 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 // AddConstraint adds Constraint to Rego storage.
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	// default .spec.parameters so that we don't need to default this in Rego.
-	_, exists, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
+	params, _, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
 		return err
 	}
 
-	if !exists {
-		err := unstructured.SetNestedField(constraint.Object, nil, "spec", "parameters")
-		if err != nil {
-			return err
-		}
+	// default .spec.parameters so that we don't need to default this in Rego.
+	if params == nil {
+		params = make(map[string]interface{})
 	}
 
 	key := drivers.ConstraintKeyFrom(constraint)
-	return d.AddData(ctx, key.StoragePath(), constraint.Object)
+	return d.AddData(ctx, key.StoragePath(), params)
 }
 
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
