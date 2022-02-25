@@ -11,7 +11,6 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -114,16 +113,14 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) AddData(_ context.Context, key handler.StoragePath, data interface{}) error {
-	storagePath := storage.Path(key)
-	return d.opa.PutData(storagePath.String(), data)
+func (d *driver) AddData(_ context.Context, path storage.Path, data interface{}) error {
+	return d.opa.PutData(path.String(), data)
 }
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) RemoveData(_ context.Context, key handler.StoragePath) (bool, error) {
-	storagePath := storage.Path(key)
-	err := d.opa.DeleteData(storagePath.String())
+func (d *driver) RemoveData(_ context.Context, path storage.Path) (bool, error) {
+	err := d.opa.DeleteData(path.String())
 	if err != nil {
 		e := &Error{}
 		if errors.As(err, &e) {
@@ -180,7 +177,7 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+func (d *driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
 	return nil, nil, nil
 }
 

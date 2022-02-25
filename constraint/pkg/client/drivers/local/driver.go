@@ -12,7 +12,6 @@ import (
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
@@ -36,12 +35,14 @@ type Driver struct {
 	// compilers is a store of Rego Compilers for each Template.
 	compilers Compilers
 
-	// objectMtx ensures multiple queries for the same object are not running
-	// simultaneously.
-	objectMtx Sync
+	// idMaker generates unique identifiers for calls.
+	idMaker Sync
 
 	// storage is the Rego data store for Constraints and objects used in
 	// referential Constraints.
+	// storage internally uses mutexes to guard reads and writes during
+	// transactions and queries, so we don't need to explicitly guard this with
+	// a Mutex.
 	storage storage.Store
 
 	// traceEnabled is whether tracing is enabled for Rego queries by default.
@@ -71,12 +72,13 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 	d.compilers.removeTemplate(kind)
 
-	constraintParent := handler.StoragePath{"constraint", kind}
+	constraintParent := storage.Path{"constraint", kind}
 	_, err := d.RemoveData(ctx, constraintParent)
 	return err
 }
 
-// AddConstraint adds Constraint to Rego storage.
+// AddConstraint adds Constraint to Rego storage. Future calls to Query will
+// be evaluated against Constraint if the Constraint's key is passed.
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	params, _, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
@@ -92,40 +94,52 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	return d.AddData(ctx, key.StoragePath(), params)
 }
 
+// RemoveConstraint removes Constraint from Rego storage. Future calls to Query
+// will not be evaluated against the constraint. Queries which specify the
+// constraint's key will silently not evaluate the Constraint.
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	key := drivers.ConstraintKeyFrom(constraint)
 	_, err := d.RemoveData(ctx, key.StoragePath())
 	return err
 }
 
-func (d *Driver) AddData(ctx context.Context, key handler.StoragePath, data interface{}) error {
-	if len(key) == 0 {
-		return fmt.Errorf("%w: path must contain at least one path element: %q", clienterrors.ErrPathInvalid, []string(key))
+// AddData adds data to Rego storage at path.
+func (d *Driver) AddData(ctx context.Context, path storage.Path, data interface{}) error {
+	if len(path) == 0 {
+		// Sanity-check path.
+		// This would overwrite "data", erasing all Constraints and stored objects.
+		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
 	}
 
-	path := []string(key)
-
+	// Initiate a new transaction. Since this is a write-transaction, it blocks
+	// all other reads and writes, which includes running queries. If a transaction
+	// is successfully created, all code paths must either Abort or Commit the
+	// transaction to unblock queries and other writes.
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
+	// We can't write to a location if its parent doesn't exist.
+	// Thus, we check to see if anything already exists at the path.
 	_, err = d.storage.Read(ctx, txn, path)
-	if err != nil {
-		if !storage.IsNotFound(err) {
-			d.storage.Abort(ctx, txn)
-			return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
-		}
-
+	if storage.IsNotFound(err) {
+		// Insert an empty object at the path's parent so its parents are
+		// recursively created.
 		parent := path[:len(path)-1]
-
 		err = storage.MakeDir(ctx, d.storage, txn, parent)
 		if err != nil {
+			d.storage.Abort(ctx, txn)
 			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
 		}
+	} else if err != nil {
+		// We weren't able to read from storage - something serious is likely wrong.
+		d.storage.Abort(ctx, txn)
+		return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
 	}
 
-	if err := d.storage.Write(ctx, txn, storage.AddOp, path, data); err != nil {
+	err = d.storage.Write(ctx, txn, storage.AddOp, path, data)
+	if err != nil {
 		d.storage.Abort(ctx, txn)
 		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
 	}
@@ -134,18 +148,19 @@ func (d *Driver) AddData(ctx context.Context, key handler.StoragePath, data inte
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
+
 	return nil
 }
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *Driver) RemoveData(ctx context.Context, key handler.StoragePath) (bool, error) {
+func (d *Driver) RemoveData(ctx context.Context, key storage.Path) (bool, error) {
 	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return false, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	if err := d.storage.Write(ctx, txn, storage.RemoveOp, []string(key), interface{}(nil)); err != nil {
+	if err := d.storage.Write(ctx, txn, storage.RemoveOp, key, interface{}(nil)); err != nil {
 		d.storage.Abort(ctx, txn)
 		if storage.IsNotFound(err) {
 			return false, nil
@@ -200,19 +215,16 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, key handler.StoragePath, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
-	keyStr := key.String()
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+	syncID := d.idMaker.ID()
+	keyStr := fmt.Sprintf("%d", syncID)
 	tmpKey := []string{"tmp", keyStr}
-	syncID := d.objectMtx.ID(tmpKey)
-	d.objectMtx.Lock(syncID)
 
 	defer func() {
 		_, err := d.RemoveData(ctx, tmpKey)
 		if err != nil {
 			panic(err)
 		}
-
-		d.objectMtx.Unlock(syncID)
 	}()
 
 	err := d.AddData(ctx, tmpKey, review)

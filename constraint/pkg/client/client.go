@@ -650,7 +650,7 @@ func (c *Client) review(ctx context.Context, target handler.TargetHandler, key h
 	var results []*types.Result
 	var tracesBuilder strings.Builder
 
-	results, trace, err := c.driver.Query(ctx, name, constraints, key, review, opts...)
+	results, trace, err := c.driver.Query(ctx, name, constraints, review, opts...)
 	if err != nil {
 		return nil, err
 	}
