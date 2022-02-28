@@ -25,7 +25,14 @@ import (
 type templateEntry struct {
 	template *templates.ConstraintTemplate
 	CRD      *apiextensions.CustomResourceDefinition
-	Targets  []string
+}
+
+func (e templateEntry) Targets() []string {
+	result := make([]string, 0, len(e.template.Spec.Targets))
+	for _, t := range e.template.Spec.Targets {
+		result = append(result, t.Target)
+	}
+	return result
 }
 
 type Client struct {
@@ -243,7 +250,6 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	entry := &templateEntry{
 		template: cpy,
 		CRD:      crd,
-		Targets:  []string{targetName},
 	}
 
 	c.mtx.Lock()
@@ -375,7 +381,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	var targets []handler.TargetHandler
-	for _, name := range entry.Targets {
+	for _, name := range entry.Targets() {
 		target, ok := c.targets[name]
 		if !ok {
 			return resp, fmt.Errorf("missing target %q", name)
@@ -392,7 +398,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	// return immediately if no change
 	cached, err := c.getConstraintNoLock(constraint)
 	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
-		for _, target := range entry.Targets {
+		for _, target := range entry.Targets() {
 			resp.Handled[target] = true
 		}
 		return resp, nil
@@ -408,7 +414,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return nil, err
 	}
 
-	for _, target := range entry.Targets {
+	for _, target := range entry.Targets() {
 		resp.Handled[target] = true
 	}
 
@@ -448,7 +454,7 @@ func (c *Client) removeConstraintNoLock(ctx context.Context, constraint *unstruc
 		return nil, err
 	}
 
-	for _, target := range entry.Targets {
+	for _, target := range entry.Targets() {
 		resp.Handled[target] = true
 	}
 
@@ -522,7 +528,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 		return err
 	}
 
-	for _, targetName := range entry.Targets {
+	for _, targetName := range entry.Targets() {
 		err = c.targets[targetName].ValidateConstraint(constraint)
 		if err != nil {
 			return err
