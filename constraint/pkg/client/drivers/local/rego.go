@@ -1,7 +1,7 @@
 package local
 
 const (
-	// hookModulePath
+	// hookModulePath.
 	hookModulePath = "hooks.hooks_builtin"
 
 	// hookModule specifies how Template violations are run in Rego.

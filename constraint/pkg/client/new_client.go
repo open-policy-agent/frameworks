@@ -4,14 +4,13 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // NewClient creates a new client.
 func NewClient(opts ...Opt) (*Client, error) {
 	c := &Client{
-		constraints: make(map[schema.GroupKind]map[string]*unstructured.Unstructured),
-		templates:   make(map[templateKey]*templateEntry),
+		constraints: make(map[string]map[string]*unstructured.Unstructured),
+		templates:   make(map[string]*templateEntry),
 	}
 
 	for _, opt := range opts {

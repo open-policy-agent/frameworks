@@ -160,7 +160,7 @@ func (d *Driver) RemoveData(ctx context.Context, key storage.Path) error {
 		if storage.IsNotFound(err) {
 			return nil
 		}
-		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
+		return fmt.Errorf("%w: unable to remove data: %v", clienterrors.ErrWrite, err)
 	}
 
 	err = d.storage.Commit(ctx, txn)

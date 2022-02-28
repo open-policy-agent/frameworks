@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1beta1"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -14,6 +16,11 @@ import (
 	apivalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+var supportedVersions = map[string]bool{
+	v1alpha1.SchemeGroupVersion.Version: true,
+	v1beta1.SchemeGroupVersion.Version:  true,
+}
 
 // ValidateTargets ensures that the targets field has the appropriate values.
 func ValidateTargets(templ *templates.ConstraintTemplate) error {
@@ -50,9 +57,6 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 	if err != nil {
 		return err
 	}
-	if err := validation.ValidateCustomResource(field.NewPath(""), cr, validator); err != nil {
-		return err.ToAggregate()
-	}
 
 	if errs := apivalidation.IsDNS1123Subdomain(cr.GetName()); len(errs) != 0 {
 		return fmt.Errorf("%w: invalid name: %q",
@@ -73,5 +77,11 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 		return fmt.Errorf("%w: unsupported version %q for Constraint %q; supported versions: %v",
 			ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
 	}
+
+	// Validate the schema last as this is the most expensive operation.
+	if err := validation.ValidateCustomResource(field.NewPath(""), cr, validator); err != nil {
+		return err.ToAggregate()
+	}
+
 	return nil
 }

@@ -58,16 +58,16 @@ func (h *Handler) ProcessData(obj interface{}) (bool, handler.StoragePath, inter
 	}
 }
 
-func (h *Handler) HandleReview(obj interface{}) (bool, handler.StoragePath, interface{}, error) {
+func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 	switch data := obj.(type) {
 	case Review:
-		return true, data.Object.Key(), &data, nil
+		return true, &data, nil
 	case *Review:
-		return true, data.Object.Key(), data, nil
+		return true, data, nil
 	case *Object:
-		return true, data.Key(), &Review{Object: *data}, nil
+		return true, &Review{Object: *data}, nil
 	default:
-		return false, nil, nil, fmt.Errorf("unrecognized type %T", obj)
+		return false, nil, fmt.Errorf("unrecognized type %T", obj)
 	}
 }
 

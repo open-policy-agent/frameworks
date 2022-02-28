@@ -104,12 +104,15 @@ func BenchmarkClient_Review(b *testing.B) {
 
 				b.Run(fmt.Sprintf("%d Constraints %d Templates %s", constraints, templates, tt.name), func(b *testing.B) {
 					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						_, err := c.Review(ctx, tt.review)
-						if err != nil {
-							b.Fatal(err)
+					// Run Review queries in parallel.
+					b.RunParallel(func(pb *testing.PB) {
+						for pb.Next() {
+							_, err := c.Review(ctx, tt.review)
+							if err != nil {
+								b.Fatal(err)
+							}
 						}
-					}
+					})
 				})
 			}
 		}

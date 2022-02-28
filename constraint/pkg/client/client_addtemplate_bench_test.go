@@ -2,6 +2,7 @@ package client_test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
@@ -88,6 +89,57 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 							if err != nil {
 								b.Fatal(err)
 							}
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
+	for _, tc := range modules {
+		b.Run(tc.name, func(b *testing.B) {
+			for _, n := range []int{1, 2, 5, 10, 20, 50, 100, 200} {
+				b.Run(fmt.Sprintf("%d Templates", n), func(b *testing.B) {
+					cts := make([]*templates.ConstraintTemplate, n)
+					for i := range cts {
+						cts[i] = makeConstraintTemplate(i, tc.makeModule)
+					}
+
+					for i := 0; i < b.N; i++ {
+						b.StopTimer()
+
+						c := clienttest.New(b)
+
+						b.StartTimer()
+
+						wg := sync.WaitGroup{}
+						wg.Add(len(cts))
+						wgChan := make(chan bool)
+
+						errChan := make(chan error)
+
+						go func() {
+							for _, ct := range cts {
+								ct := ct
+								go func() {
+									_, err := c.AddTemplate(ct)
+									if err != nil {
+										errChan <- err
+									}
+									wg.Done()
+								}()
+							}
+
+							wg.Wait()
+							wgChan <- true
+						}()
+
+						select {
+						case err := <-errChan:
+							b.Fatal(err)
+						case <-wgChan:
 						}
 					}
 				})

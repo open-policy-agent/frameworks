@@ -35,10 +35,9 @@ type TargetHandler interface {
 	//	object: the object passed to client.Client.Review
 	// Returns:
 	//	handle: true if the target handler will review this input
-	//  key: a unique path for the object to review
 	//	review: the data for the `review` field
 	//	err: any error encountered.
-	HandleReview(object interface{}) (handle bool, key StoragePath, review interface{}, err error)
+	HandleReview(object interface{}) (handle bool, review interface{}, err error)
 
 	// HandleViolation allows for post-processing of the result object. The object
 	// can be mutated if desired.
