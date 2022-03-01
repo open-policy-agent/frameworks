@@ -5,12 +5,13 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // constraintClient handler per-Constraint operations.
+//
+// Not threadsafe.
 type constraintClient struct {
 	// constraint is a copy of the original Constraint added to Client.
 	constraint *unstructured.Unstructured
@@ -25,22 +26,6 @@ type constraintClient struct {
 
 func (c *constraintClient) getConstraint() *unstructured.Unstructured {
 	return c.constraint.DeepCopy()
-}
-
-func (c *constraintClient) makeMatchers(targets []handler.TargetHandler) (map[string]constraints.Matcher, error) {
-	result := make(map[string]constraints.Matcher)
-
-	for _, target := range targets {
-		matcher, err := target.ToMatcher(c.constraint)
-		if err != nil {
-			return nil, fmt.Errorf("making matcher for %q: %v",
-				target.GetName(), err)
-		}
-
-		result[target.GetName()] = matcher
-	}
-
-	return result, nil
 }
 
 func (c *constraintClient) updateMatchers(matchers map[string]constraints.Matcher) {

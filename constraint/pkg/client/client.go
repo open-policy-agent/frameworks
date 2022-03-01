@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -20,11 +19,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// Client tracks ConstraintTemplates and Constraints for a set of Targets.
+// Allows validating reviews against Constraints.
+//
+// Threadsafe.
+// Assumes simultaneous calls for the same object do not happen. For example -
+// concurrent calls to both update and remove a Template.
 type Client struct {
-	driver  drivers.Driver
+	driver drivers.Driver
+	// targets are the targets supported by this Client.
+	// Assumed to be constant after initialization.
 	targets map[string]handler.TargetHandler
 
-	// mtx guards access to both templates and constraints.
+	// mtx guards access to the set of known Templates.
+	// Write locks are only necessary when the set of known Templates is being
+	// added to or removed from. Read locks are sufficient for Constraint operations
+	// as they do not result in adding/removing Templates.
 	mtx sync.RWMutex
 
 	// templates is a map from a Template's name to its entry.
@@ -53,10 +63,6 @@ func (c *Client) getTargetHandler(templ *templates.ConstraintTemplate) (handler.
 	return targetHandler, nil
 }
 
-func templateKeyFromConstraint(cst *unstructured.Unstructured) string {
-	return strings.ToLower(cst.GetKind())
-}
-
 // createCRD creates the Template's CRD and validates the result.
 func createCRD(templ *templates.ConstraintTemplate, target handler.TargetHandler) (*apiextensions.CustomResourceDefinition, error) {
 	sch := crds.CreateSchema(templ, target)
@@ -66,7 +72,8 @@ func createCRD(templ *templates.ConstraintTemplate, target handler.TargetHandler
 		return nil, err
 	}
 
-	if err := crds.ValidateCRD(crd); err != nil {
+	err = crds.ValidateCRD(crd)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
 
@@ -144,20 +151,19 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		return resp, err
 	}
 
-	cpy := templ.DeepCopy()
-	cpy.Status = templates.ConstraintTemplateStatus{}
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
+	c.mtx.RLock()
 	template, found := c.templates[templ.GetName()]
+	c.mtx.RUnlock()
+
 	if !found {
 		template = &templateClient{
-			template:    cpy,
 			constraints: make(map[string]*constraintClient),
-			crd:         crd,
 		}
 	}
+
+	template.setCRD(crd)
+	template.setTemplate(templ)
+	template.setTargets([]handler.TargetHandler{target})
 
 	matchers, err := template.makeMatchers([]handler.TargetHandler{target})
 	if err != nil {
@@ -166,7 +172,9 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 
 	template.updateMatchers(matchers)
 
+	c.mtx.Lock()
 	c.templates[templ.GetName()] = template
+	c.mtx.Unlock()
 
 	resp.Handled[targetName] = true
 	return resp, nil
@@ -200,21 +208,22 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+	c.mtx.RLock()
+	template, found := c.templates[templ.GetName()]
+	c.mtx.RUnlock()
 
-	template, err := c.getTemplateNoLock(templ.GetName())
-	if errors.Is(err, ErrMissingConstraintTemplate) {
+	if !found {
 		return resp, nil
-	} else if err != nil {
-		return resp, err
 	}
 
 	templateName := templ.GetName()
-	delete(c.templates, templateName)
 
-	for _, target := range template.Spec.Targets {
-		resp.Handled[target.Target] = true
+	c.mtx.Lock()
+	delete(c.templates, templateName)
+	c.mtx.Unlock()
+
+	for _, target := range template.getTargets() {
+		resp.Handled[target.GetName()] = true
 	}
 
 	return resp, nil
@@ -222,77 +231,51 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 // GetTemplate gets the currently recognized template.
 func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
+	entry, err := c.getTemplate(templ.GetName())
+	if err != nil {
+		return nil, err
+	}
 
-	return c.getTemplateNoLock(templ.GetName())
+	return entry.getTemplate(), nil
 }
 
-func (c *Client) getTemplateNoLock(name string) (*templates.ConstraintTemplate, error) {
+func (c *Client) getTemplate(name string) (*templateClient, error) {
+	c.mtx.RLock()
 	t, ok := c.templates[name]
+	c.mtx.RUnlock()
+
 	if !ok {
 		return nil, fmt.Errorf("%w: template %q not found",
 			ErrMissingConstraintTemplate, name)
 	}
 
-	return t.getTemplate(), nil
+	return t, nil
 }
 
 // getTemplateEntry returns the template entry for a given constraint.
-func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateClient, error) {
+func (c *Client) getTemplateForConstraint(constraint *unstructured.Unstructured) (*templateClient, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
 		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
 			apiconstraints.ErrInvalidConstraint, constraint.GetName())
 	}
 
-	group := constraint.GroupVersionKind().Group
-	if group != apiconstraints.Group {
-		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, got %q but need %q",
-			apiconstraints.ErrInvalidConstraint, constraint.GetName(), group, apiconstraints.Group)
-	}
+	templateName := strings.ToLower(kind)
 
-	if lock {
-		c.mtx.RLock()
-		defer c.mtx.RUnlock()
-	}
-
-	entry, ok := c.templates[templateKeyFromConstraint(constraint)]
-	if !ok {
-		var known []string
-		for k := range c.templates {
-			known = append(known, k)
-		}
-
-		return nil, fmt.Errorf("%w: Constraint kind %q is not recognized, known kinds %v",
-			ErrMissingConstraintTemplate, kind, known)
-	}
-
-	return entry, nil
+	return c.getTemplate(templateName)
 }
 
 // AddConstraint validates the constraint and, if valid, inserts it into OPA.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
 	resp := types.NewResponses()
-	entry, err := c.getTemplateEntry(constraint, false)
+	entry, err := c.getTemplateForConstraint(constraint)
 	if err != nil {
 		return resp, err
 	}
 
-	var targets []handler.TargetHandler
-	for _, name := range entry.Targets() {
-		target, ok := c.targets[name]
-		if !ok {
-			return resp, fmt.Errorf("missing target %q", name)
-		}
-
-		targets = append(targets, target)
-	}
+	targets := entry.getTargets()
 
 	matchers, err := makeMatchers(targets, constraint)
 	if err != nil {
@@ -300,22 +283,26 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	// return immediately if no change
-	cached, err := c.getConstraintNoLock(constraint.GetKind(), constraint.GetName())
+	cached, err := c.getConstraint(constraint.GetKind(), constraint.GetName())
 	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
-		for _, target := range entry.Targets() {
-			resp.Handled[target] = true
+		for _, target := range entry.getTargets() {
+			resp.Handled[target.GetName()] = true
 		}
 		return resp, nil
 	}
 
-	err = c.validateConstraint(constraint, false)
+	err = c.validateConstraint(constraint)
 	if err != nil {
 		return resp, err
 	}
 
 	kind := constraint.GetKind()
 	templateName := strings.ToLower(kind)
+
+	c.mtx.RLock()
 	template, found := c.templates[templateName]
+	c.mtx.RUnlock()
+
 	if !found {
 		return resp, fmt.Errorf("%w: %q", ErrMissingConstraintTemplate, templateName)
 	}
@@ -330,8 +317,8 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
-	for _, target := range entry.Targets() {
-		resp.Handled[target] = true
+	for _, target := range entry.getTargets() {
+		resp.Handled[target.GetName()] = true
 	}
 
 	template.addConstraint(constraint, matchers, enforcementAction)
@@ -354,21 +341,22 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 		return nil, err
 	}
 
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	entry, err := c.getTemplateEntry(constraint, false)
+	entry, err := c.getTemplateForConstraint(constraint)
 	if err != nil {
 		return resp, err
 	}
 
-	for _, target := range entry.Targets() {
-		resp.Handled[target] = true
+	for _, target := range entry.getTargets() {
+		resp.Handled[target.GetName()] = true
 	}
 
 	kind := constraint.GetKind()
 	templateName := strings.ToLower(kind)
+
+	c.mtx.RLock()
 	template, ok := c.templates[templateName]
+	c.mtx.RUnlock()
+
 	if !ok {
 		return resp, nil
 	}
@@ -378,7 +366,7 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 }
 
 // getConstraintNoLock gets the currently recognized constraint without the lock.
-func (c *Client) getConstraintNoLock(kind, name string) (*unstructured.Unstructured, error) {
+func (c *Client) getConstraint(kind, name string) (*unstructured.Unstructured, error) {
 	if kind == "" {
 		return nil, fmt.Errorf("%w: must specify kind", apiconstraints.ErrInvalidConstraint)
 	}
@@ -387,7 +375,11 @@ func (c *Client) getConstraintNoLock(kind, name string) (*unstructured.Unstructu
 	}
 
 	templateName := strings.ToLower(kind)
+
+	c.mtx.RLock()
 	template, ok := c.templates[templateName]
+	c.mtx.RUnlock()
+
 	if !ok {
 		return nil, fmt.Errorf("%w %v %q", ErrMissingConstraintTemplate, kind, name)
 	}
@@ -397,10 +389,7 @@ func (c *Client) getConstraintNoLock(kind, name string) (*unstructured.Unstructu
 
 // GetConstraint gets the currently recognized constraint.
 func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
-	return c.getConstraintNoLock(constraint.GetKind(), constraint.GetName())
+	return c.getConstraint(constraint.GetKind(), constraint.GetName())
 }
 
 func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
@@ -414,7 +403,8 @@ func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
 	}
 
 	if gk.Group != apiconstraints.Group {
-		return fmt.Errorf("%w: incorrect group %q", apiconstraints.ErrInvalidConstraint, gk.Group)
+		return fmt.Errorf("%w: wrong API Group for Constraint %q, got %q but need %q",
+			apiconstraints.ErrInvalidConstraint, constraint.GetName(), gk.Group, apiconstraints.Group)
 	}
 
 	return nil
@@ -422,13 +412,13 @@ func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
 
 // validateConstraint is an internal function that allows us to toggle whether we use a read lock
 // when validating a constraint.
-func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock bool) error {
+func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error {
 	err := validateConstraintMetadata(constraint)
 	if err != nil {
 		return err
 	}
 
-	entry, err := c.getTemplateEntry(constraint, lock)
+	entry, err := c.getTemplateForConstraint(constraint)
 	if err != nil {
 		return err
 	}
@@ -438,8 +428,8 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 		return err
 	}
 
-	for _, targetName := range entry.Targets() {
-		err = c.targets[targetName].ValidateConstraint(constraint)
+	for _, target := range entry.getTargets() {
+		err = c.targets[target.GetName()].ValidateConstraint(constraint)
 		if err != nil {
 			return err
 		}
@@ -450,7 +440,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured, lock 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
 // the registered CRD for that constraint.
 func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error {
-	return c.validateConstraint(constraint, true)
+	return c.validateConstraint(constraint)
 }
 
 // AddData inserts the provided data into OPA for every target that can handle the data.
@@ -576,10 +566,18 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	constraintsByTarget := make(map[string][]*unstructured.Unstructured)
 	autorejections := make(map[string][]constraintMatchResult)
 
+	var templateList []*templateClient
+
+	c.mtx.RLock()
+	for _, template := range c.templates {
+		templateList = append(templateList, template)
+	}
+	c.mtx.RUnlock()
+
 	for target, review := range reviews {
 		var targetConstraints []*unstructured.Unstructured
 
-		for _, template := range c.templates {
+		for _, template := range templateList {
 			matchingConstraints := template.matches(target, review)
 			for _, matchResult := range matchingConstraints {
 				if matchResult.error == nil {
