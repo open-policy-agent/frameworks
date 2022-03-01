@@ -3,7 +3,6 @@ package client_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
@@ -13,6 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// BenchmarkClient_Review runs queries in parallel to determine the maximum
+// query throughput for a given setup.
+//
+// To measure single-threaded performance, set GOMAXPROCS to 1.
 func BenchmarkClient_Review(b *testing.B) {
 	tests := []struct {
 		name           string
@@ -27,7 +30,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "fail",
@@ -38,7 +41,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "filtered out",
@@ -50,7 +53,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name,
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name,
 				cts.WantData("bar"),
 				cts.MatchNamespace("zab"))
 		},
@@ -58,12 +61,14 @@ func BenchmarkClient_Review(b *testing.B) {
 		name: "autoreject",
 		review: handlertest.Review{
 			Object: handlertest.Object{
-				Name: "has-foo",
-				Data: "foo",
+				Namespace: "aaa",
+				Name:      "has-foo",
+				Data:      "foo",
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name,
+				cts.WantData("bar"), cts.MatchNamespace("aaa"))
 		},
 	}}
 
@@ -77,9 +82,7 @@ func BenchmarkClient_Review(b *testing.B) {
 				c := clienttest.New(b)
 
 				for ts := 0; ts < templates; ts++ {
-					ct := clienttest.TemplateCheckData()
-					ct.Spec.CRD.Spec.Names.Kind = makeKind(ts)
-					ct.Name = strings.ToLower(makeKind(ts))
+					ct := clienttest.TemplateCheckDataNumbered(ts)
 
 					_, err := c.AddTemplate(ct)
 					if err != nil {

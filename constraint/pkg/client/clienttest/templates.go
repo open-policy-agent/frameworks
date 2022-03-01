@@ -1,6 +1,9 @@
 package clienttest
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -175,6 +178,20 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 		Target: handlertest.HandlerName,
 		Rego:   moduleCheckData,
 	}}
+
+	return ct
+}
+
+func KindCheckDataNumbered(i int) string {
+	return fmt.Sprintf("%s-%d", KindCheckData, i)
+}
+
+func TemplateCheckDataNumbered(i int) *templates.ConstraintTemplate {
+	ct := TemplateCheckData()
+
+	kind := KindCheckDataNumbered(i)
+	ct.SetName(strings.ToLower(kind))
+	ct.Spec.CRD.Spec.Names.Kind = kind
 
 	return ct
 }

@@ -26,6 +26,8 @@ import (
 // Assumes simultaneous calls for the same object do not happen. For example -
 // concurrent calls to both update and remove a Template.
 type Client struct {
+	// driver contains the Rego runtime environments to run queries against.
+	// Does not require mutex locking as Driver is threadsafe.
 	driver drivers.Driver
 	// targets are the targets supported by this Client.
 	// Assumed to be constant after initialization.
@@ -151,30 +153,26 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		return resp, err
 	}
 
+	templateName := templ.GetName()
+
 	c.mtx.RLock()
-	template, found := c.templates[templ.GetName()]
+	template, found := c.templates[templateName]
 	c.mtx.RUnlock()
 
 	if !found {
 		template = &templateClient{
 			constraints: make(map[string]*constraintClient),
 		}
+
+		c.mtx.Lock()
+		c.templates[templateName] = template
+		c.mtx.Unlock()
 	}
 
-	template.setCRD(crd)
-	template.setTemplate(templ)
-	template.setTargets([]handler.TargetHandler{target})
-
-	matchers, err := template.makeMatchers([]handler.TargetHandler{target})
+	err = template.Update(templ, crd, target)
 	if err != nil {
 		return resp, err
 	}
-
-	template.updateMatchers(matchers)
-
-	c.mtx.Lock()
-	c.templates[templ.GetName()] = template
-	c.mtx.Unlock()
 
 	resp.Handled[targetName] = true
 	return resp, nil
@@ -202,21 +200,20 @@ func getTargetName(templ *templates.ConstraintTemplate) (string, error) {
 func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
-	// Driver is threadsafe, so it doesn't need to be guarded by a Mutex.
 	err := c.driver.RemoveTemplate(ctx, templ)
 	if err != nil {
 		return resp, err
 	}
 
+	templateName := templ.GetName()
+
 	c.mtx.RLock()
-	template, found := c.templates[templ.GetName()]
+	template, found := c.templates[templateName]
 	c.mtx.RUnlock()
 
 	if !found {
 		return resp, nil
 	}
-
-	templateName := templ.GetName()
 
 	c.mtx.Lock()
 	delete(c.templates, templateName)
@@ -231,12 +228,12 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 // GetTemplate gets the currently recognized template.
 func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
-	entry, err := c.getTemplate(templ.GetName())
+	template, err := c.getTemplate(templ.GetName())
 	if err != nil {
 		return nil, err
 	}
 
-	return entry.getTemplate(), nil
+	return template.getTemplate(), nil
 }
 
 func (c *Client) getTemplate(name string) (*templateClient, error) {
@@ -253,13 +250,7 @@ func (c *Client) getTemplate(name string) (*templateClient, error) {
 }
 
 // getTemplateEntry returns the template entry for a given constraint.
-func (c *Client) getTemplateForConstraint(constraint *unstructured.Unstructured) (*templateClient, error) {
-	kind := constraint.GetKind()
-	if kind == "" {
-		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
-			apiconstraints.ErrInvalidConstraint, constraint.GetName())
-	}
-
+func (c *Client) getTemplateForKind(kind string) (*templateClient, error) {
 	templateName := strings.ToLower(kind)
 
 	return c.getTemplate(templateName)
@@ -270,58 +261,34 @@ func (c *Client) getTemplateForConstraint(constraint *unstructured.Unstructured)
 // partial results can be analyzed.
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
-	entry, err := c.getTemplateForConstraint(constraint)
+
+	err := validateConstraintMetadata(constraint)
 	if err != nil {
 		return resp, err
 	}
 
-	targets := entry.getTargets()
-
-	matchers, err := makeMatchers(targets, constraint)
+	template, err := c.getTemplateForKind(constraint.GetKind())
 	if err != nil {
 		return resp, err
 	}
 
-	// return immediately if no change
-	cached, err := c.getConstraint(constraint.GetKind(), constraint.GetName())
-	if err == nil && constraintlib.SemanticEqual(cached, constraint) {
-		for _, target := range entry.getTargets() {
-			resp.Handled[target.GetName()] = true
+	targets := template.getTargets()
+
+	changed, err := template.AddConstraint(constraint)
+	if err != nil {
+		return resp, err
+	}
+
+	if changed {
+		err = c.driver.AddConstraint(ctx, constraint)
+		if err != nil {
+			return resp, err
 		}
-		return resp, nil
 	}
 
-	err = c.validateConstraint(constraint)
-	if err != nil {
-		return resp, err
-	}
-
-	kind := constraint.GetKind()
-	templateName := strings.ToLower(kind)
-
-	c.mtx.RLock()
-	template, found := c.templates[templateName]
-	c.mtx.RUnlock()
-
-	if !found {
-		return resp, fmt.Errorf("%w: %q", ErrMissingConstraintTemplate, templateName)
-	}
-
-	enforcementAction, err := apiconstraints.GetEnforcementAction(constraint)
-	if err != nil {
-		return resp, err
-	}
-
-	err = c.driver.AddConstraint(ctx, constraint)
-	if err != nil {
-		return resp, err
-	}
-
-	for _, target := range entry.getTargets() {
+	for _, target := range targets {
 		resp.Handled[target.GetName()] = true
 	}
-
-	template.addConstraint(constraint, matchers, enforcementAction)
 
 	return resp, nil
 }
@@ -341,26 +308,17 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 		return nil, err
 	}
 
-	entry, err := c.getTemplateForConstraint(constraint)
+	kind := constraint.GetKind()
+	template, err := c.getTemplateForKind(kind)
 	if err != nil {
 		return resp, err
 	}
 
-	for _, target := range entry.getTargets() {
+	for _, target := range template.getTargets() {
 		resp.Handled[target.GetName()] = true
 	}
 
-	kind := constraint.GetKind()
-	templateName := strings.ToLower(kind)
-
-	c.mtx.RLock()
-	template, ok := c.templates[templateName]
-	c.mtx.RUnlock()
-
-	if !ok {
-		return resp, nil
-	}
-	template.removeConstraint(constraint.GetName())
+	template.RemoveConstraint(constraint.GetName())
 
 	return resp, nil
 }
@@ -374,17 +332,12 @@ func (c *Client) getConstraint(kind, name string) (*unstructured.Unstructured, e
 		return nil, fmt.Errorf("%w: must specify metadata.name", apiconstraints.ErrInvalidConstraint)
 	}
 
-	templateName := strings.ToLower(kind)
-
-	c.mtx.RLock()
-	template, ok := c.templates[templateName]
-	c.mtx.RUnlock()
-
-	if !ok {
-		return nil, fmt.Errorf("%w %v %q", ErrMissingConstraintTemplate, kind, name)
+	template, err := c.getTemplateForKind(kind)
+	if err != nil {
+		return nil, err
 	}
 
-	return template.getConstraint(name)
+	return template.GetConstraint(name)
 }
 
 // GetConstraint gets the currently recognized constraint.
@@ -418,23 +371,12 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error
 		return err
 	}
 
-	entry, err := c.getTemplateForConstraint(constraint)
+	template, err := c.getTemplateForKind(constraint.GetKind())
 	if err != nil {
 		return err
 	}
 
-	err = entry.validateConstraint(constraint)
-	if err != nil {
-		return err
-	}
-
-	for _, target := range entry.getTargets() {
-		err = c.targets[target.GetName()].ValidateConstraint(constraint)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return template.ValidateConstraint(constraint)
 }
 
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
@@ -578,7 +520,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 		var targetConstraints []*unstructured.Unstructured
 
 		for _, template := range templateList {
-			matchingConstraints := template.matches(target, review)
+			matchingConstraints := template.Matches(target, review)
 			for _, matchResult := range matchingConstraints {
 				if matchResult.error == nil {
 					targetConstraints = append(targetConstraints, matchResult.constraint)

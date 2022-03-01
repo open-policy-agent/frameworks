@@ -218,6 +218,10 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 }
 
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+	if len(constraints) == 0 {
+		return nil, nil, nil
+	}
+
 	constraintsByKind := toConstraintsByKind(constraints)
 
 	traceBuilder := strings.Builder{}

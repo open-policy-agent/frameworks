@@ -97,6 +97,8 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 	}
 }
 
+// BenchmarkClient_AddTemplate_Parallel measures performance when adding N
+// ConstraintTemplates to a client in parallel.
 func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 	for _, tc := range modules {
 		b.Run(tc.name, func(b *testing.B) {
@@ -114,28 +116,44 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 
 						b.StartTimer()
 
-						wg := sync.WaitGroup{}
-						wg.Add(len(cts))
+						// wgChan is only written to once all Templates have been added successfully.
 						wgChan := make(chan bool)
-
+						// errChan records any errors which occurred while adding Templates.
 						errChan := make(chan error)
 
 						go func() {
+							wg := sync.WaitGroup{}
+							wg.Add(len(cts))
+
+							// Add Templates in individual goroutines so that calls are as
+							// simultaneous as reasonable..
 							for _, ct := range cts {
+								// Shadow ct to allow the variable to be safely passed in to the
+								// goroutine.
 								ct := ct
 								go func() {
 									_, err := c.AddTemplate(ct)
 									if err != nil {
+										// Notify errChan so we can stop the test.
+										// Errors should never happen under these conditions.
+										// We can't directly fail the benchmark from within a
+										// goroutine.
 										errChan <- err
+									} else {
+										// Only notify the WaitGroup on success to avoid falsely
+										// reporting success.
+										wg.Done()
 									}
-									wg.Done()
 								}()
 							}
 
+							// Wait for all Templates to be added, and then notify the wait channel.
 							wg.Wait()
 							wgChan <- true
 						}()
 
+						// Wait for an error to be written to the error channel or the wgChan
+						// to note that it has completed successfully.
 						select {
 						case err := <-errChan:
 							b.Fatal(err)
