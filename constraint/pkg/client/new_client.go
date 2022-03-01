@@ -2,15 +2,12 @@ package client
 
 import (
 	"fmt"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // NewClient creates a new client.
 func NewClient(opts ...Opt) (*Client, error) {
 	c := &Client{
-		constraints: make(map[string]map[string]*unstructured.Unstructured),
-		templates:   make(map[string]*templateEntry),
+		templates: make(map[string]*templateEntry),
 	}
 
 	for _, opt := range opts {

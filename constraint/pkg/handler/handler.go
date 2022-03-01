@@ -3,7 +3,6 @@ package handler
 import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -38,12 +37,6 @@ type TargetHandler interface {
 	//	review: the data for the `review` field
 	//	err: any error encountered.
 	HandleReview(object interface{}) (handle bool, review interface{}, err error)
-
-	// HandleViolation allows for post-processing of the result object. The object
-	// can be mutated if desired.
-	// Args:
-	//	result: the result generated from the violation rule
-	HandleViolation(result *types.Result) error
 
 	// ValidateConstraint returns an error if constraint is not valid in any way.
 	// This allows for semantic validation beyond OpenAPI validation given by the

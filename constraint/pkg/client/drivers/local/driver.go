@@ -64,6 +64,7 @@ func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
 }
 
 // RemoveTemplate removes all Compilers and Constraints for templ.
+// Returns nil if templ does not exist.
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	kind := templ.Spec.CRD.Spec.Names.Kind
 
@@ -254,7 +255,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			traceBuilder.WriteString(*trace)
 		}
 
-		kindResults, err := drivers.ToResults(constraintsMap, review, resultSet)
+		kindResults, err := drivers.ToResults(constraintsMap, resultSet)
 		if err != nil {
 			return nil, nil, err
 		}

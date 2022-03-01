@@ -20,10 +20,10 @@ func KeyMap(constraints []*unstructured.Unstructured) map[ConstraintKey]*unstruc
 	return result
 }
 
-func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, review interface{}, resultSet rego.ResultSet) ([]*types.Result, error) {
+func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, resultSet rego.ResultSet) ([]*types.Result, error) {
 	var results []*types.Result
 	for _, r := range resultSet {
-		result, err := ToResult(constraints, review, r)
+		result, err := ToResult(constraints, r)
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,7 @@ func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, review 
 	return results, nil
 }
 
-func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, review interface{}, r rego.Result) (*types.Result, error) {
+func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 
 	resultMapBinding, found := r.Bindings["result"]
@@ -91,7 +91,6 @@ func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, review i
 	}
 
 	result.EnforcementAction = enforcementAction
-	result.Review = review
 
 	return result, nil
 }

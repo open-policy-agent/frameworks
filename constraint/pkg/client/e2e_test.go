@@ -65,7 +65,6 @@ func TestClient_Review(t *testing.T) {
 				Msg:               "denied",
 				EnforcementAction: "deny",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
-				Review:            handlertest.NewReview("", "foo", "bar"),
 			}},
 		},
 		{
@@ -83,7 +82,6 @@ func TestClient_Review(t *testing.T) {
 				Msg:               "denied",
 				EnforcementAction: "dryrun",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint", cts.EnforcementAction("dryrun")),
-				Review:            handlertest.NewReview("", "foo", "bar"),
 			}},
 		},
 		{
@@ -101,7 +99,6 @@ func TestClient_Review(t *testing.T) {
 				Msg:               "denied with library",
 				EnforcementAction: "deny",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
-				Review:            handlertest.NewReview("", "foo", "bar"),
 			}},
 		},
 		{
@@ -145,7 +142,6 @@ func TestClient_Review(t *testing.T) {
 				Msg:               "got qux but want bar for data",
 				EnforcementAction: "deny",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
-				Review:            handlertest.NewReview("", "foo", "qux"),
 			}},
 		},
 		{
@@ -190,7 +186,6 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: "deny",
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
-				Review: handlertest.NewReview("billing", "foo", "qux"),
 			}},
 		},
 		{
@@ -295,8 +290,7 @@ func TestClient_Review_Details(t *testing.T) {
 
 	results := responses.Results()
 
-	diffOpt := cmpopts.IgnoreFields(types.Result{}, "Review")
-	if diff := cmp.Diff(want, results, diffOpt); diff != "" {
+	if diff := cmp.Diff(want, results); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -323,7 +317,6 @@ func TestClient_Review_Print(t *testing.T) {
 			{
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
-				Review:            handlertest.NewReview("", "hanna", ""),
 				EnforcementAction: "deny",
 			},
 		},
@@ -335,7 +328,6 @@ func TestClient_Review_Print(t *testing.T) {
 			{
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
-				Review:            handlertest.NewReview("", "hanna", ""),
 				EnforcementAction: "deny",
 			},
 		},
@@ -413,7 +405,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		EnforcementAction: "deny",
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -430,7 +422,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 	got2 := responses2.Results()
 	var want2 []*types.Result
 
-	if diff := cmp.Diff(want2, got2, cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+	if diff := cmp.Diff(want2, got2, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 }
@@ -461,7 +453,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		EnforcementAction: "deny",
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -478,7 +470,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	got2 := responses2.Results()
 	var want2 []*types.Result
 
-	if diff := cmp.Diff(want2, got2, cmpopts.IgnoreFields(types.Result{}, "Review", "Metadata")); diff != "" {
+	if diff := cmp.Diff(want2, got2, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 }

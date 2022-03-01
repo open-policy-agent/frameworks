@@ -21,6 +21,18 @@ type constraintMatchers struct {
 	matchers map[string]targetMatchers
 }
 
+func (c *constraintMatchers) targetsFor(constraint *unstructured.Unstructured) []string {
+	var targets []string
+
+	for target, matchers := range c.matchers {
+		if _, found := matchers.matchers[constraint.GetName()]; found {
+			targets = append(targets, target)
+		}
+	}
+
+	return targets
+}
+
 // Upsert updates the Matchers for the Constraint uniquely identified by kind
 // and name. For Matchers which already exist for the Constraint, they are:
 // 1) Removed if not present in matchers,

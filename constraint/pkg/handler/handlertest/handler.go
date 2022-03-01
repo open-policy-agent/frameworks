@@ -5,7 +5,6 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -69,10 +68,6 @@ func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 	default:
 		return false, nil, fmt.Errorf("unrecognized type %T", obj)
 	}
-}
-
-func (h *Handler) HandleViolation(_ *types.Result) error {
-	return nil
 }
 
 func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {

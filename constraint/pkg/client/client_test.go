@@ -727,20 +727,20 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	}
 
 	_, err = c.GetConstraint(cst1)
-	if !errors.Is(err, client.ErrMissingConstraint) {
+	if !errors.Is(err, client.ErrMissingConstraintTemplate) {
 		if err != nil {
-			t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
-		} else {
 			t.Error(err)
+		} else {
+			t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
 		}
 	}
 
 	_, err = c.GetConstraint(cst2)
-	if !errors.Is(err, client.ErrMissingConstraint) {
+	if !errors.Is(err, client.ErrMissingConstraintTemplate) {
 		if err != nil {
-			t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
-		} else {
 			t.Error(err)
+		} else {
+			t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
 		}
 	}
 
@@ -809,7 +809,7 @@ func TestClient_AddConstraint(t *testing.T) {
 			constraint:             cts.MakeConstraint(t, "Foo", "foo"),
 			wantHandled:            nil,
 			wantAddConstraintError: client.ErrMissingConstraintTemplate,
-			wantGetConstraintError: client.ErrMissingConstraint,
+			wantGetConstraintError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:     "No Group",

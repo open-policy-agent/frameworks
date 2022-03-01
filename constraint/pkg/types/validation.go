@@ -18,9 +18,6 @@ type Result struct {
 	// The constraint that was violated
 	Constraint *unstructured.Unstructured `json:"constraint,omitempty"`
 
-	// The violating review
-	Review interface{} `json:"review,omitempty"`
-
 	// The enforcement action of the constraint
 	EnforcementAction string `json:"enforcementAction,omitempty"`
 }
