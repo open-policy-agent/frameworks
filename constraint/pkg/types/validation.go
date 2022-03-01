@@ -24,19 +24,17 @@ type Result struct {
 
 type Response struct {
 	Trace   *string
-	Input   *string
 	Target  string
 	Results []*Result
+}
+
+func (r *Response) AddResult(results *Result) {
+	r.Results = append(r.Results, results)
 }
 
 func (r *Response) TraceDump() string {
 	b := &strings.Builder{}
 	_, _ = fmt.Fprintf(b, "Target: %s\n", r.Target)
-	if r.Input == nil {
-		_, _ = fmt.Fprintf(b, "Input: TRACING DISABLED\n\n")
-	} else {
-		_, _ = fmt.Fprintf(b, "Input:\n%s\n\n", *r.Input)
-	}
 	if r.Trace == nil {
 		_, _ = fmt.Fprintf(b, "Trace: TRACING DISABLED\n\n")
 	} else {

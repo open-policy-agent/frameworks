@@ -60,22 +60,22 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 
 	if errs := apivalidation.IsDNS1123Subdomain(cr.GetName()); len(errs) != 0 {
 		return fmt.Errorf("%w: invalid name: %q",
-			ErrInvalidConstraint, strings.Join(errs, "\n"))
+			constraints.ErrInvalidConstraint, strings.Join(errs, "\n"))
 	}
 
 	if cr.GetKind() != crd.Spec.Names.Kind {
 		return fmt.Errorf("%w: wrong kind %q for constraint %q; want %q",
-			ErrInvalidConstraint, cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
+			constraints.ErrInvalidConstraint, cr.GetName(), cr.GetKind(), crd.Spec.Names.Kind)
 	}
 
 	if cr.GroupVersionKind().Group != constraints.Group {
 		return fmt.Errorf("%w: unsupported group %q for constraint %q; allowed group: %q",
-			ErrInvalidConstraint, cr.GetName(), cr.GroupVersionKind().Group, constraints.Group)
+			constraints.ErrInvalidConstraint, cr.GetName(), cr.GroupVersionKind().Group, constraints.Group)
 	}
 
 	if !supportedVersions[cr.GroupVersionKind().Version] {
 		return fmt.Errorf("%w: unsupported version %q for Constraint %q; supported versions: %v",
-			ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
+			constraints.ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
 	}
 
 	// Validate the schema last as this is the most expensive operation.

@@ -16,7 +16,6 @@ var (
 	ErrCreatingDriver = errors.New("error creating Driver")
 
 	ErrInvalidConstraintTemplate = errors.New("invalid ConstraintTemplate")
-	ErrInvalidConstraint         = errors.New("invalid Constraint")
 	ErrMissingConstraintTemplate = errors.New("missing ConstraintTemplate")
 	ErrInvalidModule             = errors.New("invalid module")
 )

@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -792,16 +792,16 @@ func TestClient_AddConstraint(t *testing.T) {
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "Foos", ""),
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Kind",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "", "foo"),
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Template",
@@ -820,8 +820,8 @@ func TestClient_AddConstraint(t *testing.T) {
 				},
 			},
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
 		},
 	}
 
@@ -916,7 +916,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    cts.MakeConstraint(t, "Foos", ""),
 			wantHandled: nil,
-			wantError:   crds.ErrInvalidConstraint,
+			wantError:   constraints.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Kind",
@@ -924,7 +924,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    cts.MakeConstraint(t, "", "foo"),
 			wantHandled: nil,
-			wantError:   crds.ErrInvalidConstraint,
+			wantError:   constraints.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Template",

@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -19,7 +18,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
 )
 
 type Client struct {
@@ -30,8 +28,7 @@ type Client struct {
 	mtx sync.RWMutex
 
 	// templates is a map from a Template's name to its entry.
-	templates map[string]*templateEntry
-	matchers  constraintMatchers
+	templates map[string]*templateClient
 }
 
 // getTargetHandler returns the TargetHandler for the Template, or an error if
@@ -153,12 +150,23 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	entry := &templateEntry{
-		template:    cpy,
-		constraints: make(map[string]*unstructured.Unstructured),
-		crd:         crd,
+	template, found := c.templates[templ.GetName()]
+	if !found {
+		template = &templateClient{
+			template:    cpy,
+			constraints: make(map[string]*constraintClient),
+			crd:         crd,
+		}
 	}
-	c.templates[templ.GetName()] = entry
+
+	matchers, err := template.makeMatchers([]handler.TargetHandler{target})
+	if err != nil {
+		return resp, err
+	}
+
+	template.updateMatchers(matchers)
+
+	c.templates[templ.GetName()] = template
 
 	resp.Handled[targetName] = true
 	return resp, nil
@@ -202,10 +210,8 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	kind := templ.Spec.CRD.Spec.Names.Kind
 	templateName := templ.GetName()
 	delete(c.templates, templateName)
-	c.matchers.RemoveKind(kind)
 
 	for _, target := range template.Spec.Targets {
 		resp.Handled[target.Target] = true
@@ -233,17 +239,17 @@ func (c *Client) getTemplateNoLock(name string) (*templates.ConstraintTemplate, 
 }
 
 // getTemplateEntry returns the template entry for a given constraint.
-func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateEntry, error) {
+func (c *Client) getTemplateEntry(constraint *unstructured.Unstructured, lock bool) (*templateClient, error) {
 	kind := constraint.GetKind()
 	if kind == "" {
 		return nil, fmt.Errorf("%w: kind missing from Constraint %q",
-			crds.ErrInvalidConstraint, constraint.GetName())
+			apiconstraints.ErrInvalidConstraint, constraint.GetName())
 	}
 
 	group := constraint.GroupVersionKind().Group
 	if group != apiconstraints.Group {
 		return nil, fmt.Errorf("%w: wrong API Group for Constraint %q, got %q but need %q",
-			crds.ErrInvalidConstraint, constraint.GetName(), group, apiconstraints.Group)
+			apiconstraints.ErrInvalidConstraint, constraint.GetName(), group, apiconstraints.Group)
 	}
 
 	if lock {
@@ -307,6 +313,18 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
+	kind := constraint.GetKind()
+	templateName := strings.ToLower(kind)
+	template, found := c.templates[templateName]
+	if !found {
+		return resp, fmt.Errorf("%w: %q", ErrMissingConstraintTemplate, templateName)
+	}
+
+	enforcementAction, err := apiconstraints.GetEnforcementAction(constraint)
+	if err != nil {
+		return resp, err
+	}
+
 	err = c.driver.AddConstraint(ctx, constraint)
 	if err != nil {
 		return resp, err
@@ -316,17 +334,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		resp.Handled[target] = true
 	}
 
-	c.matchers.Upsert(constraint, matchers)
-
-	kind := constraint.GetKind()
-	templateName := strings.ToLower(kind)
-
-	template, found := c.templates[templateName]
-	if !found {
-		return resp, fmt.Errorf("%w: %q", ErrMissingConstraintTemplate, templateName)
-	}
-
-	template.addConstraint(constraint)
+	template.addConstraint(constraint, matchers, enforcementAction)
 
 	return resp, nil
 }
@@ -358,15 +366,13 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 		resp.Handled[target] = true
 	}
 
-	c.matchers.RemoveConstraint(constraint)
-
 	kind := constraint.GetKind()
 	templateName := strings.ToLower(kind)
 	template, ok := c.templates[templateName]
 	if !ok {
 		return resp, nil
 	}
-	template.deleteConstraint(constraint.GetName())
+	template.removeConstraint(constraint.GetName())
 
 	return resp, nil
 }
@@ -374,10 +380,10 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 // getConstraintNoLock gets the currently recognized constraint without the lock.
 func (c *Client) getConstraintNoLock(kind, name string) (*unstructured.Unstructured, error) {
 	if kind == "" {
-		return nil, fmt.Errorf("%w: must specify kind", crds.ErrInvalidConstraint)
+		return nil, fmt.Errorf("%w: must specify kind", apiconstraints.ErrInvalidConstraint)
 	}
 	if name == "" {
-		return nil, fmt.Errorf("%w: must specify metadata.name", crds.ErrInvalidConstraint)
+		return nil, fmt.Errorf("%w: must specify metadata.name", apiconstraints.ErrInvalidConstraint)
 	}
 
 	templateName := strings.ToLower(kind)
@@ -399,16 +405,16 @@ func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstruct
 
 func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
 	if constraint.GetName() == "" {
-		return fmt.Errorf("%w: missing metadata.name", crds.ErrInvalidConstraint)
+		return fmt.Errorf("%w: missing metadata.name", apiconstraints.ErrInvalidConstraint)
 	}
 
 	gk := constraint.GroupVersionKind()
 	if gk.Kind == "" {
-		return fmt.Errorf("%w: missing kind", crds.ErrInvalidConstraint)
+		return fmt.Errorf("%w: missing kind", apiconstraints.ErrInvalidConstraint)
 	}
 
 	if gk.Group != apiconstraints.Group {
-		return fmt.Errorf("%w: incorrect group %q", crds.ErrInvalidConstraint, gk.Group)
+		return fmt.Errorf("%w: incorrect group %q", apiconstraints.ErrInvalidConstraint, gk.Group)
 	}
 
 	return nil
@@ -550,23 +556,56 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 
+	ignoredTargets := make(map[string]bool)
+	reviews := make(map[string]interface{})
 	for name, target := range c.targets {
-		// Short-circuiting question applies here as well
 		handled, review, err := target.HandleReview(obj)
 		if err != nil {
 			errMap.Add(name, err)
 			continue
 		}
+
 		if !handled {
+			ignoredTargets[name] = true
 			continue
 		}
 
-		resp, err := c.review(ctx, name, review, opts...)
+		reviews[name] = review
+	}
+
+	constraintsByTarget := make(map[string][]*unstructured.Unstructured)
+	autorejections := make(map[string][]constraintMatchResult)
+
+	for target, review := range reviews {
+		var targetConstraints []*unstructured.Unstructured
+
+		for _, template := range c.templates {
+			matchingConstraints := template.matches(target, review)
+			for _, matchResult := range matchingConstraints {
+				if matchResult.error == nil {
+					targetConstraints = append(targetConstraints, matchResult.constraint)
+				} else {
+					autorejections[target] = append(autorejections[target], matchResult)
+				}
+			}
+		}
+		constraintsByTarget[target] = targetConstraints
+	}
+
+	for target, review := range reviews {
+		constraints := constraintsByTarget[target]
+
+		resp, err := c.review(ctx, target, constraints, review, opts...)
 		if err != nil {
-			errMap.Add(name, err)
+			errMap.Add(target, err)
 			continue
 		}
-		responses.ByTarget[name] = resp
+
+		for _, autorejection := range autorejections[target] {
+			resp.AddResult(autorejection.ToResult())
+		}
+
+		responses.ByTarget[target] = resp
 	}
 
 	if len(errMap) == 0 {
@@ -576,17 +615,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target string, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
-	constraints, err := c.matchers.ConstraintsFor(target, review)
-	if err != nil {
-		// TODO(willbeason): This is where we'll make the determination about whether
-		//  to continue, or just insert the autorejection into responses based on
-		//  the Constraint's enforcementAction.
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrAutoreject, err)
-	}
-
-	input := map[string]interface{}{"review": review}
-
+func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	var results []*types.Result
 	var tracesBuilder strings.Builder
 
@@ -600,14 +629,8 @@ func (c *Client) review(ctx context.Context, target string, review interface{}, 
 		tracesBuilder.WriteString("\n\n")
 	}
 
-	inputJsn, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-
 	return &types.Response{
 		Trace:   trace,
-		Input:   pointer.String(string(inputJsn)),
 		Target:  target,
 		Results: results,
 	}, nil

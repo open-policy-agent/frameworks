@@ -5,14 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -152,20 +150,16 @@ func TestClient_Review(t *testing.T) {
 				clienttest.TemplateCheckData(),
 			},
 			constraints: []*unstructured.Unstructured{
-				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar"), cts.MatchNamespace("aaa")),
+				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+					cts.WantData("bar"), cts.MatchNamespace("aaa")),
 			},
 			toReview: handlertest.NewReview("aaa", "foo", "bar"),
-			wantErr: &clienterrors.ErrorMap{
-				handlertest.HandlerName: clienterrors.ErrAutoreject,
-			},
-			// TODO(willbeason): Before merging, make sure we return the autoreject
-			//  results, and conditionally exit early based on enforcement action.
-			// wantResults: []*types.Result{{
-			//	Msg:               "autoreject",
-			//	EnforcementAction: "deny",
-			//	Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
-			//		cts.WantData("bar")),
-			// }},
+			wantResults: []*types.Result{{
+				Msg:               `unable to match constraints: not found: namespace "aaa" not in cache`,
+				EnforcementAction: "deny",
+				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+					cts.WantData("bar"), cts.MatchNamespace("aaa")),
+			}},
 		},
 		{
 			name:       "namespace matches",
@@ -232,9 +226,6 @@ func TestClient_Review(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-
-			out, _ := c.Dump(ctx)
-			t.Log(out)
 
 			responses, err := c.Review(ctx, tt.toReview)
 			if !errors.Is(err, tt.wantErr) {

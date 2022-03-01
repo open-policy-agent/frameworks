@@ -7,7 +7,7 @@ import (
 // NewClient creates a new client.
 func NewClient(opts ...Opt) (*Client, error) {
 	c := &Client{
-		templates: make(map[string]*templateEntry),
+		templates: make(map[string]*templateClient),
 	}
 
 	for _, opt := range opts {
