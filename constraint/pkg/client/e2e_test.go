@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
@@ -61,7 +62,7 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
 				Msg:               "denied",
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			}},
 		},
@@ -95,7 +96,7 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
 				Msg:               "denied with library",
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
 			}},
 		},
@@ -138,7 +139,7 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("", "foo", "qux"),
 			wantResults: []*types.Result{{
 				Msg:               "got qux but want bar for data",
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
 			}},
 		},
@@ -156,9 +157,35 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("aaa", "foo", "bar"),
 			wantResults: []*types.Result{{
 				Msg:               `unable to match constraints: not found: namespace "aaa" not in cache`,
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("aaa")),
+			}},
+		},
+		{
+			name:       "autoreject and fail",
+			namespaces: nil,
+			handler:    &handlertest.Handler{Cache: &handlertest.Cache{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateCheckData(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+					cts.WantData("bar"), cts.MatchNamespace("aaa")),
+				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
+					cts.WantData("qux"), cts.EnforcementAction(constraints.EnforcementActionWarn)),
+			},
+			toReview: handlertest.NewReview("aaa", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Msg:               `unable to match constraints: not found: namespace "aaa" not in cache`,
+				EnforcementAction: constraints.EnforcementActionDeny,
+				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+					cts.WantData("bar"), cts.MatchNamespace("aaa")),
+			}, {
+				Msg:               "got bar but want qux for data",
+				EnforcementAction: constraints.EnforcementActionWarn,
+				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
+					cts.WantData("qux"), cts.EnforcementAction(constraints.EnforcementActionWarn)),
 			}},
 		},
 		{
@@ -177,7 +204,7 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("billing", "foo", "qux"),
 			wantResults: []*types.Result{{
 				Msg:               "got qux but want bar for data",
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
 			}},
@@ -273,7 +300,7 @@ func TestClient_Review_Details(t *testing.T) {
 
 	want := []*types.Result{{
 		Msg:               "got qux but want bar for data",
-		EnforcementAction: "deny",
+		EnforcementAction: constraints.EnforcementActionDeny,
 		Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 			cts.WantData("bar")),
 		Metadata: map[string]interface{}{"details": map[string]interface{}{"got": "qux"}},
@@ -308,7 +335,7 @@ func TestClient_Review_Print(t *testing.T) {
 			{
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 			},
 		},
 		wantPrint: []string{"denied!"},
@@ -319,7 +346,7 @@ func TestClient_Review_Print(t *testing.T) {
 			{
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 			},
 		},
 		wantPrint: nil,
@@ -393,7 +420,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 	want := []*types.Result{{
 		Msg:               "denied",
 		Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "foo"),
-		EnforcementAction: "deny",
+		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
 	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
@@ -441,7 +468,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	want := []*types.Result{{
 		Msg:               "denied",
 		Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "foo"),
-		EnforcementAction: "deny",
+		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
 	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {

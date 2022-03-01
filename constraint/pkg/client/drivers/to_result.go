@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/rego"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -87,7 +88,7 @@ func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, r rego.R
 		return nil, err
 	}
 	if !found {
-		enforcementAction = "deny"
+		enforcementAction = apiconstraints.EnforcementActionDeny
 	}
 
 	result.EnforcementAction = enforcementAction

@@ -605,6 +605,9 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 			resp.AddResult(autorejection.ToResult())
 		}
 
+		// Ensure deterministic result ordering.
+		resp.Sort()
+
 		responses.ByTarget[target] = resp
 	}
 
