@@ -38,10 +38,7 @@ type Client struct {
 	// Assumed to be constant after initialization.
 	targets map[string]handler.TargetHandler
 
-	// mtx guards access to the set of known Templates.
-	// Write locks are only necessary when the set of known Templates is being
-	// added to or removed from. Read locks are sufficient for Constraint operations
-	// as they do not result in adding/removing Templates.
+	// mtx guards reading and writing data outside of Driver.
 	mtx sync.RWMutex
 
 	// templates is a map from a Template's name to its entry.
@@ -356,8 +353,6 @@ func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
 	return nil
 }
 
-// validateConstraint is an internal function that allows us to toggle whether we use a read lock
-// when validating a constraint.
 func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error {
 	err := validateConstraintMetadata(constraint)
 	if err != nil {
