@@ -232,5 +232,4 @@ func TemplateRuntimeError() *templates.ConstraintTemplate {
 	}}
 
 	return ct
-
 }
