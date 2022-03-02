@@ -11,7 +11,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
-	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -84,9 +83,40 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		return resp, err
 	}
 
-	if cached, err := c.GetTemplate(templ); err == nil && cached.SemanticEqual(templ) {
+	var cachedCpy *templates.ConstraintTemplate
+	hasConstraints := false
+	var oldTargets []string
+
+	c.mtx.RLock()
+	cached := c.templates[templ.GetName()]
+	if cached != nil {
+		cachedCpy = cached.getTemplate()
+		hasConstraints = len(cached.constraints) > 0
+		for _, target := range cached.targets {
+			oldTargets = append(oldTargets, target.GetName())
+		}
+	}
+	c.mtx.RUnlock()
+
+	if cachedCpy != nil && cachedCpy.SemanticEqual(templ) {
 		resp.Handled[targetName] = true
 		return resp, nil
+	}
+
+	if hasConstraints {
+		var newTargets []string
+		for _, target := range templ.Spec.Targets {
+			newTargets = append(newTargets, target.Target)
+		}
+		sort.Strings(oldTargets)
+		sort.Strings(newTargets)
+
+		for i, target := range oldTargets {
+			if target != newTargets[i] {
+				return resp, fmt.Errorf("%w: old targets %v, new targets %v",
+					clienterrors.ErrChangeTargets, oldTargets, newTargets)
+			}
+		}
 	}
 
 	err = validateTemplateMetadata(templ)
@@ -132,10 +162,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	// This state mutation needs to happen last so that the semantic equal check
 	// at the beginning does not incorrectly return true when updating did not
 	// succeed previously.
-	err = template.Update(templ, crd, target)
-	if err != nil {
-		return resp, err
-	}
+	template.Update(templ, crd, target)
 
 	resp.Handled[targetName] = true
 	return resp, nil
@@ -227,13 +254,13 @@ func (c *Client) getTemplateForKind(kind string) (*templateClient, error) {
 func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
 
-	err := validateConstraintMetadata(constraint)
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	err := c.validateConstraint(constraint)
 	if err != nil {
 		return resp, err
 	}
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
 
 	template, err := c.getTemplateForKind(constraint.GetKind())
 	if err != nil {
@@ -293,29 +320,22 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	return resp, nil
 }
 
-// getConstraintNoLock gets the currently recognized constraint without the lock.
-func (c *Client) getConstraint(kind, name string) (*unstructured.Unstructured, error) {
-	if kind == "" {
-		return nil, fmt.Errorf("%w: must specify kind", apiconstraints.ErrInvalidConstraint)
-	}
-	if name == "" {
-		return nil, fmt.Errorf("%w: must specify metadata.name", apiconstraints.ErrInvalidConstraint)
-	}
-
-	template, err := c.getTemplateForKind(kind)
-	if err != nil {
-		return nil, err
-	}
-
-	return template.GetConstraint(name)
-}
-
 // GetConstraint gets the currently recognized constraint.
 func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	return c.getConstraint(constraint.GetKind(), constraint.GetName())
+	err := validateConstraintMetadata(constraint)
+	if err != nil {
+		return nil, err
+	}
+
+	template, err := c.getTemplateForKind(constraint.GetKind())
+	if err != nil {
+		return nil, err
+	}
+
+	return template.GetConstraint(constraint.GetName())
 }
 
 func validateConstraintMetadata(constraint *unstructured.Unstructured) error {
@@ -477,7 +497,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	for name, target := range c.targets {
 		handled, review, err := target.HandleReview(obj)
 		if err != nil {
-			errMap.Add(name, err)
+			errMap.Add(name, fmt.Errorf("%w for target %q: %v", ErrReview, name, err))
 			continue
 		}
 
@@ -578,27 +598,6 @@ func (c *Client) knownTargets() []string {
 	sort.Strings(knownTargets)
 
 	return knownTargets
-}
-
-func makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unstructured) (map[string]constraintlib.Matcher, error) {
-	result := make(map[string]constraintlib.Matcher)
-	errs := clienterrors.ErrorMap{}
-
-	for _, target := range targets {
-		name := target.GetName()
-		matcher, err := target.ToMatcher(constraint)
-		if err != nil {
-			errs.Add(name, err)
-		}
-
-		result[name] = matcher
-	}
-
-	if len(errs) > 0 {
-		return nil, &errs
-	}
-
-	return result, nil
 }
 
 // getTargetHandler returns the TargetHandler for the Template, or an error if

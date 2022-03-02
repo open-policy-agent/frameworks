@@ -13,19 +13,21 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/pointer"
 )
 
 func TestClient_Review(t *testing.T) {
 	tests := []struct {
 		name        string
 		namespaces  []string
-		handler     handler.TargetHandler
+		targets     []handler.TargetHandler
 		templates   []*templates.ConstraintTemplate
 		constraints []*unstructured.Unstructured
 		toReview    interface{}
@@ -36,14 +38,14 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:        "empty client",
 			namespaces:  nil,
-			handler:     &handlertest.Handler{},
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
 		},
 		{
 			name:       "deny missing Constraint",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDeny(),
 			},
@@ -52,7 +54,7 @@ func TestClient_Review(t *testing.T) {
 		},
 		{
 			name:    "deny all",
-			handler: &handlertest.Handler{},
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDeny(),
 			},
@@ -61,6 +63,51 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "denied",
+				EnforcementAction: constraints.EnforcementActionDeny,
+				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+			}},
+		},
+		{
+			name:    "wrong review type",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+			},
+			toReview:    handlertest.Object{Name: "foo"},
+			wantErr:     &clienterrors.ErrorMap{handlertest.TargetName: client.ErrReview},
+			wantResults: nil,
+		},
+		{
+			name:    "ignored review",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+			},
+			toReview:    handlertest.Review{Ignored: true, Object: handlertest.Object{Name: "foo"}},
+			wantErr:     nil,
+			wantResults: nil,
+		},
+		{
+			name:    "deny all duplicate Constraint",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+				cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+			},
+			toReview: handlertest.NewReview("", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               "denied",
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
@@ -69,7 +116,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "deny all dryrun",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDeny(),
 			},
@@ -78,6 +125,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               "denied",
 				EnforcementAction: "dryrun",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint", cts.EnforcementAction("dryrun")),
@@ -86,7 +134,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "deny all library",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateDenyImport(),
 			},
@@ -95,6 +143,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               "denied with library",
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
@@ -103,7 +152,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "allow all",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateAllow(),
 			},
@@ -116,7 +165,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "check data allow",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -129,7 +178,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "check data deny",
 			namespaces: nil,
-			handler:    &handlertest.Handler{},
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -138,6 +187,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("", "foo", "qux"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               "got qux but want bar for data",
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
@@ -146,7 +196,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "autoreject",
 			namespaces: nil,
-			handler:    &handlertest.Handler{Cache: &handlertest.Cache{}},
+			targets:    []handler.TargetHandler{&handlertest.Handler{Cache: &handlertest.Cache{}}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -156,6 +206,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("aaa", "foo", "bar"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               `unable to match constraints: not found: namespace "aaa" not in cache`,
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
@@ -165,7 +216,7 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "autoreject and fail",
 			namespaces: nil,
-			handler:    &handlertest.Handler{Cache: &handlertest.Cache{}},
+			targets:    []handler.TargetHandler{&handlertest.Handler{Cache: &handlertest.Cache{}}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -177,11 +228,13 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("aaa", "foo", "bar"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               `unable to match constraints: not found: namespace "aaa" not in cache`,
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("aaa")),
 			}, {
+				Target:            handlertest.TargetName,
 				Msg:               "got bar but want qux for data",
 				EnforcementAction: constraints.EnforcementActionWarn,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
@@ -191,9 +244,9 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "namespace matches",
 			namespaces: []string{"billing"},
-			handler: &handlertest.Handler{
+			targets: []handler.TargetHandler{&handlertest.Handler{
 				Cache: &handlertest.Cache{},
-			},
+			}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -203,6 +256,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview: handlertest.NewReview("billing", "foo", "qux"),
 			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
 				Msg:               "got qux but want bar for data",
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
@@ -212,9 +266,9 @@ func TestClient_Review(t *testing.T) {
 		{
 			name:       "namespace does not match",
 			namespaces: []string{"shipping"},
-			handler: &handlertest.Handler{
+			targets: []handler.TargetHandler{&handlertest.Handler{
 				Cache: &handlertest.Cache{},
-			},
+			}},
 			templates: []*templates.ConstraintTemplate{
 				clienttest.TemplateCheckData(),
 			},
@@ -225,13 +279,39 @@ func TestClient_Review(t *testing.T) {
 			toReview:    handlertest.NewReview("shipping", "foo", "qux"),
 			wantResults: nil,
 		},
+		{
+			name:       "update Template target",
+			namespaces: nil,
+			targets: []handler.TargetHandler{
+				&handlertest.Handler{
+					Name: pointer.StringPtr("foo1"),
+				},
+				&handlertest.Handler{
+					Name: pointer.StringPtr("foo2"),
+				},
+			},
+			templates: []*templates.ConstraintTemplate{
+				cts.New(cts.OptTargets(cts.Target("foo1", clienttest.ModuleAllow))),
+				cts.New(cts.OptTargets(cts.Target("foo2", clienttest.ModuleDeny))),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, cts.MockTemplate, "bar"),
+			},
+			toReview: handlertest.NewReview("shipping", "foo", "qux"),
+			wantResults: []*types.Result{{
+				Target:            "foo2",
+				Msg:               "denied",
+				Constraint:        cts.MakeConstraint(t, cts.MockTemplate, "bar"),
+				EnforcementAction: "deny",
+			}},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			c := clienttest.New(t, client.Targets(tt.handler))
+			c := clienttest.New(t, client.Targets(tt.targets...))
 
 			for _, ns := range tt.namespaces {
 				_, err := c.AddData(ctx, &handlertest.Object{Namespace: ns})
@@ -299,6 +379,7 @@ func TestClient_Review_Details(t *testing.T) {
 	}
 
 	want := []*types.Result{{
+		Target:            handlertest.TargetName,
 		Msg:               "got qux but want bar for data",
 		EnforcementAction: constraints.EnforcementActionDeny,
 		Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
@@ -333,6 +414,7 @@ func TestClient_Review_Print(t *testing.T) {
 		printEnabled: true,
 		wantResults: []*types.Result{
 			{
+				Target:            handlertest.TargetName,
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
 				EnforcementAction: constraints.EnforcementActionDeny,
@@ -344,6 +426,7 @@ func TestClient_Review_Print(t *testing.T) {
 		printEnabled: false,
 		wantResults: []*types.Result{
 			{
+				Target:            handlertest.TargetName,
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyPrint, "denyprint"),
 				EnforcementAction: constraints.EnforcementActionDeny,
@@ -418,6 +501,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 
 	got := responses.Results()
 	want := []*types.Result{{
+		Target:            handlertest.TargetName,
 		Msg:               "denied",
 		Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "foo"),
 		EnforcementAction: constraints.EnforcementActionDeny,
@@ -466,6 +550,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 
 	got := responses.Results()
 	want := []*types.Result{{
+		Target:            handlertest.TargetName,
 		Msg:               "denied",
 		Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "foo"),
 		EnforcementAction: constraints.EnforcementActionDeny,
@@ -530,7 +615,7 @@ func TestE2E_Tracing(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			trace := rsps.ByTarget[handlertest.HandlerName].Trace
+			trace := rsps.ByTarget[handlertest.TargetName].Trace
 			if trace == nil && tt.tracingEnabled {
 				t.Fatal("got nil trace but tracing enabled for Review")
 			} else if trace != nil && !tt.tracingEnabled {

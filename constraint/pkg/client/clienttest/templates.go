@@ -17,8 +17,8 @@ const (
 	KindCheckData  = "CheckData"
 )
 
-// moduleAllow defines a Rego package which allows all objects it reviews.
-const moduleAllow = `
+// ModuleAllow defines a Rego package which allows all objects it reviews.
+const ModuleAllow = `
 package foo
 
 violation[{"msg": msg}] {
@@ -40,15 +40,15 @@ func TemplateAllow() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
-		Rego:   moduleAllow,
+		Target: handlertest.TargetName,
+		Rego:   ModuleAllow,
 	}}
 
 	return ct
 }
 
-// moduleDeny defines a Rego package which denies all objects it reviews.
-const moduleDeny = `
+// ModuleDeny defines a Rego package which denies all objects it reviews.
+const ModuleDeny = `
 package foo
 
 violation[{"msg": msg}] {
@@ -70,8 +70,8 @@ func TemplateDeny() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
-		Rego:   moduleDeny,
+		Target: handlertest.TargetName,
+		Rego:   ModuleDeny,
 	}}
 
 	return ct
@@ -100,7 +100,7 @@ func TemplateDenyPrint() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleDenyPrint,
 	}}
 
@@ -141,7 +141,7 @@ func TemplateDenyImport() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleImportDenyRego,
 		Libs:   []string{moduleImportDenyLib},
 	}}
@@ -175,7 +175,7 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleCheckData,
 	}}
 

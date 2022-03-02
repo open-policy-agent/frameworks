@@ -60,3 +60,10 @@ func EnforcementAction(action string) ConstraintArg {
 		return unstructured.SetNestedField(u.Object, action, "spec", "enforcementAction")
 	}
 }
+
+// Set sets an arbitrary value inside the Constraint.
+func Set(value interface{}, path ...string) ConstraintArg {
+	return func(u *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(u.Object, value, path...)
+	}
+}

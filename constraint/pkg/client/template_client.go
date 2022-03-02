@@ -5,6 +5,7 @@ import (
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
+	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -35,7 +36,7 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 	for _, target := range e.targets {
 		err := target.ValidateConstraint(constraint)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, err)
 		}
 	}
 
@@ -46,28 +47,9 @@ func (e *templateClient) getTemplate() *templates.ConstraintTemplate {
 	return e.template.DeepCopy()
 }
 
-func (e *templateClient) Update(templ *templates.ConstraintTemplate, crd *apiextensions.CustomResourceDefinition, targets ...handler.TargetHandler) error {
+func (e *templateClient) Update(templ *templates.ConstraintTemplate, crd *apiextensions.CustomResourceDefinition, targets ...handler.TargetHandler) {
 	cpy := templ.DeepCopy()
 	cpy.Status = templates.ConstraintTemplateStatus{}
-
-	matchers := make(map[string]map[string]constraintlib.Matcher)
-
-	for name, constraint := range e.constraints {
-		// Ensure that all Constraints pass validation for the Template's new target(s).
-		for _, target := range targets {
-			err := target.ValidateConstraint(constraint.constraint)
-			if err != nil {
-				return err
-			}
-		}
-
-		cMatchers, err := makeMatchers(targets, constraint.constraint)
-		if err != nil {
-			return err
-		}
-
-		matchers[name] = cMatchers
-	}
 
 	// Updating e.template must happen after any operations which may fail have
 	// completed successfully. This ensures the SemanticEqual exit-early is not
@@ -75,12 +57,6 @@ func (e *templateClient) Update(templ *templates.ConstraintTemplate, crd *apiext
 	e.template = cpy
 	e.crd = crd
 	e.targets = targets
-
-	for name, constraint := range e.constraints {
-		constraint.updateMatchers(matchers[name])
-	}
-
-	return nil
 }
 
 // AddConstraint adds the Constraint to the Template.
@@ -101,11 +77,6 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured) (b
 	}
 
 	matchers, err := makeMatchers(e.targets, constraint)
-	if err != nil {
-		return false, err
-	}
-
-	err = e.ValidateConstraint(constraint)
 	if err != nil {
 		return false, err
 	}
@@ -149,4 +120,25 @@ func (e *templateClient) Matches(target string, review interface{}) map[string]c
 	}
 
 	return result
+}
+
+func makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unstructured) (map[string]constraintlib.Matcher, error) {
+	result := make(map[string]constraintlib.Matcher)
+	errs := clienterrors.ErrorMap{}
+
+	for _, target := range targets {
+		name := target.GetName()
+		matcher, err := target.ToMatcher(constraint)
+		if err != nil {
+			errs.Add(name, fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, err))
+		}
+
+		result[name] = matcher
+	}
+
+	if len(errs) > 0 {
+		return nil, &errs
+	}
+
+	return result, nil
 }

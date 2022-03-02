@@ -18,4 +18,5 @@ var (
 	ErrInvalidConstraintTemplate = errors.New("invalid ConstraintTemplate")
 	ErrMissingConstraintTemplate = errors.New("missing ConstraintTemplate")
 	ErrInvalidModule             = errors.New("invalid module")
+	ErrChangeTargets             = errors.New("ConstraintTemplates with Constraints may not change targets")
 )

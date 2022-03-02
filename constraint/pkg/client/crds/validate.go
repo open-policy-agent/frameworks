@@ -80,7 +80,7 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 
 	// Validate the schema last as this is the most expensive operation.
 	if err := validation.ValidateCustomResource(field.NewPath(""), cr, validator); err != nil {
-		return err.ToAggregate()
+		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, err.ToAggregate())
 	}
 
 	return nil

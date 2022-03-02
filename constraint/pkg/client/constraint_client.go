@@ -28,10 +28,6 @@ func (c *constraintClient) getConstraint() *unstructured.Unstructured {
 	return c.constraint.DeepCopy()
 }
 
-func (c *constraintClient) updateMatchers(matchers map[string]constraints.Matcher) {
-	c.matchers = matchers
-}
-
 func (c *constraintClient) matches(target string, review interface{}) *constraintMatchResult {
 	matcher, found := c.matchers[target]
 	if !found {

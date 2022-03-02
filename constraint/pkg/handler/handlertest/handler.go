@@ -13,16 +13,18 @@ var _ handler.TargetHandler = &Handler{}
 
 var _ handler.Cacher = &Handler{}
 
-// HandlerName is the default handler name.
-const HandlerName = "test.target"
+// TargetName is the default target name.
+const TargetName = "test.target"
 
 type Handler struct {
-	// Name, if set, is the name of the Handler. Otherwise defaults to HandlerName.
+	// Name, if set, is the name of the Handler. Otherwise defaults to TargetName.
 	Name *string
 
 	// ShouldHandle is whether Handler should handle Object.
 	// If unset, handles all Objects.
 	ShouldHandle func(*Object) bool
+
+	ForbiddenEnforcement *string
 
 	// ProcessDataError is the error to return when ProcessData is called.
 	// If nil returns no error.
@@ -36,7 +38,7 @@ func (h *Handler) GetName() string {
 		return *h.Name
 	}
 
-	return HandlerName
+	return TargetName
 }
 
 func (h *Handler) ProcessData(obj interface{}) (bool, handler.StoragePath, interface{}, error) {
@@ -60,8 +62,14 @@ func (h *Handler) ProcessData(obj interface{}) (bool, handler.StoragePath, inter
 func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 	switch data := obj.(type) {
 	case Review:
+		if data.Ignored {
+			return false, nil, nil
+		}
 		return true, &data, nil
 	case *Review:
+		if data.Ignored {
+			return false, nil, nil
+		}
 		return true, data, nil
 	case *Object:
 		return true, &Review{Object: *data}, nil
@@ -79,7 +87,24 @@ func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {
 	}
 }
 
-func (h *Handler) ValidateConstraint(_ *unstructured.Unstructured) error {
+func (h *Handler) ValidateConstraint(constraint *unstructured.Unstructured) error {
+	if h.ForbiddenEnforcement == nil {
+		return nil
+	}
+
+	enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		return nil
+	}
+
+	if enforcementAction == *h.ForbiddenEnforcement {
+		return fmt.Errorf("forbidden enforcementAction %q", enforcementAction)
+	}
+
 	return nil
 }
 

@@ -10,6 +10,9 @@ import (
 )
 
 type Result struct {
+	// Target is the target this violation is for.
+	Target string `json:"target"`
+
 	Msg string `json:"msg,omitempty"`
 
 	// Metadata includes the contents of `details` from the Rego rule signature
@@ -87,8 +90,11 @@ func (r *Responses) Results() []*Result {
 	}
 
 	var res []*Result
-	for _, resp := range r.ByTarget {
-		res = append(res, resp.Results...)
+	for target, resp := range r.ByTarget {
+		for _, rr := range resp.Results {
+			rr.Target = target
+			res = append(res, rr)
+		}
 	}
 
 	// Make results more (but not completely) deterministic.
