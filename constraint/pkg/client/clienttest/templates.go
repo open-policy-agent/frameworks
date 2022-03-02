@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	KindAllow      = "Allow"
-	KindDeny       = "Deny"
-	KindDenyPrint  = "DenyPrint"
-	KindDenyImport = "DenyImport"
-	KindCheckData  = "CheckData"
+	KindAllow        = "Allow"
+	KindDeny         = "Deny"
+	KindDenyPrint    = "DenyPrint"
+	KindDenyImport   = "DenyImport"
+	KindCheckData    = "CheckData"
+	KindRuntimeError = "RuntimeError"
 )
 
 // ModuleAllow defines a Rego package which allows all objects it reviews.
@@ -194,4 +195,42 @@ func TemplateCheckDataNumbered(i int) *templates.ConstraintTemplate {
 	ct.Spec.CRD.Spec.Names.Kind = kind
 
 	return ct
+}
+
+const moduleRuntimeError = `
+package foo
+
+message(arg) = output {
+  output := 7
+}
+
+message(arg) = output {
+  output := 5
+}
+
+violation[{"msg": msg}] {
+  result := message("a")
+  msg := sprintf("result is %v", [result])
+}
+
+`
+
+func TemplateRuntimeError() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("runtimeerror")
+	ct.Spec.CRD.Spec.Names.Kind = KindRuntimeError
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Rego:   moduleRuntimeError,
+	}}
+
+	return ct
+
 }

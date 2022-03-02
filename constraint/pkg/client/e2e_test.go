@@ -194,6 +194,24 @@ func TestClient_Review(t *testing.T) {
 			}},
 		},
 		{
+			name:       "rego runtime error",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateRuntimeError(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindRuntimeError, "constraint"),
+			},
+			toReview: handlertest.NewReview("", "foo", "qux"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               `templates["RuntimeError"]0:7: eval_conflict_error: functions must not produce multiple outputs for same inputs`,
+				EnforcementAction: constraints.EnforcementActionDeny,
+				Constraint:        cts.MakeConstraint(t, clienttest.KindRuntimeError, "constraint"),
+			}},
+		},
+		{
 			name:       "autoreject",
 			namespaces: nil,
 			targets:    []handler.TargetHandler{&handlertest.Handler{Cache: &handlertest.Cache{}}},

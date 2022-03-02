@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -79,7 +80,7 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	params, _, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, err)
 	}
 
 	// default .spec.parameters so that we don't need to default this in Rego.
@@ -253,7 +254,20 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		resultSet, trace, err := d.eval(ctx, compiler, path, parsedInput, opts...)
 		if err != nil {
-			return nil, nil, err
+			resultSet = make(rego.ResultSet, 0, len(kindConstraints))
+			for _, constraint := range kindConstraints {
+				resultSet = append(resultSet, rego.Result{
+					Bindings: map[string]interface{}{
+						"result": map[string]interface{}{
+							"msg": err.Error(),
+							"key": map[string]interface{}{
+								"kind": constraint.GetKind(),
+								"name": constraint.GetName(),
+							},
+						},
+					},
+				})
+			}
 		}
 		if trace != nil {
 			traceBuilder.WriteString(*trace)

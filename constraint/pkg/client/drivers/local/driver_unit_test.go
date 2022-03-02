@@ -3,15 +3,19 @@ package local
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -25,7 +29,7 @@ fooisbar[msg] {
 `
 )
 
-func TestDriver_AddTemplates(t *testing.T) {
+func TestDriver_AddTemplate(t *testing.T) {
 	testCases := []struct {
 		name          string
 		rego          string
@@ -635,4 +639,118 @@ type readErrorStorage struct {
 
 func (s *readErrorStorage) Read(_ context.Context, _ storage.Transaction, _ storage.Path) (interface{}, error) {
 	return nil, errors.New("error writing data")
+}
+
+func TestDriver_AddConstraint(t *testing.T) {
+	tests := []struct {
+		name             string
+		beforeConstraint *unstructured.Unstructured
+		constraint       *unstructured.Unstructured
+		wantParameters   map[string]interface{}
+		wantError        error
+	}{
+		{
+			name: "add constraint",
+			constraint: cts.MakeConstraint(t, "Foo", "foo-1",
+				cts.WantData("bar")),
+			wantParameters: map[string]interface{}{
+				"wantData": "bar",
+			},
+		},
+		{
+			name: "nil parameters",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"kind": "Foo",
+					"metadata": map[string]interface{}{
+						"name": "foo-1",
+					},
+					"spec": map[string]interface{}{
+						"parameters": nil,
+					},
+				},
+			},
+			wantParameters: map[string]interface{}{},
+		},
+		{
+			name: "invalid parameters",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"kind": "Foo",
+					"metadata": map[string]interface{}{
+						"name": "foo-1",
+					},
+					"spec": "invalid",
+				},
+			},
+			wantParameters: nil,
+			wantError:      constraints.ErrInvalidConstraint,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := New()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			if tt.beforeConstraint != nil {
+				err = d.AddConstraint(ctx, tt.beforeConstraint)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			err = d.AddConstraint(ctx, tt.constraint)
+			if !errors.Is(err, tt.wantError) {
+				t.Fatalf("got AddConstraint error = %v, want %v",
+					err, tt.wantError)
+			}
+
+			compiler := ast.NewCompiler()
+			module, err := ast.ParseModule("", `package foo`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			compiler.Compile(map[string]*ast.Module{
+				"foo": module,
+			})
+
+			key := fmt.Sprintf("%s[%q]", tt.constraint.GetKind(), tt.constraint.GetName())
+
+			result, _, err := d.eval(ctx, compiler, []string{"constraints", key}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.wantParameters == nil {
+				if len(result) != 0 {
+					t.Fatalf("want no parameters stored but got %+v", result)
+				}
+				return
+			}
+
+			gotParameters := result[0].Expressions[0].Value
+
+			if diff := cmp.Diff(tt.wantParameters, gotParameters); diff != "" {
+				t.Fatal(diff)
+			}
+
+			err = d.RemoveConstraint(ctx, tt.constraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result2, _, err := d.eval(ctx, compiler, []string{"constraints", key}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(result2) != 0 {
+				t.Fatalf("want no parameters stored after deletion but got %+v", result)
+			}
+		})
+	}
 }
