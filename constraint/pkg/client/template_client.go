@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"sync"
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
@@ -15,10 +14,8 @@ import (
 
 // templateClient handles per-ConstraintTemplate operations.
 //
-// Threadsafe. Use accessor methods for fields to prevent race conditions.
+// Not threadsafe.
 type templateClient struct {
-	mtx sync.RWMutex
-
 	// targets are the Targets which
 	targets []handler.TargetHandler
 
@@ -34,23 +31,7 @@ type templateClient struct {
 	crd *apiextensions.CustomResourceDefinition
 }
 
-// getTargets returns the slice of targets for this Template.
-// It is not safe to modify or append to this slice.
-func (e *templateClient) getTargets() []handler.TargetHandler {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
-	return e.targets
-}
-
 func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructured) error {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
-	return e.validateConstraint(constraint)
-}
-
-func (e *templateClient) validateConstraint(constraint *unstructured.Unstructured) error {
 	for _, target := range e.targets {
 		err := target.ValidateConstraint(constraint)
 		if err != nil {
@@ -62,18 +43,12 @@ func (e *templateClient) validateConstraint(constraint *unstructured.Unstructure
 }
 
 func (e *templateClient) getTemplate() *templates.ConstraintTemplate {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
 	return e.template.DeepCopy()
 }
 
 func (e *templateClient) Update(templ *templates.ConstraintTemplate, crd *apiextensions.CustomResourceDefinition, targets ...handler.TargetHandler) error {
 	cpy := templ.DeepCopy()
 	cpy.Status = templates.ConstraintTemplateStatus{}
-
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
 
 	matchers := make(map[string]map[string]constraintlib.Matcher)
 
@@ -94,6 +69,9 @@ func (e *templateClient) Update(templ *templates.ConstraintTemplate, crd *apiext
 		matchers[name] = cMatchers
 	}
 
+	// Updating e.template must happen after any operations which may fail have
+	// completed successfully. This ensures the SemanticEqual exit-early is not
+	// triggered unless the Template was previously successfully added.
 	e.template = cpy
 	e.crd = crd
 	e.targets = targets
@@ -115,9 +93,6 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured) (b
 		return false, err
 	}
 
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
 	// Compare with the already-existing Constraint.
 	// If identical, exit early.
 	cached, found := e.constraints[constraint.GetName()]
@@ -130,7 +105,7 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured) (b
 		return false, err
 	}
 
-	err = e.validateConstraint(constraint)
+	err = e.ValidateConstraint(constraint)
 	if err != nil {
 		return false, err
 	}
@@ -146,10 +121,7 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured) (b
 
 // GetConstraint returns the Constraint with name for this Template.
 func (e *templateClient) GetConstraint(name string) (*unstructured.Unstructured, error) {
-	e.mtx.RLock()
 	constraint, found := e.constraints[name]
-	e.mtx.RUnlock()
-
 	if !found {
 		kind := e.template.Spec.CRD.Spec.Names.Kind
 		return nil, fmt.Errorf("%w: %q %q", ErrMissingConstraint, kind, name)
@@ -167,9 +139,6 @@ func (e *templateClient) RemoveConstraint(name string) {
 //
 // ignoredTargets specifies the targets whose matchers to not run.
 func (e *templateClient) Matches(target string, review interface{}) map[string]constraintMatchResult {
-	e.mtx.RLock()
-	defer e.mtx.RUnlock()
-
 	result := make(map[string]constraintMatchResult)
 
 	for name, constraint := range e.constraints {

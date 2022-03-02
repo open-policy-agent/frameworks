@@ -23,8 +23,14 @@ import (
 // Allows validating reviews against Constraints.
 //
 // Threadsafe.
-// Assumes simultaneous calls for the same object do not happen. For example -
-// concurrent calls to both update and remove a Template.
+// Assumes concurrent calls for the same object do not happen. For example -
+// concurrent calls to both update and remove a Template. Concurrent calls for
+// a Template and its Constraints are fine.
+//
+// Note that adding per-identifier locking would not fix this completely - the
+// thread for the first-sent call could be put to sleep while the second is
+// allowed to continue running. Thus, this problem can only safely be handled
+// by the caller.
 type Client struct {
 	// driver contains the Rego runtime environments to run queries against.
 	// Does not require mutex locking as Driver is threadsafe.
@@ -43,45 +49,6 @@ type Client struct {
 	templates map[string]*templateClient
 }
 
-// getTargetHandler returns the TargetHandler for the Template, or an error if
-// it does not exist.
-//
-// The set of targets is assumed to be constant.
-func (c *Client) getTargetHandler(templ *templates.ConstraintTemplate) (handler.TargetHandler, error) {
-	targetName, err := getTargetName(templ)
-	if err != nil {
-		return nil, err
-	}
-
-	targetHandler, found := c.targets[targetName]
-
-	if !found {
-		knownTargets := c.knownTargets()
-
-		return nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
-			clienterrors.ErrInvalidConstraintTemplate, targetName, knownTargets)
-	}
-
-	return targetHandler, nil
-}
-
-// createCRD creates the Template's CRD and validates the result.
-func createCRD(templ *templates.ConstraintTemplate, target handler.TargetHandler) (*apiextensions.CustomResourceDefinition, error) {
-	sch := crds.CreateSchema(templ, target)
-
-	crd, err := crds.CreateCRD(templ, sch)
-	if err != nil {
-		return nil, err
-	}
-
-	err = crds.ValidateCRD(crd)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
-	}
-
-	return crd, nil
-}
-
 // CreateCRD creates a CRD from template.
 func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.CustomResourceDefinition, error) {
 	if templ == nil {
@@ -94,27 +61,15 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 		return nil, err
 	}
 
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	target, err := c.getTargetHandler(templ)
 	if err != nil {
 		return nil, err
 	}
 
 	return createCRD(templ, target)
-}
-
-func validateTemplateMetadata(templ *templates.ConstraintTemplate) error {
-	kind := templ.Spec.CRD.Spec.Names.Kind
-	if kind == "" {
-		return fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
-			clienterrors.ErrInvalidConstraintTemplate, templ.GetName())
-	}
-
-	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
-		return fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			clienterrors.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
-	}
-
-	return nil
 }
 
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
@@ -155,20 +110,28 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 
 	templateName := templ.GetName()
 
-	c.mtx.RLock()
-	template, found := c.templates[templateName]
-	c.mtx.RUnlock()
+	// Avoid locking for as long as possible. The big thing here is to defer
+	// locking until after Driver has successfully added the Template. This allows
+	// Templates to be compiled in parallel.
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
-	if !found {
+	template := c.templates[templateName]
+
+	// We don't want to use the usual "if found/ok" idiom here - if the value
+	// stored for templateName is nil, we need to update it to be non-nil to avoid
+	// a panic.
+	if template == nil {
 		template = &templateClient{
 			constraints: make(map[string]*constraintClient),
 		}
 
-		c.mtx.Lock()
 		c.templates[templateName] = template
-		c.mtx.Unlock()
 	}
 
+	// This state mutation needs to happen last so that the semantic equal check
+	// at the beginning does not incorrectly return true when updating did not
+	// succeed previously.
 	err = template.Update(templ, crd, target)
 	if err != nil {
 		return resp, err
@@ -205,55 +168,57 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 		return resp, err
 	}
 
-	templateName := templ.GetName()
+	name := templ.GetName()
 
-	c.mtx.RLock()
-	template, found := c.templates[templateName]
-	c.mtx.RUnlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	template, found := c.templates[name]
 
 	if !found {
 		return resp, nil
 	}
 
-	c.mtx.Lock()
-	delete(c.templates, templateName)
-	c.mtx.Unlock()
+	delete(c.templates, name)
 
-	for _, target := range template.getTargets() {
+	for _, target := range template.targets {
 		resp.Handled[target.GetName()] = true
 	}
 
 	return resp, nil
 }
 
+func templateNotFound(name string) error {
+	return fmt.Errorf("%w: template %q not found",
+		ErrMissingConstraintTemplate, name)
+}
+
 // GetTemplate gets the currently recognized template.
 func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.ConstraintTemplate, error) {
-	template, err := c.getTemplate(templ.GetName())
-	if err != nil {
-		return nil, err
+	name := templ.GetName()
+
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	template := c.templates[name]
+	if template == nil {
+		return nil, templateNotFound(name)
 	}
 
 	return template.getTemplate(), nil
 }
 
-func (c *Client) getTemplate(name string) (*templateClient, error) {
-	c.mtx.RLock()
-	t, ok := c.templates[name]
-	c.mtx.RUnlock()
-
-	if !ok {
-		return nil, fmt.Errorf("%w: template %q not found",
-			ErrMissingConstraintTemplate, name)
-	}
-
-	return t, nil
-}
-
 // getTemplateEntry returns the template entry for a given constraint.
 func (c *Client) getTemplateForKind(kind string) (*templateClient, error) {
-	templateName := strings.ToLower(kind)
+	name := strings.ToLower(kind)
 
-	return c.getTemplate(templateName)
+	template := c.templates[name]
+
+	if template == nil {
+		return nil, templateNotFound(name)
+	}
+
+	return template, nil
 }
 
 // AddConstraint validates the constraint and, if valid, inserts it into OPA.
@@ -267,12 +232,13 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	template, err := c.getTemplateForKind(constraint.GetKind())
 	if err != nil {
 		return resp, err
 	}
-
-	targets := template.getTargets()
 
 	changed, err := template.AddConstraint(constraint)
 	if err != nil {
@@ -286,7 +252,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		}
 	}
 
-	for _, target := range targets {
+	for _, target := range template.targets {
 		resp.Handled[target.GetName()] = true
 	}
 
@@ -309,12 +275,16 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	}
 
 	kind := constraint.GetKind()
+
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	template, err := c.getTemplateForKind(kind)
 	if err != nil {
 		return resp, err
 	}
 
-	for _, target := range template.getTargets() {
+	for _, target := range template.targets {
 		resp.Handled[target.GetName()] = true
 	}
 
@@ -342,6 +312,9 @@ func (c *Client) getConstraint(kind, name string) (*unstructured.Unstructured, e
 
 // GetConstraint gets the currently recognized constraint.
 func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	return c.getConstraint(constraint.GetKind(), constraint.GetName())
 }
 
@@ -382,6 +355,9 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error
 // ValidateConstraint returns an error if the constraint is not recognized or does not conform to
 // the registered CRD for that constraint.
 func (c *Client) ValidateConstraint(constraint *unstructured.Unstructured) error {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	return c.validateConstraint(constraint)
 }
 
@@ -393,6 +369,10 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
+	// The set of targets doesn't change after Client initialization, so it is safe
+	// to forego locking here. Similarly, - the Driver locks itself on writing data
+	// and no state outside of Driver is changed by this operation, so Client
+	// needs no locking here.
 	for name, target := range c.targets {
 		handled, key, processedData, err := target.ProcessData(data)
 		if err != nil {
@@ -448,6 +428,8 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Responses, error) {
 	resp := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
+	// Similar to AddData - no locking is required here. See AddData for full
+	// explanation.
 	for target, h := range c.targets {
 		handled, relPath, _, err := h.ProcessData(data)
 		if err != nil {
@@ -490,6 +472,8 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 
 	ignoredTargets := make(map[string]bool)
 	reviews := make(map[string]interface{})
+	// The set of targets should not change after Client is initialized, so it
+	// is safe to defer locking until after reviews have been created.
 	for name, target := range c.targets {
 		handled, review, err := target.HandleReview(obj)
 		if err != nil {
@@ -511,10 +495,11 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	var templateList []*templateClient
 
 	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	for _, template := range c.templates {
 		templateList = append(templateList, template)
 	}
-	c.mtx.RUnlock()
 
 	for target, review := range reviews {
 		var targetConstraints []*unstructured.Unstructured
@@ -614,4 +599,58 @@ func makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unst
 	}
 
 	return result, nil
+}
+
+// getTargetHandler returns the TargetHandler for the Template, or an error if
+// it does not exist.
+//
+// The set of targets is assumed to be constant.
+func (c *Client) getTargetHandler(templ *templates.ConstraintTemplate) (handler.TargetHandler, error) {
+	targetName, err := getTargetName(templ)
+	if err != nil {
+		return nil, err
+	}
+
+	targetHandler, found := c.targets[targetName]
+
+	if !found {
+		knownTargets := c.knownTargets()
+
+		return nil, fmt.Errorf("%w: target %q not recognized, known targets %v",
+			clienterrors.ErrInvalidConstraintTemplate, targetName, knownTargets)
+	}
+
+	return targetHandler, nil
+}
+
+// createCRD creates the Template's CRD and validates the result.
+func createCRD(templ *templates.ConstraintTemplate, target handler.TargetHandler) (*apiextensions.CustomResourceDefinition, error) {
+	sch := crds.CreateSchema(templ, target)
+
+	crd, err := crds.CreateCRD(templ, sch)
+	if err != nil {
+		return nil, err
+	}
+
+	err = crds.ValidateCRD(crd)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
+	}
+
+	return crd, nil
+}
+
+func validateTemplateMetadata(templ *templates.ConstraintTemplate) error {
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	if kind == "" {
+		return fmt.Errorf("%w: ConstraintTemplate %q does not specify CRD Kind",
+			clienterrors.ErrInvalidConstraintTemplate, templ.GetName())
+	}
+
+	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
+		return fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
+			clienterrors.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+	}
+
+	return nil
 }
