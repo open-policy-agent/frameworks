@@ -105,6 +105,12 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		for _, target := range templ.Spec.Targets {
 			newTargets = append(newTargets, target.Target)
 		}
+
+		if len(oldTargets) != len(newTargets) {
+			return resp, fmt.Errorf("%w: old targets %v, new targets %v",
+				clienterrors.ErrChangeTargets, oldTargets, newTargets)
+		}
+
 		sort.Strings(oldTargets)
 		sort.Strings(newTargets)
 
@@ -233,16 +239,10 @@ func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.Co
 }
 
 // getTemplateEntry returns the template entry for a given constraint.
-func (c *Client) getTemplateForKind(kind string) (*templateClient, error) {
+func (c *Client) getTemplateForKind(kind string) *templateClient {
 	name := strings.ToLower(kind)
 
-	template := c.templates[name]
-
-	if template == nil {
-		return nil, templateNotFound(name)
-	}
-
-	return template, nil
+	return c.templates[name]
 }
 
 // AddConstraint validates the constraint and, if valid, inserts it into OPA.
@@ -259,9 +259,11 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, err
 	}
 
-	template, err := c.getTemplateForKind(constraint.GetKind())
-	if err != nil {
-		return resp, err
+	kind := constraint.GetKind()
+	template := c.getTemplateForKind(kind)
+	if template == nil {
+		templateName := strings.ToLower(kind)
+		return resp, templateNotFound(templateName)
 	}
 
 	changed, err := template.AddConstraint(constraint)
@@ -303,9 +305,11 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	template, err := c.getTemplateForKind(kind)
-	if err != nil {
-		return resp, err
+	template := c.getTemplateForKind(kind)
+	if template == nil {
+		// The Template has been deleted, so nothing to do and no reason to return
+		// error.
+		return resp, nil
 	}
 
 	for _, target := range template.targets {
@@ -327,9 +331,11 @@ func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstruct
 		return nil, err
 	}
 
-	template, err := c.getTemplateForKind(constraint.GetKind())
-	if err != nil {
-		return nil, err
+	kind := constraint.GetKind()
+	template := c.getTemplateForKind(kind)
+	if template == nil {
+		templateName := strings.ToLower(kind)
+		return nil, templateNotFound(templateName)
 	}
 
 	return template.GetConstraint(constraint.GetName())
@@ -359,9 +365,11 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error
 		return err
 	}
 
-	template, err := c.getTemplateForKind(constraint.GetKind())
-	if err != nil {
-		return err
+	kind := constraint.GetKind()
+	template := c.getTemplateForKind(kind)
+	if template == nil {
+		templateName := strings.ToLower(kind)
+		return templateNotFound(templateName)
 	}
 
 	return template.ValidateConstraint(constraint)

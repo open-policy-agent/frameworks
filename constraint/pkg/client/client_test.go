@@ -1034,7 +1034,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			name:        "No Template",
 			toRemove:    cts.MakeConstraint(t, "Foos", "foo"),
 			wantHandled: nil,
-			wantError:   client.ErrMissingConstraintTemplate,
+			wantError:   nil,
 		},
 		{
 			name:        "No Constraint",
