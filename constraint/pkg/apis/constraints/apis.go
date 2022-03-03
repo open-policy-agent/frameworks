@@ -16,9 +16,6 @@ const (
 	//
 	// This is the default EnforcementAction.
 	EnforcementActionDeny = "deny"
-	// EnforcementActionWarn indicates that a warning should be logged or printed
-	// if a review fails validation, or if the Constraint fails to run.
-	EnforcementActionWarn = "warn"
 )
 
 var ErrInvalidConstraint = errors.New("invalid Constraint")

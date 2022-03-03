@@ -242,7 +242,7 @@ func TestClient_Review(t *testing.T) {
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("aaa")),
 				cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
-					cts.WantData("qux"), cts.EnforcementAction(constraints.EnforcementActionWarn)),
+					cts.WantData("qux"), cts.EnforcementAction("warn")),
 			},
 			toReview: handlertest.NewReview("aaa", "foo", "bar"),
 			wantResults: []*types.Result{{
@@ -254,9 +254,9 @@ func TestClient_Review(t *testing.T) {
 			}, {
 				Target:            handlertest.TargetName,
 				Msg:               "got bar but want qux for data",
-				EnforcementAction: constraints.EnforcementActionWarn,
+				EnforcementAction: "warn",
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
-					cts.WantData("qux"), cts.EnforcementAction(constraints.EnforcementActionWarn)),
+					cts.WantData("qux"), cts.EnforcementAction("warn")),
 			}},
 		},
 		{

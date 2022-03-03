@@ -38,8 +38,9 @@ func (c *constraintClient) matches(target string, review interface{}) *constrain
 
 	switch {
 	case err != nil:
-		// Run the Constraint's enforcementAction since we were unable to determine
-		// if the Constraint matched.
+		// Fill in the Constraint's enforcementAction since we were unable to
+		// determine if the Constraint matched, so we assume it violated the
+		// Constraint.
 		return &constraintMatchResult{
 			constraint:        c.constraint,
 			error:             fmt.Errorf("%w: %v", errors.ErrAutoreject, err),
