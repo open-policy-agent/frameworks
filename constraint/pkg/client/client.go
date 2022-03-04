@@ -21,10 +21,7 @@ import (
 // Client tracks ConstraintTemplates and Constraints for a set of Targets.
 // Allows validating reviews against Constraints.
 //
-// Threadsafe.
-// Assumes concurrent calls for the same object do not happen. For example -
-// concurrent calls to both update and remove a Template. Concurrent calls for
-// a Template and its Constraints are fine.
+// Threadsafe. Does not support concurrent mutation operations.
 //
 // Note that adding per-identifier locking would not fix this completely - the
 // thread for the first-sent call could be put to sleep while the second is
@@ -74,6 +71,9 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	// Return immediately if no change.
 	targetName, err := getTargetName(templ)
 	if err != nil {
@@ -84,7 +84,6 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 	hasConstraints := false
 	var oldTargets []string
 
-	c.mtx.RLock()
 	cached := c.templates[templ.GetName()]
 	if cached != nil {
 		cachedCpy = cached.getTemplate()
@@ -93,7 +92,6 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 			oldTargets = append(oldTargets, target.GetName())
 		}
 	}
-	c.mtx.RUnlock()
 
 	if cachedCpy != nil && cachedCpy.SemanticEqual(templ) {
 		resp.Handled[targetName] = true
@@ -143,12 +141,6 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 
 	templateName := templ.GetName()
 
-	// Avoid locking for as long as possible. The big thing here is to defer
-	// locking until after Driver has successfully added the Template. This allows
-	// Templates to be compiled in parallel.
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
 	template := c.templates[templateName]
 
 	// We don't want to use the usual "if found/ok" idiom here - if the value
@@ -174,16 +166,12 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 func getTargetName(templ *templates.ConstraintTemplate) (string, error) {
 	targets := templ.Spec.Targets
 
-	switch len(targets) {
-	case 0:
-		return "", fmt.Errorf("%w: must declare exactly one target",
-			clienterrors.ErrInvalidConstraintTemplate)
-	case 1:
-		return targets[0].Target, nil
-	default:
+	if len(targets) != 1 {
 		return "", fmt.Errorf("%w: must declare exactly one target",
 			clienterrors.ErrInvalidConstraintTemplate)
 	}
+
+	return targets[0].Target, nil
 }
 
 // RemoveTemplate removes the template source code from OPA and removes the CRD from the validation
@@ -193,15 +181,15 @@ func getTargetName(templ *templates.ConstraintTemplate) (string, error) {
 func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	err := c.driver.RemoveTemplate(ctx, templ)
 	if err != nil {
 		return resp, err
 	}
 
 	name := templ.GetName()
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
 
 	template, found := c.templates[name]
 
@@ -290,6 +278,9 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
 	resp := types.NewResponses()
 
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	err := validateConstraintMetadata(constraint)
 	if err != nil {
 		return resp, err
@@ -301,9 +292,6 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	}
 
 	kind := constraint.GetKind()
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
 
 	template := c.getTemplateForKind(kind)
 	if template == nil {
@@ -323,13 +311,13 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 // GetConstraint gets the currently recognized constraint.
 func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
 	err := validateConstraintMetadata(constraint)
 	if err != nil {
 		return nil, err
 	}
+
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 
 	kind := constraint.GetKind()
 	template := c.getTemplateForKind(kind)

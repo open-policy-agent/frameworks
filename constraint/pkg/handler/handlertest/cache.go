@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
+	"github.com/open-policy-agent/opa/storage"
 )
 
 var ErrInvalidObject = errors.New("invalid object")
@@ -19,7 +20,7 @@ type Cache struct {
 var _ handler.Cache = &Cache{}
 
 // Add inserts object into Cache if object is a Namespace.
-func (c *Cache) Add(key handler.StoragePath, object interface{}) error {
+func (c *Cache) Add(key storage.Path, object interface{}) error {
 	obj, ok := object.(*Object)
 	if !ok {
 		return fmt.Errorf("%w: got object type %T, want %T", ErrInvalidType, object, &Object{})
@@ -37,6 +38,6 @@ func (c *Cache) Add(key handler.StoragePath, object interface{}) error {
 	return nil
 }
 
-func (c *Cache) Remove(key handler.StoragePath) {
+func (c *Cache) Remove(key storage.Path) {
 	c.Namespaces.Delete(key.String())
 }

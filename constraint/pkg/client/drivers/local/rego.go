@@ -18,14 +18,14 @@ violation[response] {
 
   # Construct the input object from the Constraint and temporary object in storage.
   # Silently exits if the Constraint no longer exists.
-	inp := {
-		"review": input.review,
-		"parameters": data.constraints[key.kind][key.name],
-	}
-	inventory[inv]
+  inp := {
+    "review": input.review,
+    "parameters": data.constraints[key.kind][key.name],
+  }
+  inventory[inv]
 
   # Run the Template with Constraint.
-	data.templates[key.kind].violation[r] with input as inp with data.inventory as inv
+  data.templates[key.kind].violation[r] with input as inp with data.inventory as inv
 
   # Construct the response, defaulting "details" to empty object if it is not
   # specified.
@@ -39,11 +39,11 @@ violation[response] {
 # Default data.external to empty object. We can't directly reference "data" in
 # object.get() without causing a circular dependency error in compilation.
 inventory[inv] {
-	inv = data.external
+  inv = data.external
 }
 
 inventory[{}] {
-	not data.external
+  not data.external
 }
 `
 )

@@ -241,8 +241,10 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	for kind, kindConstraints := range constraintsByKind {
 		compiler := d.compilers.getCompiler(target, kind)
 		if compiler == nil {
-			// The Template was just removed, so ignore these Constraints.
-			continue
+			// The Template was just removed, so the Driver is in an inconsistent
+			// state with Client. Raise this as an error rather than attempting to
+			// continue.
+			return nil, nil, fmt.Errorf("missing Template %q for target %q", kind, target)
 		}
 
 		// Parse input into an ast.Value to avoid round-tripping through JSON when
@@ -324,7 +326,7 @@ func templateLibPrefix(name string) string {
 	return fmt.Sprintf("libs.%s", name)
 }
 
-// createTemplatePath returns the package path for a given template: templates.<target>.<name>.
+// createTemplatePath returns the package path for a given template: templates[<name>].
 func createTemplatePath(name string) string {
 	return fmt.Sprintf(`templates[%q]`, name)
 }

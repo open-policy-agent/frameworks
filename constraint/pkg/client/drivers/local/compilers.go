@@ -14,7 +14,8 @@ import (
 type Compilers struct {
 	mtx sync.RWMutex
 
-	// compilers is a map from target name to a map from kind to compiler.
+	// compilers is a map from target name to a map from Constraint kind to the
+	// compiler for the corresponding ConstraintTemplate.
 	compilers map[string]map[string]*ast.Compiler
 
 	// externs are the subpaths of "data" which ConstraintTemplates are allowed to

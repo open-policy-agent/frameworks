@@ -17,7 +17,7 @@ import (
 //
 // Not threadsafe.
 type templateClient struct {
-	// targets are the Targets which
+	// targets are the Targets which this Template is executed for.
 	targets []handler.TargetHandler
 
 	// template is a copy of the original ConstraintTemplate added to Client.

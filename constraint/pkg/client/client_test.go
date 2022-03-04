@@ -1459,7 +1459,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 				Namespace: "foo",
 			},
 			want: map[interface{}]interface{}{
-				"namespace/foo/": &handlertest.Object{
+				"/namespace/foo/": &handlertest.Object{
 					Namespace: "foo",
 				},
 			},
@@ -1468,7 +1468,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 		{
 			name: "replace Namespace",
 			before: map[string]*handlertest.Object{
-				"namespace/foo/": {
+				"/namespace/foo/": {
 					Namespace: "foo",
 					Data:      "qux",
 				},
@@ -1478,7 +1478,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 				Data:      "bar",
 			},
 			want: map[interface{}]interface{}{
-				"namespace/foo/": &handlertest.Object{
+				"/namespace/foo/": &handlertest.Object{
 					Namespace: "foo",
 					Data:      "bar",
 				},
