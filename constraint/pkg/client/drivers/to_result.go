@@ -81,7 +81,8 @@ func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, r rego.R
 	}
 
 	constraint := constraints[key]
-	result.Constraint = constraint
+	// DeepCopy the result so we don't leak internal state.
+	result.Constraint = constraint.DeepCopy()
 
 	enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 	if err != nil {

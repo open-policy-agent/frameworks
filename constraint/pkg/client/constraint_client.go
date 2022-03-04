@@ -36,6 +36,11 @@ func (c *constraintClient) matches(target string, review interface{}) *constrain
 
 	matches, err := matcher.Match(review)
 
+	// We avoid DeepCopying the Constraint out of the Client cache here, only
+	// DeepCopying when we're about to return the Constraint to the user in
+	// Driver.ToResults. Preemptive DeepCopying is expensive.
+	// This does mean Driver must take care to never modify the Constraints it
+	// is passed.
 	switch {
 	case err != nil:
 		// Fill in the Constraint's enforcementAction since we were unable to

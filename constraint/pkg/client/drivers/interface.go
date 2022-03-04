@@ -36,6 +36,7 @@ type Driver interface {
 	RemoveData(ctx context.Context, path storage.Path) error
 
 	// Query runs the passed target's Constraints against review.
+	//
 	// Returns results for each violated Constraint.
 	// Returns a trace if specified in query options or enabled at Driver creation.
 	// Returns an error if there was a problem executing the Query.
