@@ -413,8 +413,9 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		targetPath := append([]string{name}, key...)
-		err = c.driver.AddData(ctx, targetPath, processedData)
+		key = append([]string{"inventory"}, key...)
+
+		err = c.driver.AddData(ctx, key, processedData)
 		if err != nil {
 			errMap[name] = err
 
