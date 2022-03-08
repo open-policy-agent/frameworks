@@ -62,7 +62,6 @@ type Driver struct {
 // use in queries.
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	for _, target := range templ.Spec.Targets {
-		fmt.Println(target.Target)
 		err := d.ensureInventoryExists(ctx, target.Target)
 		if err != nil {
 			return err
