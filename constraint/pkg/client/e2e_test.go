@@ -30,6 +30,7 @@ func TestClient_Review(t *testing.T) {
 		targets     []handler.TargetHandler
 		templates   []*templates.ConstraintTemplate
 		constraints []*unstructured.Unstructured
+		inventory   []*handlertest.Object
 		toReview    interface{}
 
 		wantResults []*types.Result
@@ -323,6 +324,45 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: "deny",
 			}},
 		},
+		{
+			name:       "referential constraint allow",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateForbidDuplicates(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
+			},
+			inventory: []*handlertest.Object{{
+				Name: "foo-1",
+				Data: "bar",
+			}},
+			toReview:    handlertest.NewReview("", "foo-2", "qux"),
+			wantResults: nil,
+		},
+		{
+			name:       "referential constraint deny",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateForbidDuplicates(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
+			},
+			inventory: []*handlertest.Object{{
+				Name: "foo-1",
+				Data: "bar",
+			}},
+			toReview: handlertest.NewReview("", "foo-2", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "duplicate data bar",
+				Constraint:        cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
+				EnforcementAction: "deny",
+			}},
+		},
 	}
 
 	for _, tt := range tests {
@@ -347,6 +387,13 @@ func TestClient_Review(t *testing.T) {
 
 			for _, constraint := range tt.constraints {
 				_, err := c.AddConstraint(ctx, constraint)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			for _, obj := range tt.inventory {
+				_, err := c.AddData(ctx, obj)
 				if err != nil {
 					t.Fatal(err)
 				}

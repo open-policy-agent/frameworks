@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	KindAllow        = "Allow"
-	KindDeny         = "Deny"
-	KindDenyPrint    = "DenyPrint"
-	KindDenyImport   = "DenyImport"
-	KindCheckData    = "CheckData"
-	KindRuntimeError = "RuntimeError"
+	KindAllow            = "Allow"
+	KindDeny             = "Deny"
+	KindDenyPrint        = "DenyPrint"
+	KindDenyImport       = "DenyImport"
+	KindCheckData        = "CheckData"
+	KindRuntimeError     = "RuntimeError"
+	KindForbidDuplicates = "ForbidDuplicates"
 )
 
 // ModuleAllow defines a Rego package which allows all objects it reviews.
@@ -229,6 +230,36 @@ func TemplateRuntimeError() *templates.ConstraintTemplate {
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
 		Rego:   moduleRuntimeError,
+	}}
+
+	return ct
+}
+
+const moduleForbidDuplicates = `
+package foo
+
+violation[{"msg": msg}] {
+  obj := data.inventory.cluster[_]
+  gotData := input.review.object.data
+  gotData == obj.data
+  msg := sprintf("duplicate data %v", [gotData])
+}
+`
+
+func TemplateForbidDuplicates() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("forbidduplicates")
+	ct.Spec.CRD.Spec.Names.Kind = KindForbidDuplicates
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Rego:   moduleForbidDuplicates,
 	}}
 
 	return ct
