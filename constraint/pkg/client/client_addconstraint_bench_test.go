@@ -12,10 +12,11 @@ import (
 )
 
 func BenchmarkClient_AddConstraint(b *testing.B) {
+	ctx := context.Background()
 	c := clienttest.New(b)
 
 	for i := 0; i < 10; i++ {
-		_, err := c.AddTemplate(clienttest.TemplateCheckDataNumbered(i))
+		_, err := c.AddTemplate(ctx, clienttest.TemplateCheckDataNumbered(i))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -42,6 +43,7 @@ func BenchmarkClient_AddConstraint(b *testing.B) {
 // Run with --race to ensure locking is correct for concurrent calls to
 // AddConstraint.
 func BenchmarkClient_AddConstraint_Parallel(b *testing.B) {
+	ctx := context.Background()
 	c := clienttest.New(b)
 
 	nTemplates := []int{1, 10}
@@ -51,7 +53,7 @@ func BenchmarkClient_AddConstraint_Parallel(b *testing.B) {
 			// Distribute Constraints randomly across Templates to allow for parallel
 			// modifications.
 			for i := 0; i < n; i++ {
-				_, err := c.AddTemplate(clienttest.TemplateCheckDataNumbered(i))
+				_, err := c.AddTemplate(ctx, clienttest.TemplateCheckDataNumbered(i))
 				if err != nil {
 					b.Fatal(err)
 				}

@@ -96,7 +96,7 @@ func (d *driver) DeleteModule(name string) (bool, error) {
 }
 
 // AddTemplate implements drivers.Driver.
-func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
+func (d *driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 

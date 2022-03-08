@@ -24,7 +24,7 @@ violation[response] {
   }
 
   # Run the Template with Constraint.
-  data.templates[key.kind].violation[r] with input as inp
+  data.templates[key.kind].violation[r] with input as inp with data.inventory as data[input.target].inventory
 
   # Construct the response, defaulting "details" to empty object if it is not
   # specified.

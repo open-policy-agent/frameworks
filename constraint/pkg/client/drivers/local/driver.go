@@ -60,7 +60,15 @@ type Driver struct {
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
 // use in queries.
-func (d *Driver) AddTemplate(templ *templates.ConstraintTemplate) error {
+func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
+	for _, target := range templ.Spec.Targets {
+		fmt.Println(target.Target)
+		err := d.ensureInventoryExists(ctx, target.Target)
+		if err != nil {
+			return err
+		}
+	}
+
 	return d.compilers.addTemplate(templ, d.printEnabled)
 }
 
@@ -249,7 +257,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		// Parse input into an ast.Value to avoid round-tripping through JSON when
 		// possible.
-		parsedInput, err := toParsedInput(kindConstraints, reviewMap)
+		parsedInput, err := toParsedInput(target, kindConstraints, reviewMap)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -421,12 +429,13 @@ func toConstraintsByKind(constraints []*unstructured.Unstructured) map[string][]
 	return constraintsByKind
 }
 
-func toParsedInput(constraints []*unstructured.Unstructured, review map[string]interface{}) (ast.Value, error) {
+func toParsedInput(target string, constraints []*unstructured.Unstructured, review map[string]interface{}) (ast.Value, error) {
 	// Store constraint keys in a format InterfaceToValue does not need to
 	// round-trip through JSON.
 	constraintKeys := toKeySlice(constraints)
 
 	input := map[string]interface{}{
+		"target":      target,
 		"constraints": constraintKeys,
 		"review":      review,
 	}
@@ -434,4 +443,38 @@ func toParsedInput(constraints []*unstructured.Unstructured, review map[string]i
 	// Parse input into an ast.Value to avoid round-tripping through JSON when
 	// possible.
 	return ast.InterfaceToValue(input)
+}
+
+// ensureInventoryExists creates a directory to hold data for target's
+// referential constraints, if one does not already exist. This is important,
+// so we don't need to default inventory inside Rego.
+func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error {
+	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	}
+
+	path := storage.Path{target, "inventory"}
+	_, err = d.storage.Read(ctx, txn, path)
+	switch {
+	case storage.IsNotFound(err):
+		err = storage.MakeDir(ctx, d.storage, txn, path)
+		if err != nil {
+			d.storage.Abort(ctx, txn)
+			return fmt.Errorf("%v: unable to make directory for target %q %v",
+				clienterrors.ErrWrite, target, err)
+		}
+		err = d.storage.Commit(ctx, txn)
+		if err != nil {
+			return fmt.Errorf("%v: unable to make directory for target %q %v",
+				clienterrors.ErrWrite, target, err)
+		}
+	case err != nil:
+		return fmt.Errorf("%v: unable to read directory for target %q %v",
+			clienterrors.ErrRead, target, err)
+	default:
+		d.storage.Abort(ctx, txn)
+	}
+
+	return nil
 }

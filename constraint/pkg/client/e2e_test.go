@@ -379,7 +379,7 @@ func TestClient_Review(t *testing.T) {
 			}
 
 			for _, ct := range tt.templates {
-				_, err := c.AddTemplate(ct)
+				_, err := c.AddTemplate(ctx, ct)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -420,7 +420,7 @@ func TestClient_Review_Details(t *testing.T) {
 	c := clienttest.New(t)
 
 	ct := clienttest.TemplateCheckData()
-	_, err := c.AddTemplate(ct)
+	_, err := c.AddTemplate(ctx, ct)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +517,7 @@ func TestClient_Review_Print(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(clienttest.TemplateDenyPrint())
+			_, err = c.AddTemplate(ctx, clienttest.TemplateDenyPrint())
 			if err != nil {
 				t.Fatalf("got AddTemplate: %v", err)
 			}
@@ -549,7 +549,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 	ctx := context.Background()
 	c := clienttest.New(t)
 
-	_, err := c.AddTemplate(clienttest.TemplateDeny())
+	_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -598,7 +598,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	ctx := context.Background()
 	c := clienttest.New(t)
 
-	_, err := c.AddTemplate(clienttest.TemplateDeny())
+	_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +663,7 @@ func TestE2E_Tracing(t *testing.T) {
 			ctx := context.Background()
 			c := clienttest.New(t)
 
-			_, err := c.AddTemplate(clienttest.TemplateDeny())
+			_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
 			if err != nil {
 				t.Fatal(err)
 			}

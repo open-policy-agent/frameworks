@@ -1,6 +1,7 @@
 package client_test
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -72,6 +73,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			for _, n := range []int{1, 2, 5, 10, 20, 50, 100, 200} {
 				b.Run(fmt.Sprintf("%d Templates", n), func(b *testing.B) {
+					ctx := context.Background()
 					cts := make([]*templates.ConstraintTemplate, n)
 					for i := range cts {
 						cts[i] = makeConstraintTemplate(i, tc.makeModule)
@@ -85,7 +87,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 						b.StartTimer()
 
 						for _, ct := range cts {
-							_, err := c.AddTemplate(ct)
+							_, err := c.AddTemplate(ctx, ct)
 							if err != nil {
 								b.Fatal(err)
 							}
@@ -112,6 +114,7 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
 
+						ctx := context.Background()
 						c := clienttest.New(b)
 
 						b.StartTimer()
@@ -132,7 +135,7 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 								// goroutine.
 								ct := ct
 								go func() {
-									_, err := c.AddTemplate(ct)
+									_, err := c.AddTemplate(ctx, ct)
 									if err != nil {
 										// Notify errChan so we can stop the test.
 										// Errors should never happen under these conditions.

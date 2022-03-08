@@ -68,7 +68,7 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 // AddTemplate adds the template source code to OPA and registers the CRD with the client for
 // schema validation on calls to AddConstraint. On error, the responses return value
 // will still be populated so that partial results can be analyzed.
-func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Responses, error) {
+func (c *Client) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) (*types.Responses, error) {
 	resp := types.NewResponses()
 
 	c.mtx.Lock()
@@ -135,7 +135,7 @@ func (c *Client) AddTemplate(templ *templates.ConstraintTemplate) (*types.Respon
 		return resp, err
 	}
 
-	if err := c.driver.AddTemplate(templ); err != nil {
+	if err := c.driver.AddTemplate(ctx, templ); err != nil {
 		return resp, err
 	}
 
@@ -413,7 +413,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		key = append([]string{"inventory"}, key...)
+		key = append([]string{name, "inventory"}, key...)
 
 		err = c.driver.AddData(ctx, key, processedData)
 		if err != nil {

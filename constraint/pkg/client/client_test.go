@@ -384,14 +384,14 @@ r = 5
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			if tc.before != nil {
-				_, err = c.AddTemplate(tc.before)
+				_, err = c.AddTemplate(ctx, tc.before)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			ctx := context.Background()
 			for _, constraint := range tc.beforeConstraints {
 				_, err = c.AddConstraint(ctx, constraint)
 				if err != nil {
@@ -399,7 +399,7 @@ r = 5
 				}
 			}
 
-			r, err := c.AddTemplate(tc.template)
+			r, err := c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -494,13 +494,13 @@ func TestClient_RemoveTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.template)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
 			}
 
-			ctx := context.Background()
 			r, err := c.RemoveTemplate(ctx, tc.template)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
@@ -556,7 +556,8 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.template)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -565,7 +566,6 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tc.template.Name
 
-			ctx := context.Background()
 			r, err := c.RemoveTemplate(ctx, sparseTemplate)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
@@ -621,7 +621,8 @@ func TestClient_GetTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.wantTemplate)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
@@ -687,7 +688,8 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.wantTemplate)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
@@ -726,11 +728,12 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	}
 
 	templ := cts.New(cts.OptName("cascadingdelete"), cts.OptCRDNames("CascadingDelete"))
-	if _, err = c.AddTemplate(templ); err != nil {
+	ctx := context.Background()
+
+	if _, err = c.AddTemplate(ctx, templ); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
-	ctx := context.Background()
 	cst1 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete")
 	if _, err = c.AddConstraint(ctx, cst1); err != nil {
 		t.Fatalf("could not add first constraint: %v", err)
@@ -742,7 +745,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	}
 
 	template2 := cts.New(cts.OptName("stillpersists"), cts.OptCRDNames("StillPersists"))
-	if _, err = c.AddTemplate(template2); err != nil {
+	if _, err = c.AddTemplate(ctx, template2); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
@@ -941,14 +944,14 @@ func TestClient_AddConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			if tc.template != nil {
-				_, err = c.AddTemplate(tc.template)
+				_, err = c.AddTemplate(ctx, tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			ctx := context.Background()
 			r, err := c.AddConstraint(ctx, tc.constraint)
 			if !errors.Is(err, tc.wantAddConstraintError) {
 				t.Fatalf("got AddConstraint() error = %v, want %v",
@@ -1057,14 +1060,14 @@ func TestClient_RemoveConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			if tc.template != nil {
-				_, err = c.AddTemplate(tc.template)
+				_, err = c.AddTemplate(ctx, tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			ctx := context.Background()
 			if tc.constraint != nil {
 				_, err = c.AddConstraint(ctx, tc.constraint)
 				if err != nil {
@@ -1149,7 +1152,8 @@ violation[{"msg": "msg"}] {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddTemplate(tc.template)
+			ctx := context.Background()
+			r, err := c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -1393,12 +1397,13 @@ func TestClient_AddTemplate_Duplicate(t *testing.T) {
 	t1 := clienttest.TemplateCheckData()
 	t2 := clienttest.TemplateCheckData()
 
-	_, err := c.AddTemplate(t1)
+	ctx := context.Background()
+	_, err := c.AddTemplate(ctx, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = c.AddTemplate(t2)
+	_, err = c.AddTemplate(ctx, t2)
 	if err != nil {
 		t.Fatal(err)
 	}

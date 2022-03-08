@@ -81,16 +81,16 @@ func BenchmarkClient_Review(b *testing.B) {
 			for _, tt := range tests {
 				c := clienttest.New(b)
 
+				ctx := context.Background()
 				for ts := 0; ts < templates; ts++ {
 					ct := clienttest.TemplateCheckDataNumbered(ts)
 
-					_, err := c.AddTemplate(ct)
+					_, err := c.AddTemplate(ctx, ct)
 					if err != nil {
 						b.Fatal(err)
 					}
 				}
 
-				ctx := context.Background()
 				for cs := 0; cs < constraints; cs++ {
 					// Approximately evenly distribute Constraints among Templates.
 					tid := cs % templates

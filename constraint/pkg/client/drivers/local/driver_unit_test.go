@@ -95,7 +95,9 @@ violation[{"msg": "msg"}] {
 			}
 
 			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
-			gotErr := d.AddTemplate(tmpl)
+			ctx := context.Background()
+
+			gotErr := d.AddTemplate(ctx, tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
@@ -159,7 +161,9 @@ violation[{"msg": "msg"}] {
 			}
 
 			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
-			gotErr := d.AddTemplate(tmpl)
+			ctx := context.Background()
+
+			gotErr := d.AddTemplate(ctx, tmpl)
 			if !errors.Is(gotErr, tc.wantErr) {
 				t.Fatalf("got AddTemplate() error = %v, want %v", gotErr, tc.wantErr)
 			}
@@ -168,7 +172,6 @@ violation[{"msg": "msg"}] {
 				t.Errorf("driver failed to add module")
 			}
 
-			ctx := context.Background()
 			gotErr = d.RemoveTemplate(ctx, tmpl)
 			if gotErr != nil {
 				t.Errorf("err = %v; want nil", gotErr)

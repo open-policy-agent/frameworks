@@ -14,7 +14,7 @@ type Driver interface {
 	// AddTemplate compiles a Template's code to be specified by
 	// Constraints and referenced in Query. Replaces the existing Template if it
 	// already exists.
-	AddTemplate(ct *templates.ConstraintTemplate) error
+	AddTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error
 	// RemoveTemplate removes the Template from the Driver, and any Constraints.
 	// Does not return an error if the Template does not exist.
 	RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error
