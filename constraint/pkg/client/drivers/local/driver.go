@@ -62,7 +62,7 @@ type Driver struct {
 // use in queries.
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	for _, target := range templ.Spec.Targets {
-		err := d.ensureInventoryExists(ctx, target.Target)
+		err := ensureInventoryExists(ctx, d.storage, target.Target)
 		if err != nil {
 			return err
 		}
@@ -79,7 +79,7 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	d.compilers.removeTemplate(kind)
 
 	constraintParent := storage.Path{"constraint", kind}
-	return d.RemoveData(ctx, constraintParent)
+	return removeData(ctx, d.storage, constraintParent)
 }
 
 // AddConstraint adds Constraint to Rego storage. Future calls to Query will
@@ -96,7 +96,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	key := drivers.ConstraintKeyFrom(constraint)
-	return d.AddData(ctx, key.StoragePath(), params)
+	return addData(ctx, d.storage, key.StoragePath(), params)
 }
 
 // RemoveConstraint removes Constraint from Rego storage. Future calls to Query
@@ -104,80 +104,19 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 // constraint's key will silently not evaluate the Constraint.
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	key := drivers.ConstraintKeyFrom(constraint)
-	return d.RemoveData(ctx, key.StoragePath())
+	return removeData(ctx, d.storage, key.StoragePath())
 }
 
-// AddData adds data to Rego storage at path.
-func (d *Driver) AddData(ctx context.Context, path storage.Path, data interface{}) error {
-	if len(path) == 0 {
-		// Sanity-check path.
-		// This would overwrite "data", erasing all Constraints and stored objects.
-		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
-	}
-
-	// Initiate a new transaction. Since this is a write-transaction, it blocks
-	// all other reads and writes, which includes running queries. If a transaction
-	// is successfully created, all code paths must either Abort or Commit the
-	// transaction to unblock queries and other writes.
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	// We can't write to a location if its parent doesn't exist.
-	// Thus, we check to see if anything already exists at the path.
-	_, err = d.storage.Read(ctx, txn, path)
-	if storage.IsNotFound(err) {
-		// Insert an empty object at the path's parent so its parents are
-		// recursively created.
-		parent := path[:len(path)-1]
-		err = storage.MakeDir(ctx, d.storage, txn, parent)
-		if err != nil {
-			d.storage.Abort(ctx, txn)
-			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
-		}
-	} else if err != nil {
-		// We weren't able to read from storage - something serious is likely wrong.
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
-	}
-
-	err = d.storage.Write(ctx, txn, storage.AddOp, path, data)
-	if err != nil {
-		d.storage.Abort(ctx, txn)
-		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
-	}
-
-	err = d.storage.Commit(ctx, txn)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	return nil
+// AddData adds data to Rego storage at data.inventory.path.
+func (d *Driver) AddData(ctx context.Context, target string, path storage.Path, data interface{}) error {
+	path = inventoryPath(target, path...)
+	return addData(ctx, d.storage, path, data)
 }
 
-// RemoveData deletes data from OPA.
-func (d *Driver) RemoveData(ctx context.Context, key storage.Path) error {
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	err = d.storage.Write(ctx, txn, storage.RemoveOp, key, interface{}(nil))
-	if err != nil {
-		d.storage.Abort(ctx, txn)
-		if storage.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("%w: unable to remove data: %v", clienterrors.ErrWrite, err)
-	}
-
-	err = d.storage.Commit(ctx, txn)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	return nil
+// RemoveData deletes data from Rego storage at data.inventory.path.
+func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Path) error {
+	path = inventoryPath(target, path...)
+	return removeData(ctx, d.storage, path)
 }
 
 // eval runs a query against compiler.
@@ -444,26 +383,102 @@ func toParsedInput(target string, constraints []*unstructured.Unstructured, revi
 	return ast.InterfaceToValue(input)
 }
 
-// ensureInventoryExists creates a directory to hold data for target's
-// referential constraints, if one does not already exist. This is important,
-// so we don't need to default inventory inside Rego.
-func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error {
-	txn, err := d.storage.NewTransaction(ctx, storage.WriteParams)
+func inventoryPath(target string, path ...string) storage.Path {
+	return append([]string{"inventory", target}, path...)
+}
+
+func addData(ctx context.Context, store storage.Store, path storage.Path, data interface{}) error {
+	if len(path) == 0 {
+		// Sanity-check path.
+		// This would overwrite "data", erasing all Constraints and stored objects.
+		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
+	}
+
+	// Initiate a new transaction. Since this is a write-transaction, it blocks
+	// all other reads and writes, which includes running queries. If a transaction
+	// is successfully created, all code paths must either Abort or Commit the
+	// transaction to unblock queries and other writes.
+	txn, err := store.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	path := storage.Path{"inventory", target}
-	_, err = d.storage.Read(ctx, txn, path)
+	// We can't write to a location if its parent doesn't exist.
+	// Thus, we check to see if anything already exists at the path.
+	_, err = store.Read(ctx, txn, path)
+	if storage.IsNotFound(err) {
+		// Insert an empty object at the path's parent so its parents are
+		// recursively created.
+		parent := path[:len(path)-1]
+		err = storage.MakeDir(ctx, store, txn, parent)
+		if err != nil {
+			store.Abort(ctx, txn)
+			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
+		}
+	} else if err != nil {
+		// We weren't able to read from storage - something serious is likely wrong.
+		store.Abort(ctx, txn)
+		return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
+	}
+
+	err = store.Write(ctx, txn, storage.AddOp, path, data)
+	if err != nil {
+		store.Abort(ctx, txn)
+		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
+	}
+
+	err = store.Commit(ctx, txn)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	}
+
+	return nil
+}
+
+func removeData(ctx context.Context, store storage.Store, path storage.Path) error {
+	txn, err := store.NewTransaction(ctx, storage.WriteParams)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	}
+
+	err = store.Write(ctx, txn, storage.RemoveOp, path, interface{}(nil))
+	if err != nil {
+		store.Abort(ctx, txn)
+		if storage.IsNotFound(err) {
+			return nil
+		}
+		fmt.Println(err)
+		return fmt.Errorf("%w: unable to remove data: %v", clienterrors.ErrWrite, err)
+	}
+
+	err = store.Commit(ctx, txn)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	}
+
+	return nil
+}
+
+// ensureInventoryExists creates a directory to hold data for target's
+// referential constraints, if one does not already exist. This is important,
+// so we don't need to default inventory inside Rego.
+func ensureInventoryExists(ctx context.Context, store storage.Store, target string) error {
+	txn, err := store.NewTransaction(ctx, storage.WriteParams)
+	if err != nil {
+		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+	}
+
+	path := inventoryPath(target)
+	_, err = store.Read(ctx, txn, path)
 	switch {
 	case storage.IsNotFound(err):
-		err = storage.MakeDir(ctx, d.storage, txn, path)
+		err = storage.MakeDir(ctx, store, txn, path)
 		if err != nil {
-			d.storage.Abort(ctx, txn)
+			store.Abort(ctx, txn)
 			return fmt.Errorf("%v: unable to make directory for target %q %v",
 				clienterrors.ErrWrite, target, err)
 		}
-		err = d.storage.Commit(ctx, txn)
+		err = store.Commit(ctx, txn)
 		if err != nil {
 			return fmt.Errorf("%v: unable to make directory for target %q %v",
 				clienterrors.ErrWrite, target, err)
@@ -472,7 +487,7 @@ func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error
 		return fmt.Errorf("%v: unable to read directory for target %q %v",
 			clienterrors.ErrRead, target, err)
 	default:
-		d.storage.Abort(ctx, txn)
+		store.Abort(ctx, txn)
 	}
 
 	return nil

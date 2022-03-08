@@ -408,11 +408,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			}
 		}
 
-		// paths passed to driver must be specific to the target to prevent key
-		// collisions.
-		key = append([]string{"inventory", name}, key...)
-
-		err = c.driver.AddData(ctx, key, processedData)
+		err = c.driver.AddData(ctx, name, key, processedData)
 		if err != nil {
 			errMap[name] = err
 
@@ -449,8 +445,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 			continue
 		}
 
-		targetPath := append([]string{target}, relPath...)
-		err = c.driver.RemoveData(ctx, targetPath)
+		err = c.driver.RemoveData(ctx, target, relPath)
 		if err != nil {
 			errMap[target] = err
 			continue

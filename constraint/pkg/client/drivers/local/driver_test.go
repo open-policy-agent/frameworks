@@ -78,7 +78,7 @@ func TestPutData(t *testing.T) {
 			compiler.Compile(nil)
 
 			for _, d := range tt.Data {
-				err := driver.AddData(ctx, d.path, d.value)
+				err := driver.AddData(ctx, "foo", d.path, d.value)
 				if (err == nil) && tt.ErrorExpected {
 					t.Fatalf("err = nil; want non-nil")
 				}
@@ -86,7 +86,7 @@ func TestPutData(t *testing.T) {
 					t.Fatalf("err = \"%s\"; want nil", err)
 				}
 
-				res, _, err := driver.eval(ctx, compiler, d.path, nil)
+				res, _, err := driver.eval(ctx, compiler, append([]string{"inventory", "foo"}, d.path...), nil)
 				if err != nil {
 					t.Fatalf("Eval error: %s", err)
 				}

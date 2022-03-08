@@ -260,13 +260,13 @@ func TestDriver_PutData(t *testing.T) {
 			}
 
 			if tc.beforeValue != nil {
-				err := d.AddData(ctx, tc.beforePath, tc.beforeValue)
+				err := d.AddData(ctx, "foo", tc.beforePath, tc.beforeValue)
 				if err != nil {
 					t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 				}
 			}
 
-			err = d.AddData(ctx, tc.path, tc.value)
+			err = d.AddData(ctx, "foo", tc.path, tc.value)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got PutData() error = %v, want %v",
 					err, tc.wantErr)
@@ -353,7 +353,7 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 
 			path := []string{"foo"}
 			value := map[string]string{"bar": "qux"}
-			err = d.AddData(ctx, path, value)
+			err = d.AddData(ctx, "foo", path, value)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got PutData() error = %v, want %v", err, tc.wantErr)
@@ -411,12 +411,12 @@ func TestDriver_DeleteData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err = d.AddData(ctx, tc.beforePath, tc.beforeValue)
+			err = d.AddData(ctx, "foo", tc.beforePath, tc.beforeValue)
 			if err != nil {
 				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
 			}
 
-			err = d.RemoveData(ctx, tc.path)
+			err = d.RemoveData(ctx, "foo", tc.path)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got DeleteData() error = %v, want %v", err, tc.wantErr)
 			}
@@ -498,7 +498,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 			}
 
 			path := []string{"foo"}
-			err = d.RemoveData(ctx, path)
+			err = d.RemoveData(ctx, "foo", path)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)
