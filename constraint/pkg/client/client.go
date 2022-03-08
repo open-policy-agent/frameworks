@@ -54,9 +54,6 @@ func (c *Client) CreateCRD(templ *templates.ConstraintTemplate) (*apiextensions.
 		return nil, err
 	}
 
-	c.mtx.RLock()
-	defer c.mtx.RUnlock()
-
 	target, err := c.getTargetHandler(templ)
 	if err != nil {
 		return nil, err
