@@ -453,7 +453,7 @@ func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	path := storage.Path{target, "inventory"}
+	path := storage.Path{"inventory", target}
 	_, err = d.storage.Read(ctx, txn, path)
 	switch {
 	case storage.IsNotFound(err):

@@ -410,7 +410,7 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 		// paths passed to driver must be specific to the target to prevent key
 		// collisions.
-		key = append([]string{name, "inventory"}, key...)
+		key = append([]string{"inventory", name}, key...)
 
 		err = c.driver.AddData(ctx, key, processedData)
 		if err != nil {
