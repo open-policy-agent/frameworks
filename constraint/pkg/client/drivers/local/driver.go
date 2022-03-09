@@ -109,13 +109,13 @@ func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 // AddData adds data to Rego storage at data.inventory.path.
 func (d *Driver) AddData(ctx context.Context, target string, path storage.Path, data interface{}) error {
-	path = inventoryPath(target, path...)
+	path = inventoryPath(target, path)
 	return addData(ctx, d.storage, path, data)
 }
 
 // RemoveData deletes data from Rego storage at data.inventory.path.
 func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Path) error {
-	path = inventoryPath(target, path...)
+	path = inventoryPath(target, path)
 	return removeData(ctx, d.storage, path)
 }
 
@@ -383,11 +383,12 @@ func toParsedInput(target string, constraints []*unstructured.Unstructured, revi
 	return ast.InterfaceToValue(input)
 }
 
-func inventoryPath(target string, path ...string) storage.Path {
-	return append([]string{"inventory", target}, path...)
+func inventoryPath(target string, path []string) storage.Path {
+	return append([]string{"external", target}, path...)
 }
 
 func addData(ctx context.Context, store storage.Store, path storage.Path, data interface{}) error {
+	fmt.Println(path.String())
 	if len(path) == 0 {
 		// Sanity-check path.
 		// This would overwrite "data", erasing all Constraints and stored objects.
@@ -468,7 +469,7 @@ func ensureInventoryExists(ctx context.Context, store storage.Store, target stri
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	path := inventoryPath(target)
+	path := inventoryPath(target, nil)
 	_, err = store.Read(ctx, txn, path)
 	switch {
 	case storage.IsNotFound(err):

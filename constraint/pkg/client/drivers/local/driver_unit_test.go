@@ -12,6 +12,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
@@ -187,7 +188,7 @@ violation[{"msg": "msg"}] {
 	}
 }
 
-func TestDriver_PutData(t *testing.T) {
+func TestDriver_AddData(t *testing.T) {
 	testCases := []struct {
 		name        string
 		beforePath  []string
@@ -198,11 +199,11 @@ func TestDriver_PutData(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name:  "root path",
+			name:  "valid to overwrite root inventory",
 			path:  []string{},
 			value: map[string]interface{}{},
 
-			wantErr: clienterrors.ErrPathInvalid,
+			wantErr: nil,
 		},
 		{
 			name:  "valid write",
@@ -260,15 +261,15 @@ func TestDriver_PutData(t *testing.T) {
 			}
 
 			if tc.beforeValue != nil {
-				err := d.AddData(ctx, "foo", tc.beforePath, tc.beforeValue)
+				err := d.AddData(ctx, handlertest.TargetName, tc.beforePath, tc.beforeValue)
 				if err != nil {
-					t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
+					t.Fatalf("got setup AddData() error = %v, want %v", err, nil)
 				}
 			}
 
-			err = d.AddData(ctx, "foo", tc.path, tc.value)
+			err = d.AddData(ctx, handlertest.TargetName, tc.path, tc.value)
 			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("got PutData() error = %v, want %v",
+				t.Fatalf("got AddData() error = %v, want %v",
 					err, tc.wantErr)
 			}
 
@@ -291,7 +292,7 @@ func TestDriver_PutData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			gotValue, err := s.Read(ctx, txn, wantPath)
+			gotValue, err := s.Read(ctx, txn, inventoryPath(handlertest.TargetName, wantPath))
 			if err != nil {
 				t.Fatalf("got fakeStorage.Read() error = %v, want %v", err, nil)
 			}
@@ -308,7 +309,7 @@ func TestDriver_PutData(t *testing.T) {
 	}
 }
 
-func TestDriver_PutData_StorageErrors(t *testing.T) {
+func TestDriver_AddData_StorageErrors(t *testing.T) {
 	testCases := []struct {
 		name    string
 		storage storage.Store
@@ -353,16 +354,16 @@ func TestDriver_PutData_StorageErrors(t *testing.T) {
 
 			path := []string{"foo"}
 			value := map[string]string{"bar": "qux"}
-			err = d.AddData(ctx, "foo", path, value)
+			err = d.AddData(ctx, handlertest.TargetName, path, value)
 
 			if !errors.Is(err, tc.wantErr) {
-				t.Errorf("got PutData() error = %v, want %v", err, tc.wantErr)
+				t.Errorf("got AddData() error = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}
 }
 
-func TestDriver_DeleteData(t *testing.T) {
+func TestDriver_RemoveData(t *testing.T) {
 	testCases := []struct {
 		name        string
 		beforePath  []string
@@ -373,13 +374,13 @@ func TestDriver_DeleteData(t *testing.T) {
 		wantErr     error
 	}{
 		{
-			name:        "cannot delete root",
+			name:        "can delete inventory root",
 			beforePath:  []string{"foo"},
 			beforeValue: "bar",
 			path:        []string{},
 
-			wantDeleted: false,
-			wantErr:     clienterrors.ErrWrite,
+			wantDeleted: true,
+			wantErr:     nil,
 		},
 		{
 			name:        "success",
@@ -411,14 +412,14 @@ func TestDriver_DeleteData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err = d.AddData(ctx, "foo", tc.beforePath, tc.beforeValue)
+			err = d.AddData(ctx, handlertest.TargetName, tc.beforePath, tc.beforeValue)
 			if err != nil {
-				t.Fatalf("got setup PutData() error = %v, want %v", err, nil)
+				t.Fatalf("got setup AddData() error = %v, want %v", err, nil)
 			}
 
-			err = d.RemoveData(ctx, "foo", tc.path)
+			err = d.RemoveData(ctx, handlertest.TargetName, tc.path)
 			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("got DeleteData() error = %v, want %v", err, tc.wantErr)
+				t.Fatalf("got RemoveData() error = %v, want %v", err, tc.wantErr)
 			}
 
 			var wantValue interface{}
@@ -431,7 +432,7 @@ func TestDriver_DeleteData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			gotValue, err := s.Read(ctx, txn, tc.beforePath)
+			gotValue, err := s.Read(ctx, txn, inventoryPath(handlertest.TargetName, tc.beforePath))
 			if tc.wantDeleted {
 				if !storage.IsNotFound(err) {
 					t.Fatalf("got err %v, want not found", err)
@@ -455,7 +456,7 @@ func TestDriver_DeleteData(t *testing.T) {
 	}
 }
 
-func TestDriver_DeleteData_StorageErrors(t *testing.T) {
+func TestDriver_RemoveData_StorageErrors(t *testing.T) {
 	testCases := []struct {
 		name    string
 		storage storage.Store
@@ -481,7 +482,7 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 			name: "commit error",
 			storage: &commitErrorStorage{
 				fakeStorage: fakeStorage{values: map[string]interface{}{
-					"/foo": "bar",
+					"/external/test.target/foo": "bar",
 				}},
 			},
 			wantErr: clienterrors.ErrTransaction,
@@ -498,10 +499,10 @@ func TestDriver_DeleteData_StorageErrors(t *testing.T) {
 			}
 
 			path := []string{"foo"}
-			err = d.RemoveData(ctx, "foo", path)
+			err = d.RemoveData(ctx, handlertest.TargetName, path)
 
 			if !errors.Is(err, tc.wantErr) {
-				t.Errorf("got DeleteData() error = %v, want %v", err, tc.wantErr)
+				t.Errorf("got RemoveData() error = %v, want %v", err, tc.wantErr)
 			}
 		})
 	}

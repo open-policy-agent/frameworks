@@ -113,13 +113,13 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) AddData(_ context.Context, path storage.Path, data interface{}) error {
+func (d *driver) AddData(_ context.Context, target string, path storage.Path, data interface{}) error {
 	return d.opa.PutData(path.String(), data)
 }
 
 // RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) RemoveData(_ context.Context, path storage.Path) error {
+func (d *driver) RemoveData(_ context.Context, target string, path storage.Path) error {
 	err := d.opa.DeleteData(path.String())
 	if err != nil {
 		e := &Error{}
