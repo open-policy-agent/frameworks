@@ -255,7 +255,7 @@ func TestDriver_AddData(t *testing.T) {
 			ctx := context.Background()
 
 			s := inmem.New()
-			d, err := New(Storage(s))
+			d, err := New(Storage(map[string]storage.Store{handlertest.TargetName: s}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -292,7 +292,7 @@ func TestDriver_AddData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			gotValue, err := s.Read(ctx, txn, inventoryPath(handlertest.TargetName, wantPath))
+			gotValue, err := s.Read(ctx, txn, inventoryPath(wantPath))
 			if err != nil {
 				t.Fatalf("got fakeStorage.Read() error = %v, want %v", err, nil)
 			}
@@ -347,7 +347,7 @@ func TestDriver_AddData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d, err := New(Storage(tc.storage))
+			d, err := New(Storage(map[string]storage.Store{handlertest.TargetName: tc.storage}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -407,7 +407,7 @@ func TestDriver_RemoveData(t *testing.T) {
 			ctx := context.Background()
 
 			s := inmem.New()
-			d, err := New(Storage(s))
+			d, err := New(Storage(map[string]storage.Store{handlertest.TargetName: s}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -432,7 +432,7 @@ func TestDriver_RemoveData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			gotValue, err := s.Read(ctx, txn, inventoryPath(handlertest.TargetName, tc.beforePath))
+			gotValue, err := s.Read(ctx, txn, inventoryPath(tc.beforePath))
 			if tc.wantDeleted {
 				if !storage.IsNotFound(err) {
 					t.Fatalf("got err %v, want not found", err)
@@ -482,7 +482,7 @@ func TestDriver_RemoveData_StorageErrors(t *testing.T) {
 			name: "commit error",
 			storage: &commitErrorStorage{
 				fakeStorage: fakeStorage{values: map[string]interface{}{
-					"/external/test.target/foo": "bar",
+					"/external/foo": "bar",
 				}},
 			},
 			wantErr: clienterrors.ErrTransaction,
@@ -493,7 +493,7 @@ func TestDriver_RemoveData_StorageErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			d, err := New(Storage(tc.storage))
+			d, err := New(Storage(map[string]storage.Store{handlertest.TargetName: tc.storage}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -700,6 +700,12 @@ func TestDriver_AddConstraint(t *testing.T) {
 			}
 
 			ctx := context.Background()
+			beforeTemplate := cts.New(cts.OptName("foo"), cts.OptCRDNames("Foo"))
+			err = d.AddTemplate(ctx, beforeTemplate)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			if tt.beforeConstraint != nil {
 				err = d.AddConstraint(ctx, tt.beforeConstraint)
 				if err != nil {
@@ -724,7 +730,7 @@ func TestDriver_AddConstraint(t *testing.T) {
 
 			key := fmt.Sprintf("%s[%q]", tt.constraint.GetKind(), tt.constraint.GetName())
 
-			result, _, err := d.eval(ctx, compiler, []string{"constraints", key}, nil)
+			result, _, err := d.eval(ctx, compiler, handlertest.TargetName, []string{"constraints", key}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -747,7 +753,7 @@ func TestDriver_AddConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			result2, _, err := d.eval(ctx, compiler, []string{"constraints", key}, nil)
+			result2, _, err := d.eval(ctx, compiler, handlertest.TargetName, []string{"constraints", key}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

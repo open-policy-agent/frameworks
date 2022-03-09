@@ -7,7 +7,6 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/topdown/print"
 	opatypes "github.com/open-policy-agent/opa/types"
 )
@@ -17,7 +16,7 @@ type Arg func(*Driver) error
 func Defaults() Arg {
 	return func(d *Driver) error {
 		if d.storage == nil {
-			d.storage = inmem.New()
+			d.storage = make(map[string]storage.Store)
 		}
 
 		if d.compilers.capabilities == nil {
@@ -28,6 +27,10 @@ func Defaults() Arg {
 			for allowed := range validDataFields {
 				d.compilers.externs = append(d.compilers.externs, fmt.Sprintf("data.%s", allowed))
 			}
+		}
+
+		if d.targets == nil {
+			d.targets = make(map[string][]string)
 		}
 
 		// adding external_data builtin otherwise capabilities get overridden
@@ -68,7 +71,7 @@ func PrintHook(hook print.Hook) Arg {
 	}
 }
 
-func Storage(s storage.Store) Arg {
+func Storage(s map[string]storage.Store) Arg {
 	return func(d *Driver) error {
 		d.storage = s
 

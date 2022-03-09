@@ -86,7 +86,7 @@ func TestPutData(t *testing.T) {
 					t.Fatalf("err = \"%s\"; want nil", err)
 				}
 
-				res, _, err := driver.eval(ctx, compiler, inventoryPath("foo", d.path), nil)
+				res, _, err := driver.eval(ctx, compiler, "foo", inventoryPath(d.path), nil)
 				if err != nil {
 					t.Fatalf("Eval error: %s", err)
 				}

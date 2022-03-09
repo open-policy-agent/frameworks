@@ -17,6 +17,7 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
+	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,7 +42,9 @@ type Driver struct {
 	// storage internally uses mutexes to guard reads and writes during
 	// transactions and queries, so we don't need to explicitly guard this with
 	// a Mutex.
-	storage storage.Store
+	storage map[string]storage.Store
+
+	targets map[string][]string
 
 	// traceEnabled is whether tracing is enabled for Rego queries by default.
 	// If enabled, individual queries cannot disable tracing.
@@ -61,12 +64,17 @@ type Driver struct {
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
 // use in queries.
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
+	var targets []string
 	for _, target := range templ.Spec.Targets {
-		err := ensureInventoryExists(ctx, d.storage, target.Target)
+		err := d.ensureInventoryExists(ctx, target.Target)
 		if err != nil {
 			return err
 		}
+		targets = append(targets, target.Target)
 	}
+
+	kind := templ.Spec.CRD.Spec.Names.Kind
+	d.targets[kind] = targets
 
 	return d.compilers.addTemplate(templ, d.printEnabled)
 }
@@ -79,7 +87,15 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	d.compilers.removeTemplate(kind)
 
 	constraintParent := storage.Path{"constraint", kind}
-	return removeData(ctx, d.storage, constraintParent)
+
+	for target := range d.storage {
+		err := d.removeData(ctx, target, constraintParent)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // AddConstraint adds Constraint to Rego storage. Future calls to Query will
@@ -96,7 +112,14 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	key := drivers.ConstraintKeyFrom(constraint)
-	return addData(ctx, d.storage, key.StoragePath(), params)
+	for _, target := range d.targets[key.Kind] {
+		err := d.addData(ctx, target, key.StoragePath(), params)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // RemoveConstraint removes Constraint from Rego storage. Future calls to Query
@@ -104,19 +127,27 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 // constraint's key will silently not evaluate the Constraint.
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	key := drivers.ConstraintKeyFrom(constraint)
-	return removeData(ctx, d.storage, key.StoragePath())
+
+	for _, target := range d.targets[constraint.GetKind()] {
+		err := d.removeData(ctx, target, key.StoragePath())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // AddData adds data to Rego storage at data.inventory.path.
 func (d *Driver) AddData(ctx context.Context, target string, path storage.Path, data interface{}) error {
-	path = inventoryPath(target, path)
-	return addData(ctx, d.storage, path, data)
+	path = inventoryPath(path)
+	return d.addData(ctx, target, path, data)
 }
 
 // RemoveData deletes data from Rego storage at data.inventory.path.
 func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Path) error {
-	path = inventoryPath(target, path)
-	return removeData(ctx, d.storage, path)
+	path = inventoryPath(path)
+	return d.removeData(ctx, target, path)
 }
 
 // eval runs a query against compiler.
@@ -124,7 +155,7 @@ func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Pat
 // input is the already-parsed Rego Value to use as input.
 // Returns the Rego results, the trace if requested, or an error if there was
 // a problem executing the query.
-func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string, input ast.Value, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
+func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string, path []string, input ast.Value, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -139,7 +170,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, path []string
 
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
-		rego.Store(d.storage),
+		rego.Store(d.storage[target]),
 		rego.ParsedInput(input),
 		rego.Query(queryPath.String()),
 		rego.EnablePrintStatements(d.printEnabled),
@@ -200,7 +231,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			return nil, nil, err
 		}
 
-		resultSet, trace, err := d.eval(ctx, compiler, path, parsedInput, opts...)
+		resultSet, trace, err := d.eval(ctx, compiler, target, path, parsedInput, opts...)
 		if err != nil {
 			resultSet = make(rego.ResultSet, 0, len(kindConstraints))
 			for _, constraint := range kindConstraints {
@@ -245,7 +276,7 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 		targetData := make(map[string]rego.ResultSet)
 
 		for kind, compiler := range targetCompilers {
-			rs, _, err := d.eval(ctx, compiler, []string{"data"}, nil)
+			rs, _, err := d.eval(ctx, compiler, targetName, []string{"data"}, nil)
 			if err != nil {
 				return "", err
 			}
@@ -375,15 +406,24 @@ func toParsedInput(target string, constraints []*unstructured.Unstructured, revi
 	return ast.InterfaceToValue(input)
 }
 
-func inventoryPath(target string, path []string) storage.Path {
-	return append([]string{"external", target}, path...)
+func inventoryPath(path []string) storage.Path {
+	return append([]string{"external"}, path...)
 }
 
-func addData(ctx context.Context, store storage.Store, path storage.Path, data interface{}) error {
+func (d *Driver) addData(ctx context.Context, target string, path storage.Path, data interface{}) error {
 	if len(path) == 0 {
 		// Sanity-check path.
 		// This would overwrite "data", erasing all Constraints and stored objects.
 		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
+	}
+
+	store, found := d.storage[target]
+	if !found {
+		err := d.ensureInventoryExists(ctx, target)
+		if err != nil {
+			return err
+		}
+		store = d.storage[target]
 	}
 
 	// Initiate a new transaction. Since this is a write-transaction, it blocks
@@ -427,7 +467,12 @@ func addData(ctx context.Context, store storage.Store, path storage.Path, data i
 	return nil
 }
 
-func removeData(ctx context.Context, store storage.Store, path storage.Path) error {
+func (d *Driver) removeData(ctx context.Context, target string, path storage.Path) error {
+	store, found := d.storage[target]
+	if !found {
+		return nil
+	}
+
 	txn, err := store.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
@@ -453,13 +498,21 @@ func removeData(ctx context.Context, store storage.Store, path storage.Path) err
 // ensureInventoryExists creates a directory to hold data for target's
 // referential constraints, if one does not already exist. This is important,
 // so we don't need to default inventory inside Rego.
-func ensureInventoryExists(ctx context.Context, store storage.Store, target string) error {
+func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error {
+	store, found := d.storage[target]
+	if found {
+		return nil
+	}
+
+	store = inmem.New()
+	d.storage[target] = store
+
 	txn, err := store.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
 		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
-	path := inventoryPath(target, nil)
+	path := inventoryPath(nil)
 	_, err = store.Read(ctx, txn, path)
 	switch {
 	case storage.IsNotFound(err):
