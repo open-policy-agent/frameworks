@@ -272,32 +272,24 @@ func templateLibPrefix(name string) string {
 	return fmt.Sprintf("libs.%s", name)
 }
 
-// createTemplatePath returns the package path for a given template: templates[<name>].
-func createTemplatePath(name string) string {
-	return fmt.Sprintf(`templates[%q]`, name)
-}
-
 // parseModule parses the module and also fails empty modules.
-func parseModule(path, rego string) (*ast.Module, error) {
-	module, err := ast.ParseModule(path, rego)
+func parseModule(rego string) (*ast.Module, error) {
+	module, err := ast.ParseModule(templatePath, rego)
 	if err != nil {
 		return nil, err
 	}
 
 	if module == nil {
 		return nil, fmt.Errorf("%w: module %q is empty",
-			clienterrors.ErrInvalidModule, path)
+			clienterrors.ErrInvalidModule, templatePath)
 	}
 
 	return module, nil
 }
 
 // rewriteModulePackage rewrites the module's package path to path.
-func rewriteModulePackage(path string, module *ast.Module) error {
-	pathParts, err := ast.ParseRef(path)
-	if err != nil {
-		return err
-	}
+func rewriteModulePackage(module *ast.Module) error {
+	pathParts := ast.Ref([]*ast.Term{ast.VarTerm(templatePath)})
 
 	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
 	newPath := packageRef.Extend(pathParts)

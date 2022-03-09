@@ -207,7 +207,7 @@ func TestClient_Review(t *testing.T) {
 			toReview: handlertest.NewReview("", "foo", "qux"),
 			wantResults: []*types.Result{{
 				Target:            handlertest.TargetName,
-				Msg:               `templates["RuntimeError"]0:7: eval_conflict_error: functions must not produce multiple outputs for same inputs`,
+				Msg:               `template0:7: eval_conflict_error: functions must not produce multiple outputs for same inputs`,
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindRuntimeError, "constraint"),
 			}},

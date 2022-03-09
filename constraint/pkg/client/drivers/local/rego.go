@@ -1,6 +1,10 @@
 package local
 
 const (
+	// templatePath is the path the Template's Rego code is stored.
+	// Must match the "data.xxx.violation[r]" path in hookModule.
+	templatePath = "template"
+
 	// hookModulePath.
 	hookModulePath = "hooks.hooks_builtin"
 
@@ -24,7 +28,7 @@ violation[response] {
   }
 
   # Run the Template with Constraint.
-  data.templates[key.kind].violation[r] with input as inp with data.inventory as data.external[input.target]
+  data.template.violation[r] with input as inp with data.inventory as data.external[input.target]
 
   # Construct the response, defaulting "details" to empty object if it is not
   # specified.
