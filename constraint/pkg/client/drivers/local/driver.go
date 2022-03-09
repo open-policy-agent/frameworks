@@ -48,6 +48,7 @@ type Driver struct {
 	// Stores with mutexes.
 	storage map[string]storage.Store
 
+	// targets is a map from each Template's kind to the targets for that Template.
 	targets map[string][]string
 
 	// traceEnabled is whether tracing is enabled for Rego queries by default.
