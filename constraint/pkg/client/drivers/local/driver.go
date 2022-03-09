@@ -388,7 +388,6 @@ func inventoryPath(target string, path []string) storage.Path {
 }
 
 func addData(ctx context.Context, store storage.Store, path storage.Path, data interface{}) error {
-	fmt.Println(path.String())
 	if len(path) == 0 {
 		// Sanity-check path.
 		// This would overwrite "data", erasing all Constraints and stored objects.
@@ -448,7 +447,6 @@ func removeData(ctx context.Context, store storage.Store, path storage.Path) err
 		if storage.IsNotFound(err) {
 			return nil
 		}
-		fmt.Println(err)
 		return fmt.Errorf("%w: unable to remove data: %v", clienterrors.ErrWrite, err)
 	}
 
