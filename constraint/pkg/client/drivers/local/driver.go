@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -37,11 +38,14 @@ type Driver struct {
 	// compilers is a store of Rego Compilers for each Template.
 	compilers Compilers
 
-	// storage is the Rego data store for Constraints and objects used in
-	// referential Constraints.
+	// mtx guards access to the storage and target maps.
+	mtx sync.RWMutex
+
+	// storage is a map from target name to the Rego data store for Constraints
+	// and objects used in referential Constraints.
 	// storage internally uses mutexes to guard reads and writes during
-	// transactions and queries, so we don't need to explicitly guard this with
-	// a Mutex.
+	// transactions and queries, so we don't need to explicitly guard individual
+	// Stores with mutexes.
 	storage map[string]storage.Store
 
 	targets map[string][]string
@@ -66,7 +70,7 @@ type Driver struct {
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	var targets []string
 	for _, target := range templ.Spec.Targets {
-		err := d.ensureInventoryExists(ctx, target.Target)
+		_, err := d.getStorage(ctx, target.Target)
 		if err != nil {
 			return err
 		}
@@ -74,7 +78,10 @@ func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 	}
 
 	kind := templ.Spec.CRD.Spec.Names.Kind
+
+	d.mtx.Lock()
 	d.targets[kind] = targets
+	d.mtx.Unlock()
 
 	return d.compilers.addTemplate(templ, d.printEnabled)
 }
@@ -88,6 +95,14 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 	constraintParent := storage.Path{"constraint", kind}
 
+	d.mtx.Lock()
+	delete(d.targets, kind)
+	d.mtx.Unlock()
+
+	// We aren't modifying the map, only the underlying storage objects so we
+	// don't need a write lock.
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 	for target := range d.storage {
 		err := d.removeData(ctx, target, constraintParent)
 		if err != nil {
@@ -112,7 +127,12 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	key := drivers.ConstraintKeyFrom(constraint)
-	for _, target := range d.targets[key.Kind] {
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+	targets := d.targets[key.Kind]
+
+	for _, target := range targets {
 		err := d.addData(ctx, target, key.StoragePath(), params)
 		if err != nil {
 			return err
@@ -128,7 +148,11 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
 	key := drivers.ConstraintKeyFrom(constraint)
 
-	for _, target := range d.targets[constraint.GetKind()] {
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
+	targets := d.targets[key.Kind]
+
+	for _, target := range targets {
 		err := d.removeData(ctx, target, key.StoragePath())
 		if err != nil {
 			return err
@@ -168,9 +192,11 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 		queryPath.WriteString(p)
 	}
 
+	store, err := d.getStorage(ctx, target)
+
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
-		rego.Store(d.storage[target]),
+		rego.Store(store),
 		rego.ParsedInput(input),
 		rego.Query(queryPath.String()),
 		rego.EnablePrintStatements(d.printEnabled),
@@ -417,13 +443,9 @@ func (d *Driver) addData(ctx context.Context, target string, path storage.Path, 
 		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
 	}
 
-	store, found := d.storage[target]
-	if !found {
-		err := d.ensureInventoryExists(ctx, target)
-		if err != nil {
-			return err
-		}
-		store = d.storage[target]
+	store, err := d.getStorage(ctx, target)
+	if err != nil {
+		return err
 	}
 
 	// Initiate a new transaction. Since this is a write-transaction, it blocks
@@ -468,9 +490,9 @@ func (d *Driver) addData(ctx context.Context, target string, path storage.Path, 
 }
 
 func (d *Driver) removeData(ctx context.Context, target string, path storage.Path) error {
-	store, found := d.storage[target]
-	if !found {
-		return nil
+	store, err := d.getStorage(ctx, target)
+	if err != nil {
+		return err
 	}
 
 	txn, err := store.NewTransaction(ctx, storage.WriteParams)
@@ -495,13 +517,22 @@ func (d *Driver) removeData(ctx context.Context, target string, path storage.Pat
 	return nil
 }
 
-// ensureInventoryExists creates a directory to hold data for target's
-// referential constraints, if one does not already exist. This is important,
-// so we don't need to default inventory inside Rego.
-func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error {
+// getStorage gets the Rego Store for a target, or instantiates it if it does not
+// already exist.
+// Instantiates data.inventory for the store.
+func (d *Driver) getStorage(ctx context.Context, target string) (storage.Store, error) {
+	d.mtx.RLock()
 	store, found := d.storage[target]
+	d.mtx.RUnlock()
 	if found {
-		return nil
+		return store, nil
+	}
+
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+	store, found = d.storage[target]
+	if found {
+		return store, nil
 	}
 
 	store = inmem.New()
@@ -509,7 +540,7 @@ func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error
 
 	txn, err := store.NewTransaction(ctx, storage.WriteParams)
 	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
+		return nil, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
 	}
 
 	path := inventoryPath(nil)
@@ -519,20 +550,20 @@ func (d *Driver) ensureInventoryExists(ctx context.Context, target string) error
 		err = storage.MakeDir(ctx, store, txn, path)
 		if err != nil {
 			store.Abort(ctx, txn)
-			return fmt.Errorf("%v: unable to make directory for target %q %v",
+			return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
 				clienterrors.ErrWrite, target, err)
 		}
 		err = store.Commit(ctx, txn)
 		if err != nil {
-			return fmt.Errorf("%v: unable to make directory for target %q %v",
+			return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
 				clienterrors.ErrWrite, target, err)
 		}
 	case err != nil:
-		return fmt.Errorf("%v: unable to read directory for target %q %v",
+		return nil, fmt.Errorf("%v: unable to read directory for target %q %v",
 			clienterrors.ErrRead, target, err)
 	default:
 		store.Abort(ctx, txn)
 	}
 
-	return nil
+	return store, nil
 }
