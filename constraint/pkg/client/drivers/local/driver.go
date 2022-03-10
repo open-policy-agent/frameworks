@@ -82,9 +82,10 @@ func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 
 	d.mtx.Lock()
 	d.targets[kind] = targets
+	err := d.compilers.addTemplate(templ, d.printEnabled)
 	d.mtx.Unlock()
 
-	return d.compilers.addTemplate(templ, d.printEnabled)
+	return err
 }
 
 // RemoveTemplate removes all Compilers and Constraints for templ.
@@ -92,18 +93,14 @@ func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	kind := templ.Spec.CRD.Spec.Names.Kind
 
-	d.compilers.removeTemplate(kind)
-
 	constraintParent := storage.Path{"constraint", kind}
 
 	d.mtx.Lock()
-	delete(d.targets, kind)
-	d.mtx.Unlock()
+	defer d.mtx.Unlock()
 
-	// We aren't modifying the map, only the underlying storage objects so we
-	// don't need a write lock.
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	d.compilers.removeTemplate(kind)
+	delete(d.targets, kind)
+
 	for target := range d.storage {
 		err := d.removeData(ctx, target, constraintParent)
 		if err != nil {
