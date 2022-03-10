@@ -194,6 +194,9 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 	}
 
 	store, err := d.getStorage(ctx, target)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	args := []func(*rego.Rego){
 		rego.Compiler(compiler),
@@ -522,6 +525,7 @@ func (d *Driver) removeData(ctx context.Context, target string, path storage.Pat
 // already exist.
 // Instantiates data.inventory for the store.
 func (d *Driver) getStorage(ctx context.Context, target string) (storage.Store, error) {
+	// Fast path only acquires a read lock to retrieve storage if it already exists.
 	d.mtx.RLock()
 	store, found := d.storage[target]
 	d.mtx.RUnlock()
@@ -533,9 +537,12 @@ func (d *Driver) getStorage(ctx context.Context, target string) (storage.Store, 
 	defer d.mtx.Unlock()
 	store, found = d.storage[target]
 	if found {
+		// Exit fast if the storage has been created since we last checked.
 		return store, nil
 	}
 
+	// We know that storage doesn't exist yet, and have a lock so we know no other
+	// threads will attempt to create it.
 	store = inmem.New()
 	d.storage[target] = store
 
@@ -545,25 +552,19 @@ func (d *Driver) getStorage(ctx context.Context, target string) (storage.Store, 
 	}
 
 	path := inventoryPath(nil)
-	_, err = store.Read(ctx, txn, path)
-	switch {
-	case storage.IsNotFound(err):
-		err = storage.MakeDir(ctx, store, txn, path)
-		if err != nil {
-			store.Abort(ctx, txn)
-			return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
-				clienterrors.ErrWrite, target, err)
-		}
-		err = store.Commit(ctx, txn)
-		if err != nil {
-			return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
-				clienterrors.ErrWrite, target, err)
-		}
-	case err != nil:
-		return nil, fmt.Errorf("%v: unable to read directory for target %q %v",
-			clienterrors.ErrRead, target, err)
-	default:
+
+	err = storage.MakeDir(ctx, store, txn, path)
+	if err != nil {
 		store.Abort(ctx, txn)
+		return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
+			clienterrors.ErrWrite, target, err)
+	}
+
+	err = store.Commit(ctx, txn)
+	if err != nil {
+		// inmem.Store automatically aborts the transaction for us.
+		return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
+			clienterrors.ErrWrite, target, err)
 	}
 
 	return store, nil
