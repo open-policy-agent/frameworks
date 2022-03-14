@@ -18,7 +18,6 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,12 +40,7 @@ type Driver struct {
 	// mtx guards access to the storage and target maps.
 	mtx sync.RWMutex
 
-	// storage is a map from target name to the Rego data store for Constraints
-	// and objects used in referential Constraints.
-	// storage internally uses mutexes to guard reads and writes during
-	// transactions and queries, so we don't need to explicitly guard individual
-	// Stores with mutexes.
-	storage map[string]storage.Store
+	storage storages
 
 	// targets is a map from each Template's kind to the targets for that Template.
 	targets map[string][]string
@@ -71,7 +65,7 @@ type Driver struct {
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	var targets []string
 	for _, target := range templ.Spec.Targets {
-		_, err := d.getStorage(ctx, target.Target)
+		_, err := d.storage.getStorage(ctx, target.Target)
 		if err != nil {
 			return err
 		}
@@ -101,8 +95,8 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	d.compilers.removeTemplate(kind)
 	delete(d.targets, kind)
 
-	for target := range d.storage {
-		err := d.removeData(ctx, target, constraintParent)
+	for _, store := range d.storage.storage {
+		err := removeData(ctx, store, constraintParent)
 		if err != nil {
 			return err
 		}
@@ -131,7 +125,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	targets := d.targets[key.Kind]
 
 	for _, target := range targets {
-		err := d.addData(ctx, target, key.StoragePath(), params)
+		err := d.storage.addData(ctx, target, key.StoragePath(), params)
 		if err != nil {
 			return err
 		}
@@ -151,7 +145,7 @@ func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	targets := d.targets[key.Kind]
 
 	for _, target := range targets {
-		err := d.removeData(ctx, target, key.StoragePath())
+		err := d.storage.removeData(ctx, target, key.StoragePath())
 		if err != nil {
 			return err
 		}
@@ -163,13 +157,13 @@ func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 // AddData adds data to Rego storage at data.inventory.path.
 func (d *Driver) AddData(ctx context.Context, target string, path storage.Path, data interface{}) error {
 	path = inventoryPath(path)
-	return d.addData(ctx, target, path, data)
+	return d.storage.addData(ctx, target, path, data)
 }
 
 // RemoveData deletes data from Rego storage at data.inventory.path.
 func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Path) error {
 	path = inventoryPath(path)
-	return d.removeData(ctx, target, path)
+	return d.storage.removeData(ctx, target, path)
 }
 
 // eval runs a query against compiler.
@@ -190,7 +184,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 		queryPath.WriteString(p)
 	}
 
-	store, err := d.getStorage(ctx, target)
+	store, err := d.storage.getStorage(ctx, target)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -431,138 +425,4 @@ func toParsedInput(target string, constraints []*unstructured.Unstructured, revi
 	// Parse input into an ast.Value to avoid round-tripping through JSON when
 	// possible.
 	return ast.InterfaceToValue(input)
-}
-
-func inventoryPath(path []string) storage.Path {
-	return append([]string{"external"}, path...)
-}
-
-func (d *Driver) addData(ctx context.Context, target string, path storage.Path, data interface{}) error {
-	if len(path) == 0 {
-		// Sanity-check path.
-		// This would overwrite "data", erasing all Constraints and stored objects.
-		return fmt.Errorf("%w: path must contain at least one path element: %+v", clienterrors.ErrPathInvalid, path)
-	}
-
-	store, err := d.getStorage(ctx, target)
-	if err != nil {
-		return err
-	}
-
-	// Initiate a new transaction. Since this is a write-transaction, it blocks
-	// all other reads and writes, which includes running queries. If a transaction
-	// is successfully created, all code paths must either Abort or Commit the
-	// transaction to unblock queries and other writes.
-	txn, err := store.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	// We can't write to a location if its parent doesn't exist.
-	// Thus, we check to see if anything already exists at the path.
-	_, err = store.Read(ctx, txn, path)
-	if storage.IsNotFound(err) {
-		// Insert an empty object at the path's parent so its parents are
-		// recursively created.
-		parent := path[:len(path)-1]
-		err = storage.MakeDir(ctx, store, txn, parent)
-		if err != nil {
-			store.Abort(ctx, txn)
-			return fmt.Errorf("%w: unable to make directory: %v", clienterrors.ErrWrite, err)
-		}
-	} else if err != nil {
-		// We weren't able to read from storage - something serious is likely wrong.
-		store.Abort(ctx, txn)
-		return fmt.Errorf("%w: %v", clienterrors.ErrRead, err)
-	}
-
-	err = store.Write(ctx, txn, storage.AddOp, path, data)
-	if err != nil {
-		store.Abort(ctx, txn)
-		return fmt.Errorf("%w: unable to write data: %v", clienterrors.ErrWrite, err)
-	}
-
-	err = store.Commit(ctx, txn)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	return nil
-}
-
-func (d *Driver) removeData(ctx context.Context, target string, path storage.Path) error {
-	store, err := d.getStorage(ctx, target)
-	if err != nil {
-		return err
-	}
-
-	txn, err := store.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	err = store.Write(ctx, txn, storage.RemoveOp, path, interface{}(nil))
-	if err != nil {
-		store.Abort(ctx, txn)
-		if storage.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("%w: unable to remove data: %v", clienterrors.ErrWrite, err)
-	}
-
-	err = store.Commit(ctx, txn)
-	if err != nil {
-		return fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	return nil
-}
-
-// getStorage gets the Rego Store for a target, or instantiates it if it does not
-// already exist.
-// Instantiates data.inventory for the store.
-func (d *Driver) getStorage(ctx context.Context, target string) (storage.Store, error) {
-	// Fast path only acquires a read lock to retrieve storage if it already exists.
-	d.mtx.RLock()
-	store, found := d.storage[target]
-	d.mtx.RUnlock()
-	if found {
-		return store, nil
-	}
-
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-	store, found = d.storage[target]
-	if found {
-		// Exit fast if the storage has been created since we last checked.
-		return store, nil
-	}
-
-	// We know that storage doesn't exist yet, and have a lock so we know no other
-	// threads will attempt to create it.
-	store = inmem.New()
-	d.storage[target] = store
-
-	txn, err := store.NewTransaction(ctx, storage.WriteParams)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", clienterrors.ErrTransaction, err)
-	}
-
-	path := inventoryPath(nil)
-
-	err = storage.MakeDir(ctx, store, txn, path)
-	if err != nil {
-		store.Abort(ctx, txn)
-		return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
-			clienterrors.ErrWrite, target, err)
-	}
-
-	err = store.Commit(ctx, txn)
-	if err != nil {
-		// inmem.Store automatically aborts the transaction for us.
-		return nil, fmt.Errorf("%v: unable to make directory for target %q %v",
-			clienterrors.ErrWrite, target, err)
-	}
-
-	return store, nil
 }

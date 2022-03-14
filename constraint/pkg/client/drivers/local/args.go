@@ -15,8 +15,8 @@ type Arg func(*Driver) error
 
 func Defaults() Arg {
 	return func(d *Driver) error {
-		if d.storage == nil {
-			d.storage = make(map[string]storage.Store)
+		if d.storage.storage == nil {
+			d.storage.storage = make(map[string]storage.Store)
 		}
 
 		if d.compilers.capabilities == nil {
@@ -73,7 +73,7 @@ func PrintHook(hook print.Hook) Arg {
 
 func Storage(s map[string]storage.Store) Arg {
 	return func(d *Driver) error {
-		d.storage = s
+		d.storage = storages{storage: s}
 
 		return nil
 	}
