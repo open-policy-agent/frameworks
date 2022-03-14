@@ -1297,6 +1297,30 @@ violation[msg] {msg := "always"}`,
 			wantErr: clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
+			name:    "empty target name",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
+		},
+		{
 			name:    "minimal working",
 			targets: []handler.TargetHandler{&handlertest.Handler{}},
 			template: &templates.ConstraintTemplate{

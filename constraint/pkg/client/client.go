@@ -168,6 +168,11 @@ func getTargetName(templ *templates.ConstraintTemplate) (string, error) {
 			clienterrors.ErrInvalidConstraintTemplate)
 	}
 
+	if targets[0].Target == "" {
+		return "", fmt.Errorf("%w: target name must not be empty",
+			clienterrors.ErrInvalidConstraintTemplate)
+	}
+
 	return targets[0].Target, nil
 }
 
