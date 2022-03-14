@@ -65,6 +65,7 @@ type Driver struct {
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
 	var targets []string
 	for _, target := range templ.Spec.Targets {
+		// Ensure storage for each of this Template's targets exists.
 		_, err := d.storage.getStorage(ctx, target.Target)
 		if err != nil {
 			return err
@@ -75,11 +76,10 @@ func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 	kind := templ.Spec.CRD.Spec.Names.Kind
 
 	d.mtx.Lock()
-	d.targets[kind] = targets
-	err := d.compilers.addTemplate(templ, d.printEnabled)
-	d.mtx.Unlock()
+	defer d.mtx.Unlock()
 
-	return err
+	d.targets[kind] = targets
+	return d.compilers.addTemplate(templ, d.printEnabled)
 }
 
 // RemoveTemplate removes all Compilers and Constraints for templ.
@@ -94,15 +94,7 @@ func (d *Driver) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 
 	d.compilers.removeTemplate(kind)
 	delete(d.targets, kind)
-
-	for _, store := range d.storage.storage {
-		err := removeData(ctx, store, constraintParent)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return d.storage.removeDataEach(ctx, constraintParent)
 }
 
 // AddConstraint adds Constraint to Rego storage. Future calls to Query will
@@ -119,13 +111,14 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	key := drivers.ConstraintKeyFrom(constraint)
+	path := key.StoragePath()
 
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	targets := d.targets[key.Kind]
-
 	for _, target := range targets {
-		err := d.storage.addData(ctx, target, key.StoragePath(), params)
+		err := d.storage.addData(ctx, target, path, params)
 		if err != nil {
 			return err
 		}
@@ -138,20 +131,12 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 // will not be evaluated against the constraint. Queries which specify the
 // constraint's key will silently not evaluate the Constraint.
 func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
-	key := drivers.ConstraintKeyFrom(constraint)
+	path := drivers.ConstraintKeyFrom(constraint).StoragePath()
 
-	d.mtx.RLock()
-	defer d.mtx.RUnlock()
-	targets := d.targets[key.Kind]
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
-	for _, target := range targets {
-		err := d.storage.removeData(ctx, target, key.StoragePath())
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return d.storage.removeDataEach(ctx, path)
 }
 
 // AddData adds data to Rego storage at data.inventory.path.
@@ -235,6 +220,9 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	if err != nil {
 		return nil, nil, err
 	}
+
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 
 	for kind, kindConstraints := range constraintsByKind {
 		compiler := d.compilers.getCompiler(target, kind)
