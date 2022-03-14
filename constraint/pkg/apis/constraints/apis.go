@@ -7,9 +7,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-const Group = "constraints.gatekeeper.sh"
-
 const (
+	// Group is the API Group of Constraints.
+	Group = "constraints.gatekeeper.sh"
+
 	// EnforcementActionDeny indicates that if a review fails validation for a
 	// Constraint, that it should be rejected. Errors encountered running
 	// validation are treated as failing validation.
