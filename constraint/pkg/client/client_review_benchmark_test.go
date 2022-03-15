@@ -3,7 +3,6 @@ package client_test
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
@@ -13,6 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// BenchmarkClient_Review runs queries in parallel to determine the maximum
+// query throughput for a given setup.
+//
+// To measure single-threaded performance, set GOMAXPROCS to 1.
 func BenchmarkClient_Review(b *testing.B) {
 	tests := []struct {
 		name           string
@@ -27,7 +30,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "fail",
@@ -38,7 +41,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name, cts.WantData("bar"))
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name, cts.WantData("bar"))
 		},
 	}, {
 		name: "filtered out",
@@ -50,7 +53,7 @@ func BenchmarkClient_Review(b *testing.B) {
 			},
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name,
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name,
 				cts.WantData("bar"),
 				cts.MatchNamespace("zab"))
 		},
@@ -58,15 +61,14 @@ func BenchmarkClient_Review(b *testing.B) {
 		name: "autoreject",
 		review: handlertest.Review{
 			Object: handlertest.Object{
-				Name: "has-foo",
-				Data: "foo",
+				Namespace: "aaa",
+				Name:      "has-foo",
+				Data:      "foo",
 			},
-			Autoreject: true,
 		},
 		makeConstraint: func(tid int, name string) *unstructured.Unstructured {
-			return cts.MakeConstraint(b, makeKind(tid), name,
-				cts.WantData("bar"),
-				cts.EnableAutoreject)
+			return cts.MakeConstraint(b, clienttest.KindCheckDataNumbered(tid), name,
+				cts.WantData("bar"), cts.MatchNamespace("aaa"))
 		},
 	}}
 
@@ -79,18 +81,16 @@ func BenchmarkClient_Review(b *testing.B) {
 			for _, tt := range tests {
 				c := clienttest.New(b)
 
+				ctx := context.Background()
 				for ts := 0; ts < templates; ts++ {
-					ct := clienttest.TemplateCheckData()
-					ct.Spec.CRD.Spec.Names.Kind = makeKind(ts)
-					ct.Name = strings.ToLower(makeKind(ts))
+					ct := clienttest.TemplateCheckDataNumbered(ts)
 
-					_, err := c.AddTemplate(ct)
+					_, err := c.AddTemplate(ctx, ct)
 					if err != nil {
 						b.Fatal(err)
 					}
 				}
 
-				ctx := context.Background()
 				for cs := 0; cs < constraints; cs++ {
 					// Approximately evenly distribute Constraints among Templates.
 					tid := cs % templates
@@ -107,12 +107,15 @@ func BenchmarkClient_Review(b *testing.B) {
 
 				b.Run(fmt.Sprintf("%d Constraints %d Templates %s", constraints, templates, tt.name), func(b *testing.B) {
 					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						_, err := c.Review(ctx, tt.review)
-						if err != nil {
-							b.Fatal(err)
+					// Run Review queries in parallel.
+					b.RunParallel(func(pb *testing.PB) {
+						for pb.Next() {
+							_, err := c.Review(ctx, tt.review)
+							if err != nil {
+								b.Fatal(err)
+							}
 						}
-					}
+					})
 				})
 			}
 		}

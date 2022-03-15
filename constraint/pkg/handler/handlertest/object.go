@@ -1,6 +1,8 @@
 package handlertest
 
-import "fmt"
+import (
+	"github.com/open-policy-agent/opa/storage"
+)
 
 // Object is a test object under review. The idea is to represent objects just
 // complex enough to showcase (and test) the features of frameworks's Client,
@@ -18,9 +20,9 @@ type Object struct {
 	Data string `json:"data"`
 }
 
-func (o *Object) Key() string {
+func (o Object) Key() storage.Path {
 	if o.Namespace == "" {
-		return fmt.Sprintf("cluster/%s/%s", o.Namespace, o.Name)
+		return []string{"cluster", o.Name}
 	}
-	return fmt.Sprintf("namespace/%s/%s", o.Namespace, o.Name)
+	return []string{"namespace", o.Namespace, o.Name}
 }

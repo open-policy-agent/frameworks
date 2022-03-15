@@ -1,21 +1,26 @@
 package clienttest
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
 const (
-	KindAllow      = "Allow"
-	KindDeny       = "Deny"
-	KindDenyPrint  = "DenyPrint"
-	KindDenyImport = "DenyImport"
-	KindCheckData  = "CheckData"
+	KindAllow            = "Allow"
+	KindDeny             = "Deny"
+	KindDenyPrint        = "DenyPrint"
+	KindDenyImport       = "DenyImport"
+	KindCheckData        = "CheckData"
+	KindRuntimeError     = "RuntimeError"
+	KindForbidDuplicates = "ForbidDuplicates"
 )
 
-// moduleAllow defines a Rego package which allows all objects it reviews.
-const moduleAllow = `
+// ModuleAllow defines a Rego package which allows all objects it reviews.
+const ModuleAllow = `
 package foo
 
 violation[{"msg": msg}] {
@@ -37,15 +42,15 @@ func TemplateAllow() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
-		Rego:   moduleAllow,
+		Target: handlertest.TargetName,
+		Rego:   ModuleAllow,
 	}}
 
 	return ct
 }
 
-// moduleDeny defines a Rego package which denies all objects it reviews.
-const moduleDeny = `
+// ModuleDeny defines a Rego package which denies all objects it reviews.
+const ModuleDeny = `
 package foo
 
 violation[{"msg": msg}] {
@@ -67,8 +72,8 @@ func TemplateDeny() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
-		Rego:   moduleDeny,
+		Target: handlertest.TargetName,
+		Rego:   ModuleDeny,
 	}}
 
 	return ct
@@ -97,7 +102,7 @@ func TemplateDenyPrint() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleDenyPrint,
 	}}
 
@@ -138,7 +143,7 @@ func TemplateDenyImport() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleImportDenyRego,
 		Libs:   []string{moduleImportDenyLib},
 	}}
@@ -172,8 +177,89 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 	}
 
 	ct.Spec.Targets = []templates.Target{{
-		Target: handlertest.HandlerName,
+		Target: handlertest.TargetName,
 		Rego:   moduleCheckData,
+	}}
+
+	return ct
+}
+
+func KindCheckDataNumbered(i int) string {
+	return fmt.Sprintf("%s-%d", KindCheckData, i)
+}
+
+func TemplateCheckDataNumbered(i int) *templates.ConstraintTemplate {
+	ct := TemplateCheckData()
+
+	kind := KindCheckDataNumbered(i)
+	ct.SetName(strings.ToLower(kind))
+	ct.Spec.CRD.Spec.Names.Kind = kind
+
+	return ct
+}
+
+const moduleRuntimeError = `
+package foo
+
+message(arg) = output {
+  output := 7
+}
+
+message(arg) = output {
+  output := 5
+}
+
+violation[{"msg": msg}] {
+  result := message("a")
+  msg := sprintf("result is %v", [result])
+}
+
+`
+
+func TemplateRuntimeError() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("runtimeerror")
+	ct.Spec.CRD.Spec.Names.Kind = KindRuntimeError
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Rego:   moduleRuntimeError,
+	}}
+
+	return ct
+}
+
+const moduleForbidDuplicates = `
+package foo
+
+violation[{"msg": msg}] {
+  obj := data.inventory.cluster[_]
+  gotData := input.review.object.data
+  gotData == obj.data
+  msg := sprintf("duplicate data %v", [gotData])
+}
+`
+
+func TemplateForbidDuplicates() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("forbidduplicates")
+	ct.Spec.CRD.Spec.Names.Kind = KindForbidDuplicates
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Rego:   moduleForbidDuplicates,
 	}}
 
 	return ct

@@ -22,7 +22,7 @@ violation[{"msg": msg}] {
 var defaults = []Opt{
 	OptName(MockTemplateName),
 	OptCRDNames(MockTemplate),
-	OptTargets(Target(handlertest.HandlerName, ModuleDeny)),
+	OptTargets(Target(handlertest.TargetName, ModuleDeny)),
 }
 
 func New(opts ...Opt) *templates.ConstraintTemplate {

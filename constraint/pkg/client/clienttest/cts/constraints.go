@@ -21,8 +21,13 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	})
 	u.SetName(name)
 
+	err := unstructured.SetNestedField(u.Object, make(map[string]interface{}), "spec", "parameters")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, arg := range args {
-		err := arg(u)
+		err = arg(u)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -32,12 +37,6 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 }
 
 type ConstraintArg func(*unstructured.Unstructured) error
-
-// EnableAutoreject enables autorejecting requests to review Objects the constraint
-// matches.
-func EnableAutoreject(u *unstructured.Unstructured) error {
-	return unstructured.SetNestedField(u.Object, true, "spec", "autoreject")
-}
 
 // MatchNamespace modifies the Constraint to only match objects with the passed
 // Namespace.
@@ -59,5 +58,12 @@ func WantData(data string) ConstraintArg {
 func EnforcementAction(action string) ConstraintArg {
 	return func(u *unstructured.Unstructured) error {
 		return unstructured.SetNestedField(u.Object, action, "spec", "enforcementAction")
+	}
+}
+
+// Set sets an arbitrary value inside the Constraint.
+func Set(value interface{}, path ...string) ConstraintArg {
+	return func(u *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(u.Object, value, path...)
 	}
 }

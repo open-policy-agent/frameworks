@@ -8,10 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -53,9 +53,12 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			_, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			_, err = client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -132,7 +135,10 @@ func TestClient_AddData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
@@ -234,7 +240,10 @@ func TestClient_RemoveData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
 			if err != nil {
@@ -270,58 +279,88 @@ func TestClient_RemoveData(t *testing.T) {
 
 func TestClient_AddTemplate(t *testing.T) {
 	tcs := []struct {
-		name        string
-		handler     handler.TargetHandler
-		template    *templates.ConstraintTemplate
-		wantHandled map[string]bool
-		wantError   error
+		name              string
+		targets           []handler.TargetHandler
+		before            *templates.ConstraintTemplate
+		beforeConstraints []*unstructured.Unstructured
+		template          *templates.ConstraintTemplate
+		wantHandled       map[string]bool
+		wantError         error
 	}{
 		{
 			name:        "Good Template",
-			handler:     &handlertest.Handler{},
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
 			template:    cts.New(),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 		{
+			name:    "Multiple targets",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			template: cts.New(cts.OptTargets(
+				cts.Target("foo", cts.ModuleDeny),
+				cts.Target("bar", cts.ModuleDeny),
+			)),
+			wantHandled: nil,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
+		},
+		{
+			name: "Change targets",
+			targets: []handler.TargetHandler{
+				&handlertest.Handler{Name: pointer.StringPtr("foo")},
+				&handlertest.Handler{Name: pointer.StringPtr("bar")},
+			},
+			before: cts.New(cts.OptTargets(
+				cts.Target("foo", cts.ModuleDeny),
+			)),
+			beforeConstraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, cts.MockTemplate, "qux"),
+			},
+			template: cts.New(cts.OptTargets(
+				cts.Target("bar", cts.ModuleDeny),
+			)),
+			wantHandled: nil,
+			wantError:   clienterrors.ErrChangeTargets,
+		},
+		{
 			name:        "Unknown Target",
-			handler:     &handlertest.Handler{},
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
 			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad CRD",
-			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptCRDNames(""), cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptCRDNames(""), cts.OptTargets(cts.Target(handlertest.TargetName, cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No metadata name",
-			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptName(""), cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptName(""), cts.OptTargets(cts.Target(handlertest.TargetName, cts.ModuleDeny))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "Bad Rego",
-			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, `asd{`))),
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `asd{`))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:        "No Rego",
-			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, ""))),
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, ""))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
 			name:    "Missing Rule",
-			handler: &handlertest.Handler{},
-			template: cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, `
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			template: cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `
 package foo
 
 some_rule[r] {
@@ -335,14 +374,32 @@ r = 5
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			d, err := local.New()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddTemplate(tc.template)
+			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			if tc.before != nil {
+				_, err = c.AddTemplate(ctx, tc.before)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			for _, constraint := range tc.beforeConstraints {
+				_, err = c.AddConstraint(ctx, constraint)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			r, err := c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -357,7 +414,7 @@ r = 5
 			}
 
 			cached, err := c.GetTemplate(tc.template)
-			if tc.wantError != nil {
+			if tc.wantError != nil && tc.before == nil {
 				if err == nil {
 					t.Fatalf("got GetTemplate() error = %v, want non-nil", err)
 				}
@@ -368,11 +425,17 @@ r = 5
 				t.Fatalf("could not retrieve template when error was expected: %v", err)
 			}
 
-			if !cached.SemanticEqual(tc.template) {
-				t.Error("cached template does not equal stored template")
+			if tc.wantError != nil {
+				if !cached.SemanticEqual(tc.before) {
+					t.Error("cached template does not equal stored template")
+				}
+			} else {
+				if !cached.SemanticEqual(tc.template) {
+					t.Error("cached template does not equal stored template")
+				}
 			}
 
-			r2, err := c.RemoveTemplate(context.Background(), tc.template)
+			r2, err := c.RemoveTemplate(ctx, tc.template)
 			if err != nil {
 				t.Fatal("could not remove template")
 			}
@@ -400,7 +463,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
 			template:    cts.New(),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 		{
@@ -421,20 +484,24 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.template)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
 			}
 
-			r, err := c.RemoveTemplate(context.Background(), tc.template)
+			r, err := c.RemoveTemplate(ctx, tc.template)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -457,8 +524,8 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, cts.ModuleDeny))),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, cts.ModuleDeny))),
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 		{
@@ -479,14 +546,18 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.template)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -495,7 +566,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 			sparseTemplate := &templates.ConstraintTemplate{}
 			sparseTemplate.Name = tc.template.Name
 
-			r, err := c.RemoveTemplate(context.Background(), sparseTemplate)
+			r, err := c.RemoveTemplate(ctx, sparseTemplate)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
@@ -540,14 +611,18 @@ func TestClient_GetTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.wantTemplate)
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
@@ -603,12 +678,18 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			c, err := client.NewClient(client.Driver(local.New()), client.Targets(tc.handler))
+			d, err := local.New()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			_, err = c.AddTemplate(tc.wantTemplate)
+			c, err := client.NewClient(client.Driver(d), client.Targets(tc.handler))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			_, err = c.AddTemplate(ctx, tc.wantTemplate)
 			if !errors.Is(err, tc.wantAddError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantAddError)
@@ -637,39 +718,44 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
-	d := local.New()
+	d, err := local.New()
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, err := client.NewClient(client.Targets(h), client.Driver(d))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	templ := cts.New(cts.OptName("cascadingdelete"), cts.OptCRDNames("CascadingDelete"))
-	if _, err = c.AddTemplate(templ); err != nil {
+	ctx := context.Background()
+
+	if _, err = c.AddTemplate(ctx, templ); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
 	cst1 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete")
-	if _, err = c.AddConstraint(context.Background(), cst1); err != nil {
+	if _, err = c.AddConstraint(ctx, cst1); err != nil {
 		t.Fatalf("could not add first constraint: %v", err)
 	}
 
 	cst2 := cts.MakeConstraint(t, "CascadingDelete", "cascadingdelete2")
-	if _, err = c.AddConstraint(context.Background(), cst2); err != nil {
+	if _, err = c.AddConstraint(ctx, cst2); err != nil {
 		t.Fatalf("could not add second constraint: %v", err)
 	}
 
 	template2 := cts.New(cts.OptName("stillpersists"), cts.OptCRDNames("StillPersists"))
-	if _, err = c.AddTemplate(template2); err != nil {
+	if _, err = c.AddTemplate(ctx, template2); err != nil {
 		t.Errorf("err = %v; want nil", err)
 	}
 
 	cst3 := cts.MakeConstraint(t, "StillPersists", "stillpersists")
-	if _, err = c.AddConstraint(context.Background(), cst3); err != nil {
+	if _, err = c.AddConstraint(ctx, cst3); err != nil {
 		t.Fatalf("could not add third constraint: %v", err)
 	}
 
 	cst4 := cts.MakeConstraint(t, "StillPersists", "stillpersists2")
-	if _, err = c.AddConstraint(context.Background(), cst4); err != nil {
+	if _, err = c.AddConstraint(ctx, cst4); err != nil {
 		t.Fatalf("could not add fourth constraint: %v", err)
 	}
 
@@ -689,25 +775,25 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 		t.Errorf("preservation candidate not cached: %s", orig)
 	}
 
-	if _, err = c.RemoveTemplate(context.Background(), templ); err != nil {
+	if _, err = c.RemoveTemplate(ctx, templ); err != nil {
 		t.Error("could not remove template")
 	}
 
 	_, err = c.GetConstraint(cst1)
-	if !errors.Is(err, client.ErrMissingConstraint) {
+	if !errors.Is(err, client.ErrMissingConstraintTemplate) {
 		if err != nil {
-			t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
-		} else {
 			t.Error(err)
+		} else {
+			t.Errorf("found constraint %v %v", cst1.GroupVersionKind(), cst1.GetName())
 		}
 	}
 
 	_, err = c.GetConstraint(cst2)
-	if !errors.Is(err, client.ErrMissingConstraint) {
+	if !errors.Is(err, client.ErrMissingConstraintTemplate) {
 		if err != nil {
-			t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
-		} else {
 			t.Error(err)
+		} else {
+			t.Errorf("found constraint %v %v", cst2.GroupVersionKind(), cst2.GetName())
 		}
 	}
 
@@ -740,6 +826,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 func TestClient_AddConstraint(t *testing.T) {
 	tcs := []struct {
 		name                   string
+		target                 handler.TargetHandler
 		template               *templates.ConstraintTemplate
 		constraint             *unstructured.Unstructured
 		wantHandled            map[string]bool
@@ -750,7 +837,7 @@ func TestClient_AddConstraint(t *testing.T) {
 			name:                   "Good Constraint",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "Foos", "foo"),
-			wantHandled:            map[string]bool{handlertest.HandlerName: true},
+			wantHandled:            map[string]bool{handlertest.TargetName: true},
 			wantAddConstraintError: nil,
 			wantGetConstraintError: nil,
 		},
@@ -759,16 +846,16 @@ func TestClient_AddConstraint(t *testing.T) {
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "Foos", ""),
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Kind",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "", "foo"),
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
 		},
 		{
 			name:                   "No Template",
@@ -776,7 +863,7 @@ func TestClient_AddConstraint(t *testing.T) {
 			constraint:             cts.MakeConstraint(t, "Foo", "foo"),
 			wantHandled:            nil,
 			wantAddConstraintError: client.ErrMissingConstraintTemplate,
-			wantGetConstraintError: client.ErrMissingConstraint,
+			wantGetConstraintError: client.ErrMissingConstraintTemplate,
 		},
 		{
 			name:     "No Group",
@@ -784,31 +871,88 @@ func TestClient_AddConstraint(t *testing.T) {
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"kind": "Foos",
+					"metadata": map[string]interface{}{
+						"name": "bar",
+					},
 				},
 			},
 			wantHandled:            nil,
-			wantAddConstraintError: crds.ErrInvalidConstraint,
-			wantGetConstraintError: crds.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
+		},
+		{
+			name:     "Wrong Group",
+			template: cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "foo/v1",
+					"kind":       "Foos",
+					"metadata": map[string]interface{}{
+						"name": "bar",
+					},
+				},
+			},
+			wantHandled:            nil,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: constraints.ErrInvalidConstraint,
+		},
+		{
+			name: "deny all invalid Constraint",
+			target: &handlertest.Handler{
+				ForbiddenEnforcement: pointer.StringPtr("forbidden"),
+			},
+			template: clienttest.TemplateDeny(),
+			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
+				cts.EnforcementAction("forbidden")),
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: client.ErrMissingConstraint,
+		},
+		{
+			name:     "invalid enforcementAction",
+			template: clienttest.TemplateDeny(),
+			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
+				cts.Set(int64(3), "spec", "enforcementAction")),
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: client.ErrMissingConstraint,
+		},
+		{
+			name:     "invalid matcher",
+			template: clienttest.TemplateDeny(),
+			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
+				cts.Set(int64(3), "spec", "matchNamespace")),
+			wantAddConstraintError: &clienterrors.ErrorMap{
+				handlertest.TargetName: constraints.ErrInvalidConstraint,
+			},
+			wantGetConstraintError: client.ErrMissingConstraint,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
+			d, err := local.New()
 			if err != nil {
 				t.Fatal(err)
 			}
 
+			target := tc.target
+			if target == nil {
+				target = &handlertest.Handler{}
+			}
+
+			c, err := client.NewClient(client.Targets(target), client.Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
 			if tc.template != nil {
-				_, err = c.AddTemplate(tc.template)
+				_, err = c.AddTemplate(ctx, tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
-			r, err := c.AddConstraint(context.Background(), tc.constraint)
+			r, err := c.AddConstraint(ctx, tc.constraint)
 			if !errors.Is(err, tc.wantAddConstraintError) {
 				t.Fatalf("got AddConstraint() error = %v, want %v",
 					err, tc.wantAddConstraintError)
@@ -836,7 +980,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				t.Error("cached constraint does not equal stored constraint")
 			}
 
-			r2, err := c.RemoveConstraint(context.Background(), tc.constraint)
+			r2, err := c.RemoveConstraint(ctx, tc.constraint)
 			if err != nil {
 				t.Error("could not remove constraint")
 			}
@@ -870,7 +1014,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    cts.MakeConstraint(t, "Foos", "foo"),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 		{
@@ -879,7 +1023,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    cts.MakeConstraint(t, "Foos", ""),
 			wantHandled: nil,
-			wantError:   crds.ErrInvalidConstraint,
+			wantError:   constraints.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Kind",
@@ -887,36 +1031,38 @@ func TestClient_RemoveConstraint(t *testing.T) {
 			constraint:  cts.MakeConstraint(t, "Foos", "foo"),
 			toRemove:    cts.MakeConstraint(t, "", "foo"),
 			wantHandled: nil,
-			wantError:   crds.ErrInvalidConstraint,
+			wantError:   constraints.ErrInvalidConstraint,
 		},
 		{
 			name:        "No Template",
 			toRemove:    cts.MakeConstraint(t, "Foos", "foo"),
 			wantHandled: nil,
-			wantError:   client.ErrMissingConstraintTemplate,
+			wantError:   nil,
 		},
 		{
 			name:        "No Constraint",
 			template:    cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			toRemove:    cts.MakeConstraint(t, "Foos", "bar"),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 			h := &handlertest.Handler{}
 			c, err := client.NewClient(client.Targets(h), client.Driver(d))
 			if err != nil {
 				t.Fatal(err)
 			}
 
+			ctx := context.Background()
 			if tc.template != nil {
-				_, err = c.AddTemplate(tc.template)
+				_, err = c.AddTemplate(ctx, tc.template)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -929,7 +1075,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 				}
 			}
 
-			r, err := c.RemoveConstraint(context.Background(), tc.toRemove)
+			r, err := c.RemoveConstraint(ctx, tc.toRemove)
 
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got RemoveConstraint error = %v, want %v",
@@ -961,14 +1107,14 @@ func TestClient_AllowedDataFields(t *testing.T) {
 			allowedFields: []string{},
 			handler:       &handlertest.Handler{},
 			template:      cts.New(),
-			wantHandled:   map[string]bool{handlertest.HandlerName: true},
+			wantHandled:   map[string]bool{handlertest.TargetName: true},
 			wantError:     nil,
 		},
 		{
 			name:          "Inventory used but not allowed",
 			allowedFields: []string{},
 			handler:       &handlertest.Handler{},
-			template: cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, `
+			template: cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `
 package something
 
 violation[{"msg": "msg"}] {
@@ -982,28 +1128,32 @@ violation[{"msg": "msg"}] {
 			name:          "Inventory used and allowed",
 			allowedFields: []string{"inventory"},
 			handler:       &handlertest.Handler{},
-			template: cts.New(cts.OptTargets(cts.Target(handlertest.HandlerName, `
+			template: cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `
 package something
 
 violation[{"msg": "msg"}] {
 	data.inventory = "something_else"
 }
 `))),
-			wantHandled: map[string]bool{handlertest.HandlerName: true},
+			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			c, err := client.NewClient(client.Targets(tc.handler), client.AllowedDataFields(tc.allowedFields...), client.Driver(d))
+			d, err := local.New(local.Externs(tc.allowedFields...))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			r, err := c.AddTemplate(tc.template)
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			r, err := c.AddTemplate(ctx, tc.template)
 			if !errors.Is(err, tc.wantError) {
 				t.Fatalf("got AddTemplate() error = %v, want %v",
 					err, tc.wantError)
@@ -1014,60 +1164,6 @@ violation[{"msg": "msg"}] {
 			}
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-func TestClient_AllowedDataFields_Intersection(t *testing.T) {
-	tcs := []struct {
-		name      string
-		allowed   client.Opt
-		want      []string
-		wantError error
-	}{
-		{
-			name: "No AllowedDataFields specified",
-			want: []string{"inventory"},
-		},
-		{
-			name:    "Empty AllowedDataFields Used",
-			allowed: client.AllowedDataFields(),
-			want:    nil,
-		},
-		{
-			name:    "Inventory Used",
-			allowed: client.AllowedDataFields("inventory"),
-			want:    []string{"inventory"},
-		},
-		{
-			name:      "Invalid Data Field",
-			allowed:   client.AllowedDataFields("no_overlap"),
-			want:      []string{},
-			wantError: client.ErrCreatingClient,
-		},
-	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
-
-			opts := []client.Opt{client.Targets(&handlertest.Handler{}), client.Driver(d)}
-			if tc.allowed != nil {
-				opts = append(opts, tc.allowed)
-			}
-
-			c, err := client.NewClient(opts...)
-			if !errors.Is(err, tc.wantError) {
-				t.Fatalf("got NewClient() error = %v, want %v",
-					err, tc.wantError)
-			}
-
-			if tc.wantError != nil {
-				return
-			}
-
-			if diff := cmp.Diff(tc.want, c.AllowedDataFields); diff != "" {
 				t.Error(diff)
 			}
 		})
@@ -1119,7 +1215,7 @@ func TestClient_CreateCRD(t *testing.T) {
 						},
 					},
 					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
+						Target: handlertest.TargetName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1185,12 +1281,36 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
+						Target: handlertest.TargetName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
 					}, {
 						Target: "handler.2",
+						Rego: `package foo
+
+violation[msg] {msg := "always"}`,
+					}},
+				},
+			},
+			want:    nil,
+			wantErr: clienterrors.ErrInvalidConstraintTemplate,
+		},
+		{
+			name:    "empty target name",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			template: &templates.ConstraintTemplate{
+				ObjectMeta: v1.ObjectMeta{Name: "foo"},
+				Spec: templates.ConstraintTemplateSpec{
+					CRD: templates.CRD{
+						Spec: templates.CRDSpec{
+							Names: templates.Names{
+								Kind: "Foo",
+							},
+						},
+					},
+					Targets: []templates.Target{{
+						Target: "",
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1214,7 +1334,7 @@ violation[msg] {msg := "always"}`,
 						},
 					},
 					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
+						Target: handlertest.TargetName,
 						Rego: `package foo
 
 violation[msg] {msg := "always"}`,
@@ -1269,7 +1389,10 @@ violation[msg] {msg := "always"}`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			d := local.New()
+			d, err := local.New()
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
 			if err != nil {
@@ -1292,249 +1415,19 @@ violation[msg] {msg := "always"}`,
 	}
 }
 
-func TestClient_ValidateConstraintTemplate(t *testing.T) {
-	testCases := []struct {
-		name     string
-		targets  []handler.TargetHandler
-		template *templates.ConstraintTemplate
-		want     *apiextensions.CustomResourceDefinition
-		wantErr  error
-	}{
-		{
-			name:     "nil",
-			template: nil,
-			want:     nil,
-			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name:     "empty",
-			template: &templates.ConstraintTemplate{},
-			want:     nil,
-			wantErr:  clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name: "no CRD kind",
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name: "name-kind mismatch",
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Bar",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
-						Rego: `package foo
-
-violation[msg] {msg := "always"}`,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name: "no targets",
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name: "wrong target",
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: "handler.2",
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name: "multiple targets",
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
-						Rego: `package foo
-
-violation[msg] {msg := "always"}`,
-					}, {
-						Target: "handler.2",
-						Rego: `package foo
-
-violation[msg] {msg := "always"}`,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name:    "no rego",
-			targets: []handler.TargetHandler{&handlertest.Handler{}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name:    "empty rego package",
-			targets: []handler.TargetHandler{&handlertest.Handler{}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
-						Rego:   `package foo`,
-					}},
-				},
-			},
-			want:    nil,
-			wantErr: clienterrors.ErrInvalidConstraintTemplate,
-		},
-		{
-			name:    "minimal working",
-			targets: []handler.TargetHandler{&handlertest.Handler{}},
-			template: &templates.ConstraintTemplate{
-				ObjectMeta: v1.ObjectMeta{Name: "foo"},
-				Spec: templates.ConstraintTemplateSpec{
-					CRD: templates.CRD{
-						Spec: templates.CRDSpec{
-							Names: templates.Names{
-								Kind: "Foo",
-							},
-						},
-					},
-					Targets: []templates.Target{{
-						Target: handlertest.HandlerName,
-						Rego: `package foo
-
-violation[msg] {msg := "always"}`,
-					}},
-				},
-			},
-			want: &apiextensions.CustomResourceDefinition{
-				ObjectMeta: v1.ObjectMeta{
-					Name:   "foo.constraints.gatekeeper.sh",
-					Labels: map[string]string{"gatekeeper.sh/constraint": "yes"},
-				},
-				Spec: apiextensions.CustomResourceDefinitionSpec{
-					Group:   "constraints.gatekeeper.sh",
-					Version: "v1beta1",
-					Names: apiextensions.CustomResourceDefinitionNames{
-						Plural:     "foo",
-						Singular:   "foo",
-						Kind:       "Foo",
-						ListKind:   "FooList",
-						Categories: []string{"constraint", "constraints"},
-					},
-					Scope: apiextensions.ClusterScoped,
-					Subresources: &apiextensions.CustomResourceSubresources{
-						Status: &apiextensions.CustomResourceSubresourceStatus{},
-					},
-					Versions: []apiextensions.CustomResourceDefinitionVersion{{
-						Name: "v1beta1", Served: true, Storage: true,
-					}, {
-						Name: "v1alpha1", Served: true,
-					}},
-					Conversion: &apiextensions.CustomResourceConversion{
-						Strategy: apiextensions.NoneConverter,
-					},
-					PreserveUnknownFields: pointer.BoolPtr(false),
-				},
-				Status: apiextensions.CustomResourceDefinitionStatus{
-					StoredVersions: []string{"v1beta1"},
-				},
-			},
-			wantErr: nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			c := clienttest.New(t)
-
-			err := c.ValidateConstraintTemplate(tc.template)
-
-			if !errors.Is(err, tc.wantErr) {
-				t.Fatalf("got CreateTemplate() error = %v, want %v",
-					err, tc.wantErr)
-			}
-		})
-	}
-}
-
 func TestClient_AddTemplate_Duplicate(t *testing.T) {
 	c := clienttest.New(t)
 
 	t1 := clienttest.TemplateCheckData()
 	t2 := clienttest.TemplateCheckData()
 
-	_, err := c.AddTemplate(t1)
+	ctx := context.Background()
+	_, err := c.AddTemplate(ctx, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = c.AddTemplate(t2)
+	_, err = c.AddTemplate(ctx, t2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1563,7 +1456,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 			add:    "foo",
 			want:   nil,
 			wantErr: &clienterrors.ErrorMap{
-				handlertest.HandlerName: handlertest.ErrInvalidType,
+				handlertest.TargetName: handlertest.ErrInvalidType,
 			},
 		},
 		{
@@ -1575,7 +1468,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 			},
 			want: nil,
 			wantErr: &clienterrors.ErrorMap{
-				handlertest.HandlerName: handlertest.ErrInvalidObject,
+				handlertest.TargetName: handlertest.ErrInvalidObject,
 			},
 		},
 		{
@@ -1595,7 +1488,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 				Namespace: "foo",
 			},
 			want: map[interface{}]interface{}{
-				"namespace/foo/": &handlertest.Object{
+				"/namespace/foo/": &handlertest.Object{
 					Namespace: "foo",
 				},
 			},
@@ -1604,7 +1497,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 		{
 			name: "replace Namespace",
 			before: map[string]*handlertest.Object{
-				"namespace/foo/": {
+				"/namespace/foo/": {
 					Namespace: "foo",
 					Data:      "qux",
 				},
@@ -1614,7 +1507,7 @@ func TestClient_AddData_Cache(t *testing.T) {
 				Data:      "bar",
 			},
 			want: map[interface{}]interface{}{
-				"namespace/foo/": &handlertest.Object{
+				"/namespace/foo/": &handlertest.Object{
 					Namespace: "foo",
 					Data:      "bar",
 				},
@@ -1670,7 +1563,7 @@ func TestClient_RemoveData_Cache(t *testing.T) {
 			remove: "foo",
 			want:   nil,
 			wantErr: &clienterrors.ErrorMap{
-				handlertest.HandlerName: handlertest.ErrInvalidType,
+				handlertest.TargetName: handlertest.ErrInvalidType,
 			},
 		},
 		{

@@ -11,7 +11,8 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	ctypes "github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -70,9 +71,10 @@ func (d *driver) Init() error {
 	return nil
 }
 
-func (d *driver) addTrace(path string) string {
-	return path + "?explain=full&pretty=true"
-}
+// Re-add once there is an implementation for Query.
+// func (d *driver) addTrace(path string) string {
+//	return path + "?explain=full&pretty=true"
+// }
 
 func (d *driver) PutModule(name string, src string) error {
 	return d.opa.InsertPolicy(name, []byte(src))
@@ -94,12 +96,12 @@ func (d *driver) DeleteModule(name string) (bool, error) {
 }
 
 // AddTemplate implements drivers.Driver.
-func (d *driver) AddTemplate(ct *templates.ConstraintTemplate) error {
+func (d *driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 
 // RemoveTemplate implements driver.Driver.
-func (d *driver) RemoveTemplate(ct *templates.ConstraintTemplate) error {
+func (d *driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
 	panic("not implemented")
 }
 
@@ -111,23 +113,24 @@ func (d *driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 	panic("not implemented")
 }
 
-func (d *driver) PutData(_ context.Context, path string, data interface{}) error {
-	return d.opa.PutData(path, data)
+func (d *driver) AddData(_ context.Context, target string, path storage.Path, data interface{}) error {
+	return d.opa.PutData(path.String(), data)
 }
 
-// DeleteData deletes data from OPA and returns true if data was found and deleted, false
+// RemoveData deletes data from OPA and returns true if data was found and deleted, false
 // if data was not found, and any errors.
-func (d *driver) DeleteData(_ context.Context, path string) (bool, error) {
-	err := d.opa.DeleteData(path)
+func (d *driver) RemoveData(_ context.Context, target string, path storage.Path) error {
+	err := d.opa.DeleteData(path.String())
 	if err != nil {
 		e := &Error{}
 		if errors.As(err, &e) {
 			if e.Status == 404 {
-				return false, nil
+				return nil
 			}
 		}
 	}
-	return err == nil, err
+
+	return err
 }
 
 // makeURLPath takes a path of the form data.foo["bar.baz"].yes and converts it to an URI path
@@ -175,52 +178,8 @@ func makeURLPath(path string) (string, error) {
 	return strings.Join(pieces, "/"), nil
 }
 
-func (d *driver) Query(_ context.Context, path string, input interface{}, opts ...drivers.QueryOpt) (*ctypes.Response, error) {
-	cfg := &drivers.QueryCfg{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-	path, err := makeURLPath(path)
-	if err != nil {
-		return nil, err
-	}
-	if d.traceEnabled || cfg.TracingEnabled {
-		path = d.addTrace(path)
-	}
-	response, err := d.opa.Query(path, input)
-	if err != nil {
-		return nil, err
-	}
-
-	var results []*ctypes.Result
-	if response.Result != nil {
-		if err := json.Unmarshal(response.Result, &results); err != nil {
-			rawJSON := string(response.Result)
-			return nil, fmt.Errorf("error Unmarshalling DriverQuery: %w: Unmarshal result: %s", err, rawJSON)
-		}
-	}
-	resp := &ctypes.Response{Results: results}
-
-	if (d.traceEnabled || cfg.TracingEnabled) && response.Explanation != nil {
-		var t interface{}
-		if err := json.Unmarshal(response.Explanation, &t); err != nil {
-			return nil, err
-		}
-		trace, err := json.MarshalIndent(t, "", "   ")
-		if err != nil {
-			return nil, err
-		}
-		tr := string(trace)
-		resp.Trace = &tr
-	}
-	inp, err := json.MarshalIndent(input, "", "   ")
-	if err != nil {
-		return nil, err
-	}
-	i := string(inp)
-	resp.Input = &i
-
-	return resp, nil
+func (d *driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+	return nil, nil, nil
 }
 
 func (d *driver) Dump(_ context.Context) (string, error) {

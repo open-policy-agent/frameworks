@@ -33,19 +33,17 @@ func (m Matcher) Match(review interface{}) (bool, error) {
 		return false, fmt.Errorf("missing cache")
 	}
 
-	wantNamespace := Object{Namespace: m.Namespace}
-
-	key := wantNamespace.Key()
-	_, exists := m.Cache.Namespaces.Load(key)
-	if !exists {
-		return false, fmt.Errorf("%w: namespace %q not in cache",
-			ErrNotFound, m.Namespace)
-	}
-
 	reviewObj, ok := review.(*Review)
 	if !ok {
 		return false, fmt.Errorf("%w: got %T, want %T",
 			ErrInvalidType, review, &Review{})
+	}
+
+	key := Object{Namespace: reviewObj.Object.Namespace}.Key()
+	_, exists := m.Cache.Namespaces.Load(key.String())
+	if !exists {
+		return false, fmt.Errorf("%w: namespace %q not in cache",
+			ErrNotFound, m.Namespace)
 	}
 
 	return m.Namespace == reviewObj.Object.Namespace, nil
