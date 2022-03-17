@@ -307,8 +307,6 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
-const templateLibPrefix = "libs"
-
 // parseModule parses the module and also fails empty modules.
 func parseModule(rego string) (*ast.Module, error) {
 	module, err := ast.ParseModule(templatePath, rego)

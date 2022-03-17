@@ -214,7 +214,7 @@ func compileTemplateTarget(module TargetModule, capabilities *ast.Capabilities, 
 	modules[hookModulePath] = builtinModule
 
 	for i, lib := range module.Libs {
-		libPath := fmt.Sprintf("%s%d", "template", i)
+		libPath := fmt.Sprintf("%s%d", templatePath, i)
 		libModule, err := ast.ParseModule(libPath, lib)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", clienterrors.ErrParse, err)

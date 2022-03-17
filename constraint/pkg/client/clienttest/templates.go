@@ -112,17 +112,17 @@ func TemplateDenyPrint() *templates.ConstraintTemplate {
 const moduleImportDenyRego = `
 package foo
 
-import data.lib.helpers
+import data.lib.bar
 
 violation[{"msg": msg}] {
-  data.lib.helpers.always[x]
+  bar.always[x]
   x == "imported"
   msg := "denied with library"
 }
 `
 
 const moduleImportDenyLib = `
-package lib.helpers
+package lib.bar
 
 always[y] {
   y = "imported"
