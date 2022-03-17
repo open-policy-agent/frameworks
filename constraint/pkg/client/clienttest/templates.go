@@ -115,7 +115,7 @@ package foo
 import data.lib.bar
 
 violation[{"msg": msg}] {
-  bar.always[x]
+  data.lib.bar.always[x]
   x == "imported"
   msg := "denied with library"
 }
