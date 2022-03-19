@@ -370,6 +370,13 @@ r = 5
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
+		{
+			name:        "Very Complex Template",
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, moduleVeryComplex, libVeryComplex))),
+			wantHandled: map[string]bool{handlertest.TargetName: true},
+			wantError:   nil,
+		},
 	}
 
 	for _, tc := range tcs {
