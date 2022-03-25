@@ -58,6 +58,9 @@ type Driver struct {
 
 	// providerCache allows Rego to read from external_data in Rego queries.
 	providerCache *externaldata.ProviderCache
+
+	// sendRequestToProvider allows Rego to send requests to the provider specified in external_data.
+	sendRequestToProvider externaldata.SendRequestToProvider
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
