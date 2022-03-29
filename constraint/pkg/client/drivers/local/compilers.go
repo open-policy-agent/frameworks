@@ -166,7 +166,14 @@ func parseConstraintTemplateTarget(rr *regorewriter.RegoRewriter, targetSpec tem
 	rr.AddEntryPointModule(templatePath, entryPoint)
 	for idx, libSrc := range targetSpec.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, templateLibPrefix, idx)
-		if err = rr.AddLib(libPath, libSrc); err != nil {
+
+		m, err := parseModule(libPath, libSrc)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v",
+				clienterrors.ErrInvalidConstraintTemplate, err)
+		}
+
+		if err = rr.AddLib(libPath, m); err != nil {
 			return nil, fmt.Errorf("%w: %v",
 				clienterrors.ErrInvalidConstraintTemplate, err)
 		}
