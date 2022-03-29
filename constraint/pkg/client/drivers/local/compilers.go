@@ -116,10 +116,6 @@ func (d *Compilers) list() map[string]map[string]*ast.Compiler {
 	return result
 }
 
-type TargetModule struct {
-	Libs []string
-}
-
 // parseConstraintTemplate validates the rego in template target by parsing
 // rego modules.
 func parseConstraintTemplate(templ *templates.ConstraintTemplate, externs []string) (map[string][]*ast.Module, error) {
