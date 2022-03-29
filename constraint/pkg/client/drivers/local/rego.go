@@ -52,7 +52,7 @@ var hookModule *ast.Module
 
 func init() {
 	var err error
-	hookModule, err = ast.ParseModule(hookModulePath, hookModuleRego)
+	hookModule, err = parseModule(hookModulePath, hookModuleRego)
 	if err != nil {
 		panic(err)
 	}
