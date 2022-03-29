@@ -290,6 +290,7 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 					for i := range cts {
 						cts[i] = makeConstraintTemplate(i, tc.module, tc.libs...)
 					}
+					b.ResetTimer()
 
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
