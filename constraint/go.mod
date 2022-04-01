@@ -3,6 +3,8 @@ module github.com/open-policy-agent/frameworks/constraint
 go 1.17
 
 // Prevent otel dependencies from getting out of sync.
+// Cannot be upgraded until k8s.io/component-base uses a more recent version of
+// opentelemetry.
 replace (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp => go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.20.0
 	go.opentelemetry.io/otel => go.opentelemetry.io/otel v0.20.0
