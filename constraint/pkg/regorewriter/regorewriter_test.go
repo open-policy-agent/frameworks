@@ -112,12 +112,22 @@ func (tc *RegoRewriterTestcase) Run(t *testing.T) {
 		t.Fatalf("Failed to create %s", err)
 	}
 	for path, content := range tc.baseSrcs {
-		if err := rr.AddEntryPoint(path, content); err != nil {
+		m, err := ast.ParseModule(path, content)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := rr.AddEntryPoint(path, m); err != nil {
 			t.Fatalf("unexpected error during AddEntryPoint: %s", err)
 		}
 	}
 	for path, content := range tc.libSrcs {
-		if err := rr.AddLib(path, content); err != nil {
+		m, err := ast.ParseModule(path, content)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := rr.AddLib(path, m); err != nil {
 			t.Logf("unexpected error during AddLib %v", err)
 			return
 		}
@@ -330,13 +340,6 @@ test_ok {
 }
 `,
 		},
-		{
-			name: "add invalid rego",
-			path: "invalidrego",
-			src: `package lib.rego
-something invalid`,
-			wantError: ErrInvalidModule,
-		},
 	}
 
 	for _, tc := range tcs {
@@ -345,7 +348,13 @@ something invalid`,
 			if err != nil {
 				t.Fatalf("Failed to create RegoRewriter %q", err)
 			}
-			if gotErr := rr.AddEntryPoint(tc.path, tc.src); !errors.Is(gotErr, tc.wantError) {
+
+			m, err := ast.ParseModule(tc.path, tc.src)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if gotErr := rr.AddEntryPoint(tc.path, m); !errors.Is(gotErr, tc.wantError) {
 				t.Errorf("got AddEntryPoint() error = %q, want %v", gotErr, tc.wantError)
 			}
 		})
@@ -474,7 +483,13 @@ violation[{"msg": msg}] {
 			if err != nil {
 				t.Fatalf("Failed to create RegoRewriter %s", err)
 			}
-			if err := rr.AddEntryPoint("path", tc.content); err != nil {
+
+			m, err := ast.ParseModule("path", tc.content)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := rr.AddEntryPoint("path", m); err != nil {
 				t.Fatalf("failed to add base source %q", err)
 				return
 			}
@@ -597,7 +612,13 @@ is_foo(name) {
 			if err != nil {
 				t.Fatalf("Failed to create RegoRewriter %s", err)
 			}
-			if err := rr.AddLib("path", tc.content); err != nil {
+
+			m, err := ast.ParseModule("path", tc.content)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := rr.AddLib("path", m); err != nil {
 				t.Fatalf("failed to add lib source %q", err)
 			}
 			sources, err := rr.Rewrite()

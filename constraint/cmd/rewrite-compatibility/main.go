@@ -66,7 +66,8 @@ func compileSrcs(
 	libs []string,
 	newPkgPrefix string,
 	oldRoot string,
-	newRoot string) error {
+	newRoot string,
+) error {
 	if len(cts) == 0 && len(libs) == 0 {
 		return fmt.Errorf("must specify --ct or --lib or both")
 	}

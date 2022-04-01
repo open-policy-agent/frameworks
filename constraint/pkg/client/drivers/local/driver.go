@@ -310,21 +310,6 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
-// parseModule parses the module and also fails empty modules.
-func parseModule(rego string) (*ast.Module, error) {
-	module, err := ast.ParseModule(templatePath, rego)
-	if err != nil {
-		return nil, err
-	}
-
-	if module == nil {
-		return nil, fmt.Errorf("%w: module %q is empty",
-			clienterrors.ErrInvalidModule, templatePath)
-	}
-
-	return module, nil
-}
-
 // rewriteModulePackage rewrites the module's package path to path.
 func rewriteModulePackage(module *ast.Module) error {
 	pathParts := ast.Ref([]*ast.Term{ast.VarTerm(templatePath)})
