@@ -5,7 +5,6 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
-	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -42,7 +41,7 @@ func (h *Handler) GetName() string {
 	return TargetName
 }
 
-func (h *Handler) ProcessData(obj interface{}) (bool, storage.Path, interface{}, error) {
+func (h *Handler) ProcessData(obj interface{}) (bool, []string, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
 		if h.ProcessDataError != nil {
