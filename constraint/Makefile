@@ -1,3 +1,10 @@
+# When updating this, make sure to update the corresponding action in
+# workflow.yaml
+GOLANGCI_LINT_VERSION := v1.45.2
+
+# Detects the location of the user golangci-lint cache.
+GOLANGCI_LINT_CACHE := $(shell pwd)/.tmp/golangci-lint
+
 all: test
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -47,8 +54,14 @@ manifests:
 	sed -i '/- externaldata.gatekeeper.sh_providers.yaml/d' .staging/templatecrd/kustomization.yaml
 	kustomize build .staging/templatecrd --output=.staging/templatecrd/crd.yaml
 
+# lint runs a dockerized golangci-lint, and should give consistent results
+# across systems.
+# Source: https://golangci-lint.run/usage/install/#docker
 lint:
-	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.45.2 golangci-lint run -v --timeout 5m
+	docker run --rm -v $(shell pwd):/app \
+		-v ${GOLANGCI_LINT_CACHE}:/root/.cache/golangci-lint \
+		-w /app golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine \
+		golangci-lint run -v
 
 # Generate code
 # Not working?  Try running `make gen-dependencies`
