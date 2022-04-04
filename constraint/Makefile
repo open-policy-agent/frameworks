@@ -48,7 +48,7 @@ manifests:
 	kustomize build .staging/templatecrd --output=.staging/templatecrd/crd.yaml
 
 lint:
-	golangci-lint -v run ./... --timeout 5m
+	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:v1.45.2 golangci-lint run -v --timeout 5m
 
 # Generate code
 # Not working?  Try running `make gen-dependencies`
