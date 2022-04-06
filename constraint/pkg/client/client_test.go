@@ -998,8 +998,8 @@ func TestClient_AddConstraint(t *testing.T) {
 				t.Error("cached Constraint does not equal stored constraint")
 			}
 
-			if tc.constraint.Object["status"] != nil {
-				t.Error("cached Constraint includes status")
+			if cached.Object["status"] != nil {
+				t.Errorf("cached Constraint includes status: %#v", cached.Object["status"])
 			}
 
 			r2, err := c.RemoveConstraint(ctx, tc.constraint)
