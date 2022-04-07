@@ -17,6 +17,7 @@ const (
 	KindCheckData        = "CheckData"
 	KindRuntimeError     = "RuntimeError"
 	KindForbidDuplicates = "ForbidDuplicates"
+	KindFuture           = "Future"
 )
 
 // ModuleAllow defines a Rego package which allows all objects it reviews.
@@ -260,6 +261,37 @@ func TemplateForbidDuplicates() *templates.ConstraintTemplate {
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
 		Rego:   moduleForbidDuplicates,
+	}}
+
+	return ct
+}
+
+const moduleFuture = `
+package foo
+
+import future.keywords.in
+
+violation[{"msg": msg}] {
+  some n in ["1", "2"]
+  n == input.review.object.data
+  msg := "bad data"
+}
+`
+
+func TemplateFuture() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("future")
+	ct.Spec.CRD.Spec.Names.Kind = KindFuture
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Rego:   moduleFuture,
 	}}
 
 	return ct
