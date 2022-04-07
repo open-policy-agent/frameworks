@@ -321,7 +321,7 @@ func TestClient_Review(t *testing.T) {
 				Target:            "foo2",
 				Msg:               "denied",
 				Constraint:        cts.MakeConstraint(t, cts.MockTemplate, "bar"),
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 			}},
 		},
 		{
@@ -360,8 +360,41 @@ func TestClient_Review(t *testing.T) {
 				Target:            handlertest.TargetName,
 				Msg:               "duplicate data bar",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
-				EnforcementAction: "deny",
+				EnforcementAction: constraints.EnforcementActionDeny,
 			}},
+		},
+		{
+			name:       "deny future",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateFuture(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindFuture, "constraint"),
+			},
+			inventory: nil,
+			toReview:  handlertest.NewReview("", "foo", "1"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "bad data",
+				Constraint:        cts.MakeConstraint(t, clienttest.KindFuture, "constraint"),
+				EnforcementAction: constraints.EnforcementActionDeny,
+			}},
+		},
+		{
+			name:       "allow future",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateFuture(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraint(t, clienttest.KindFuture, "constraint"),
+			},
+			inventory:   nil,
+			toReview:    handlertest.NewReview("", "foo", "3"),
+			wantResults: nil,
 		},
 	}
 
