@@ -1,3 +1,5 @@
+# Lint cache
+/constraint/.tmp
 
 # Binaries for programs and plugins
 *.exe
