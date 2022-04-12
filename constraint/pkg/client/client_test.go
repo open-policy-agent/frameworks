@@ -932,6 +932,17 @@ func TestClient_AddConstraint(t *testing.T) {
 			},
 			wantGetConstraintError: client.ErrMissingConstraint,
 		},
+		{
+			name:     "remove status field",
+			template: clienttest.TemplateDeny(),
+			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
+				cts.Set("some status", "status")),
+			wantAddConstraintError: nil,
+			wantGetConstraintError: nil,
+			wantHandled: map[string]bool{
+				handlertest.TargetName: true,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -984,7 +995,11 @@ func TestClient_AddConstraint(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.constraint.Object["spec"], cached.Object["spec"]); diff != "" {
-				t.Error("cached constraint does not equal stored constraint")
+				t.Error("cached Constraint does not equal stored constraint")
+			}
+
+			if cached.Object["status"] != nil {
+				t.Errorf("cached Constraint includes status: %#v", cached.Object["status"])
 			}
 
 			r2, err := c.RemoveConstraint(ctx, tc.constraint)

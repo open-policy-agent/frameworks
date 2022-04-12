@@ -1,9 +1,5 @@
 package handlertest
 
-import (
-	"github.com/open-policy-agent/opa/storage"
-)
-
 // Object is a test object under review. The idea is to represent objects just
 // complex enough to showcase (and test) the features of frameworks's Client,
 // Drivers, and Handlers.
@@ -20,7 +16,7 @@ type Object struct {
 	Data string `json:"data"`
 }
 
-func (o Object) Key() storage.Path {
+func (o Object) Key() []string {
 	if o.Namespace == "" {
 		return []string{"cluster", o.Name}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
+	"github.com/open-policy-agent/opa/storage"
 )
 
 var (
@@ -40,7 +41,7 @@ func (m Matcher) Match(review interface{}) (bool, error) {
 	}
 
 	key := Object{Namespace: reviewObj.Object.Namespace}.Key()
-	_, exists := m.Cache.Namespaces.Load(key.String())
+	_, exists := m.Cache.Namespaces.Load(storage.Path(key).String())
 	if !exists {
 		return false, fmt.Errorf("%w: namespace %q not in cache",
 			ErrNotFound, m.Namespace)
