@@ -28,7 +28,65 @@ fooisbar[msg] {
   msg := "input.foo is bar"
 }
 `
+
+	AlwaysViolate string = `
+  package foobar
+
+  violation[{"msg": "always violate"}] {
+	  true
+  }
+`
 )
+
+func TestDriver_Query(t *testing.T) {
+	d, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, AlwaysViolate)))
+	ctx := context.Background()
+
+	if err := d.AddTemplate(ctx, tmpl); err != nil {
+		t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+	}
+
+	if err := d.AddConstraint(ctx, cts.MakeConstraint(t, "Fakes", "foo-1")); err != nil {
+		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+	}
+
+	res, _, err := d.Query(
+		ctx,
+		cts.MockTargetHandler,
+		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
+		map[string]interface{}{"hi": "there"},
+	)
+	if err != nil {
+		t.Fatalf("got Query() error = %v, want %v", err, nil)
+	}
+	if len(res) == 0 {
+		t.Fatalf("got 0 errors on normal query; want 1")
+	}
+
+	// Remove data to make sure our rego hook is well-behaved when
+	// there is no external data root
+	if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
+		t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
+	}
+
+	res, _, err = d.Query(
+		ctx,
+		cts.MockTargetHandler,
+		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
+		map[string]interface{}{"hi": "there"},
+	)
+	if err != nil {
+		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
+	}
+	if len(res) == 0 {
+		t.Fatalf("got 0 errors on data-less query; want 1")
+	}
+}
 
 func TestDriver_AddTemplate(t *testing.T) {
 	testCases := []struct {

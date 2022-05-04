@@ -821,7 +821,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 
 	sLower := strings.ToLower(s)
 	if strings.Contains(sLower, "cascadingdelete") {
-		t.Errorf("Template not removed from cache: %s", s)
+		t.Errorf("Constraint not removed from cache: %s", s)
 	}
 
 	finalPreserved := strings.Count(sLower, "stillpersists")
