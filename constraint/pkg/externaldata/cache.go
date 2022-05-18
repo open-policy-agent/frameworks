@@ -2,6 +2,7 @@ package externaldata
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -43,6 +44,9 @@ func (c *ProviderCache) Upsert(provider *v1alpha1.Provider) error {
 	if !isValidTimeout(provider.Spec.Timeout) {
 		return fmt.Errorf("provider timeout should be a positive integer. value: %d", provider.Spec.Timeout)
 	}
+	if err := isValidCABundle(provider); err != nil {
+		return err
+	}
 
 	c.cache[provider.GetName()] = *provider.DeepCopy()
 	return nil
@@ -67,6 +71,32 @@ func isValidURL(url string) bool {
 		return false
 	}
 	return true
+}
+
+func isValidCABundle(provider *v1alpha1.Provider) error {
+	if provider.Spec.InsecureTLSSkipVerify {
+		if provider.Spec.CABundle != "" {
+			return fmt.Errorf("insecureTLSSkipVerify is set to true but caBundle is not empty")
+		}
+
+		return nil
+	}
+
+	u, err := url.Parse(provider.Spec.URL)
+	if err != nil {
+		return err
+	}
+
+	switch u.Scheme {
+	case "http":
+		return fmt.Errorf("only HTTPS scheme is supported for Providers. To enable HTTP scheme, set insecureTLSSkipVerify to true")
+	case "https":
+		if provider.Spec.CABundle == "" {
+			return fmt.Errorf("caBundle should be set for HTTPS scheme")
+		}
+	}
+
+	return nil
 }
 
 func isValidTimeout(timeout int) bool {

@@ -115,6 +115,15 @@ func DisableBuiltins(builtins ...string) Arg {
 	}
 }
 
+func AddClientTLSKeyPair(certFile, keyFile string) Arg {
+	return func(d *Driver) error {
+		d.clientCertFile = certFile
+		d.clientKeyFile = keyFile
+
+		return nil
+	}
+}
+
 // Externs sets the fields under `data` that Rego in ConstraintTemplates
 // can access. If unset, all fields can be accessed. Only fields recognized by
 // the system can be enabled.

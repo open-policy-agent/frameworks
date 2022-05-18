@@ -61,6 +61,12 @@ type Driver struct {
 
 	// sendRequestToProvider allows Rego to send requests to the provider specified in external_data.
 	sendRequestToProvider externaldata.SendRequestToProvider
+
+	// clientCertFile is the path to the client's certificate file.
+	clientCertFile string
+
+	// clientKeyFile is the path to the client's key file.
+	clientKeyFile string
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
