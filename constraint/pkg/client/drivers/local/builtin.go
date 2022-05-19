@@ -26,7 +26,7 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 			return externaldata.HandleError(http.StatusBadRequest, err)
 		}
 
-		externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, regoReq.Keys, clientCert)
+		externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, regoReq.Keys, &clientCert)
 		if err != nil {
 			return externaldata.HandleError(statusCode, err)
 		}

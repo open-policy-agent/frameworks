@@ -1,6 +1,9 @@
 package externaldata
 
 import (
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net/url"
 	"strings"
@@ -74,9 +77,20 @@ func isValidURL(url string) bool {
 }
 
 func isValidCABundle(provider *v1alpha1.Provider) error {
-	if provider.Spec.InsecureTLSSkipVerify {
-		if provider.Spec.CABundle != "" {
-			return fmt.Errorf("insecureTLSSkipVerify is set to true but caBundle is not empty")
+	verify := func(caBundle string) error {
+		caPem, err := base64.StdEncoding.DecodeString(caBundle)
+		if err != nil {
+			return fmt.Errorf("failed to base64 decode caBundle: %w", err)
+		}
+
+		caDer, _ := pem.Decode(caPem)
+		if caDer == nil {
+			return fmt.Errorf("bad caBundle")
+		}
+
+		_, err = x509.ParseCertificate(caDer.Bytes)
+		if err != nil {
+			return fmt.Errorf("failed to parse caBundle: %w", err)
 		}
 
 		return nil
@@ -89,10 +103,20 @@ func isValidCABundle(provider *v1alpha1.Provider) error {
 
 	switch u.Scheme {
 	case "http":
-		return fmt.Errorf("only HTTPS scheme is supported for Providers. To enable HTTP scheme, set insecureTLSSkipVerify to true")
+		if !provider.Spec.InsecureTLSSkipVerify {
+			return fmt.Errorf("only HTTPS scheme is supported for Providers. To enable HTTP scheme, set insecureTLSSkipVerify to true")
+		}
+		if provider.Spec.CABundle != "" {
+			if err := verify(provider.Spec.CABundle); err != nil {
+				return err
+			}
+		}
 	case "https":
 		if provider.Spec.CABundle == "" {
 			return fmt.Errorf("caBundle should be set for HTTPS scheme")
+		}
+		if err := verify(provider.Spec.CABundle); err != nil {
+			return err
 		}
 	}
 
