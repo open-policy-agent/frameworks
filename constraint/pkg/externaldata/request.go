@@ -108,7 +108,8 @@ func getClient(provider *v1alpha1.Provider, clientCert *tls.Certificate) (*http.
 	tlsConfig := &tls.Config{
 		// present our client cert to the server
 		// in case provider wants to verify it
-		Certificates:       []tls.Certificate{*clientCert},
+		Certificates: []tls.Certificate{*clientCert},
+		//nolint:gosec
 		InsecureSkipVerify: provider.Spec.InsecureTLSSkipVerify,
 	}
 
