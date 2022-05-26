@@ -1,6 +1,7 @@
 package crds_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -281,6 +282,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
+			ctx := context.Background()
 			schema := crds.CreateSchema(tc.Template, tc.Handler)
 			crd, err := crds.CreateCRD(tc.Template, schema)
 
@@ -293,7 +295,7 @@ func TestCRDCreationAndValidation(t *testing.T) {
 				t.Errorf("Generated CRDs are expected to belong to constraint / constraints categories")
 			}
 
-			err = crds.ValidateCRD(crd)
+			err = crds.ValidateCRD(ctx, crd)
 			if (err == nil) && tc.ErrorExpected {
 				t.Errorf("err = nil; want non-nil")
 			}
@@ -436,13 +438,14 @@ func TestCRValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
+			ctx := context.Background()
 			schema := crds.CreateSchema(tc.Template, tc.Handler)
 			crd, err := crds.CreateCRD(tc.Template, schema)
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}
 
-			if err := crds.ValidateCRD(crd); err != nil {
+			if err := crds.ValidateCRD(ctx, crd); err != nil {
 				t.Errorf("Bad test setup: Bad CRD: %s", err)
 			}
 

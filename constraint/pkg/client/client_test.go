@@ -1411,6 +1411,7 @@ violation[msg] {msg := "always"}`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
 			d, err := local.New()
 			if err != nil {
 				t.Fatal(err)
@@ -1421,7 +1422,7 @@ violation[msg] {msg := "always"}`,
 				t.Fatal(err)
 			}
 
-			got, err := c.CreateCRD(tc.template)
+			got, err := c.CreateCRD(ctx, tc.template)
 
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("got CreateTemplate() error = %v, want %v",
