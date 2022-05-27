@@ -26,7 +26,8 @@ jobs:
       - name: Update Frameworks dependency in Gatekeeper
         run: |
           go mod edit -replace github.com/open-policy-agent/frameworks/constraint=${GITHUB_WORKSPACE}/go/src/github.com/open-policy-agent/frameworks/constraint
-          make vendor
+          go mod tidy
+          go mod vendor
         working-directory: go/src/github.com/open-policy-agent/gatekeeper
 
       - name: Make test
