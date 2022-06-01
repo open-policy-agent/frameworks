@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"io/ioutil"
 	"sort"
 	"strings"
 	"sync"
@@ -61,6 +63,9 @@ type Driver struct {
 
 	// sendRequestToProvider allows Rego to send requests to the provider specified in external_data.
 	sendRequestToProvider externaldata.SendRequestToProvider
+
+	// fs is the filesystem to use for reading files.
+	fs fs.FS
 
 	// clientCertFile is the path to the client's certificate file.
 	clientCertFile string
@@ -325,6 +330,17 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// readFile reads a file from driver's filesystem and returns its contents.
+func (d *Driver) readFile(name string) ([]byte, error) {
+	file, err := d.fs.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s: %w", name, err)
+	}
+	defer file.Close()
+
+	return ioutil.ReadAll(file)
 }
 
 // rewriteModulePackage rewrites the module's package path to path.

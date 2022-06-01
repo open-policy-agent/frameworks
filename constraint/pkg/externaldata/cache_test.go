@@ -86,8 +86,13 @@ func TestUpsert(t *testing.T) {
 			ErrorExpected: true,
 		},
 		{
-			Name:          "invalid url",
+			Name:          "url with invalid scheme",
 			Provider:      createProvider("test", "gopher://test", 1, "", true),
+			ErrorExpected: true,
+		},
+		{
+			Name:          "invalid url",
+			Provider:      createProvider("test", " http://foo.com", 1, "", true),
 			ErrorExpected: true,
 		},
 		{

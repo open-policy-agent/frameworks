@@ -2,6 +2,7 @@ package local
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -45,6 +46,10 @@ func Defaults() Arg {
 
 		if d.sendRequestToProvider == nil {
 			d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
+		}
+
+		if d.fs == nil {
+			d.fs = os.DirFS("/")
 		}
 
 		return nil

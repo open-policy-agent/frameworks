@@ -21,7 +21,17 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 			return externaldata.HandleError(http.StatusBadRequest, err)
 		}
 
-		clientCert, err := tls.LoadX509KeyPair(d.clientCertFile, d.clientKeyFile)
+		certPEM, err := d.readFile(d.clientCertFile)
+		if err != nil {
+			return externaldata.HandleError(http.StatusBadRequest, err)
+		}
+
+		keyPEM, err := d.readFile(d.clientKeyFile)
+		if err != nil {
+			return externaldata.HandleError(http.StatusBadRequest, err)
+		}
+
+		clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
 		if err != nil {
 			return externaldata.HandleError(http.StatusBadRequest, err)
 		}

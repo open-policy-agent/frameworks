@@ -16,6 +16,11 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1alpha1"
 )
 
+const (
+	HTTPScheme  = "http"
+	HTTPSScheme = "https"
+)
+
 // RegoRequest is the request for external_data rego function.
 type RegoRequest struct {
 	// ProviderName is the name of the external data provider.
@@ -113,7 +118,7 @@ func getClient(provider *v1alpha1.Provider, clientCert *tls.Certificate) (*http.
 		InsecureSkipVerify: provider.Spec.InsecureTLSSkipVerify,
 	}
 
-	if u.Scheme == "https" && !provider.Spec.InsecureTLSSkipVerify {
+	if u.Scheme == HTTPSScheme && !provider.Spec.InsecureTLSSkipVerify {
 		// if the provider presents its own CA bundle,
 		// we will use it to verify the server's certificate
 		caBundleData, err := base64.StdEncoding.DecodeString(provider.Spec.CABundle)

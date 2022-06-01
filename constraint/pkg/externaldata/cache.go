@@ -6,7 +6,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1alpha1"
@@ -67,16 +66,16 @@ func isValidName(name string) bool {
 }
 
 func isValidURL(url string) bool {
-	if len(url) == 0 {
-		return false
-	}
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		return false
-	}
-	return true
+	return len(url) != 0
+}
+
+func isValidTimeout(timeout int) bool {
+	return timeout >= 0
 }
 
 func isValidCABundle(provider *v1alpha1.Provider) error {
+	// verify attempts to parse the caBundle as a PEM encoded certificate
+	// to make sure it is valid before adding it to the cache
 	verify := func(caBundle string) error {
 		caPem, err := base64.StdEncoding.DecodeString(caBundle)
 		if err != nil {
@@ -102,7 +101,7 @@ func isValidCABundle(provider *v1alpha1.Provider) error {
 	}
 
 	switch u.Scheme {
-	case "http":
+	case HTTPScheme:
 		if !provider.Spec.InsecureTLSSkipVerify {
 			return fmt.Errorf("only HTTPS scheme is supported for Providers. To enable HTTP scheme, set insecureTLSSkipVerify to true")
 		}
@@ -111,18 +110,16 @@ func isValidCABundle(provider *v1alpha1.Provider) error {
 				return err
 			}
 		}
-	case "https":
+	case HTTPSScheme:
 		if provider.Spec.CABundle == "" {
 			return fmt.Errorf("caBundle should be set for HTTPS scheme")
 		}
 		if err := verify(provider.Spec.CABundle); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("only HTTPS and HTTP schemes are supported for Providers")
 	}
 
 	return nil
-}
-
-func isValidTimeout(timeout int) bool {
-	return timeout >= 0
 }
