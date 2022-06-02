@@ -110,12 +110,16 @@ func getClient(provider *v1alpha1.Provider, clientCert *tls.Certificate) (*http.
 	client := &http.Client{
 		Timeout: time.Duration(provider.Spec.Timeout) * time.Second,
 	}
+
 	tlsConfig := &tls.Config{
-		// present our client cert to the server
-		// in case provider wants to verify it
-		Certificates: []tls.Certificate{*clientCert},
 		//nolint:gosec
 		InsecureSkipVerify: provider.Spec.InsecureTLSSkipVerify,
+	}
+
+	// present our client cert to the server
+	// in case provider wants to verify it
+	if clientCert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*clientCert}
 	}
 
 	if u.Scheme == HTTPSScheme && !provider.Spec.InsecureTLSSkipVerify {

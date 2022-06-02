@@ -3,6 +3,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -63,6 +64,10 @@ type Driver struct {
 
 	// sendRequestToProvider allows Rego to send requests to the provider specified in external_data.
 	sendRequestToProvider externaldata.SendRequestToProvider
+
+	// enableExternalDataClientAuth enables the injection of a TLS certificate into an HTTP client
+	// that is used to communicate with providers.
+	enableExternalDataClientAuth bool
 
 	// fs is the filesystem to use for reading files.
 	fs fs.FS
@@ -341,6 +346,29 @@ func (d *Driver) readFile(name string) ([]byte, error) {
 	defer file.Close()
 
 	return ioutil.ReadAll(file)
+}
+
+func (d *Driver) getTLSCertificate() (*tls.Certificate, error) {
+	if !d.enableExternalDataClientAuth {
+		return nil, nil
+	}
+
+	certPEM, err := d.readFile(d.clientCertFile)
+	if err != nil {
+		return nil, err
+	}
+
+	keyPEM, err := d.readFile(d.clientKeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	return &clientCert, nil
 }
 
 // rewriteModulePackage rewrites the module's package path to path.

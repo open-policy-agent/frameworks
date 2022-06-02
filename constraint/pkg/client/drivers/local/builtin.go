@@ -1,7 +1,6 @@
 package local
 
 import (
-	"crypto/tls"
 	"net/http"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -21,22 +20,12 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 			return externaldata.HandleError(http.StatusBadRequest, err)
 		}
 
-		certPEM, err := d.readFile(d.clientCertFile)
+		clientCert, err := d.getTLSCertificate()
 		if err != nil {
 			return externaldata.HandleError(http.StatusBadRequest, err)
 		}
 
-		keyPEM, err := d.readFile(d.clientKeyFile)
-		if err != nil {
-			return externaldata.HandleError(http.StatusBadRequest, err)
-		}
-
-		clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
-		if err != nil {
-			return externaldata.HandleError(http.StatusBadRequest, err)
-		}
-
-		externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, regoReq.Keys, &clientCert)
+		externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, regoReq.Keys, clientCert)
 		if err != nil {
 			return externaldata.HandleError(statusCode, err)
 		}

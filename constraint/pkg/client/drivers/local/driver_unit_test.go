@@ -308,7 +308,10 @@ func TestDriver_ExternalData(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			d, err := New(AddExternalDataProviderCache(externaldata.NewCache()))
+			d, err := New(
+				AddExternalDataProviderCache(externaldata.NewCache()),
+				EnableExternalDataClientAuth(),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
