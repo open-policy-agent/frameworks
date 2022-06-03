@@ -919,7 +919,7 @@ func TestClient_AddConstraint(t *testing.T) {
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
 				cts.Set(int64(3), "spec", "enforcementAction")),
-			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantAddConstraintError: constraints.ErrSchema,
 			wantGetConstraintError: client.ErrMissingConstraint,
 		},
 		{
