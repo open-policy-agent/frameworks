@@ -103,7 +103,7 @@ func isValidCABundle(provider *v1alpha1.Provider) error {
 	switch u.Scheme {
 	case HTTPScheme:
 		if !provider.Spec.InsecureTLSSkipVerify {
-			return fmt.Errorf("only HTTPS scheme is supported for Providers. To enable HTTP scheme, set insecureTLSSkipVerify to true")
+			return fmt.Errorf("only HTTPS scheme is supported for this Provider. To enable HTTP scheme, set insecureTLSSkipVerify to true")
 		}
 		if provider.Spec.CABundle != "" {
 			if err := verify(provider.Spec.CABundle); err != nil {
