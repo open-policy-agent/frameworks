@@ -37,7 +37,8 @@ spec:
             properties:
               caBundle:
                 description: CABundle is a base64-encoded string that contains the
-                  TLS CA bundle in PEM format. It is used to sign the provider's certificate.
+                  TLS CA bundle in PEM format. It is used to verify the signature
+                  of the provider's certificate.
                 type: string
               insecureTLSSkipVerify:
                 description: InsecureTLSSkipVerify skips the verification of Provider's
