@@ -6,8 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"io/ioutil"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +23,7 @@ import (
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 )
 
 const (
@@ -69,14 +68,8 @@ type Driver struct {
 	// that is used to communicate with providers.
 	enableExternalDataClientAuth bool
 
-	// fs is the filesystem to use for reading files.
-	fs fs.FS
-
-	// clientCertFile is the path to the client's certificate file.
-	clientCertFile string
-
-	// clientKeyFile is the path to the client's key file.
-	clientKeyFile string
+	// clientCertWatcher is a watcher for the TLS certificate used to communicate with providers.
+	clientCertWatcher *certwatcher.CertWatcher
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
@@ -337,38 +330,16 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
-// readFile reads a file from driver's filesystem and returns its contents.
-func (d *Driver) readFile(name string) ([]byte, error) {
-	file, err := d.fs.Open(name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s: %w", name, err)
-	}
-	defer file.Close()
-
-	return ioutil.ReadAll(file)
-}
-
 func (d *Driver) getTLSCertificate() (*tls.Certificate, error) {
 	if !d.enableExternalDataClientAuth {
 		return nil, nil
 	}
 
-	certPEM, err := d.readFile(d.clientCertFile)
-	if err != nil {
-		return nil, err
+	if d.clientCertWatcher == nil {
+		return nil, fmt.Errorf("certWatcher should not be nil when enableExternalDataClientAuth is true")
 	}
 
-	keyPEM, err := d.readFile(d.clientKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	clientCert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, err
-	}
-
-	return &clientCert, nil
+	return d.clientCertWatcher.GetCertificate(nil)
 }
 
 // rewriteModulePackage rewrites the module's package path to path.

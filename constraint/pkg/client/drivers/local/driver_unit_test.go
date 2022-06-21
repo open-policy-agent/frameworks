@@ -5,11 +5,11 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/fs"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"sort"
 	"testing"
-	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -24,6 +24,7 @@ import (
 	"github.com/open-policy-agent/opa/storage/inmem"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 )
 
 const (
@@ -177,73 +178,16 @@ func TestDriver_ExternalData(t *testing.T) {
 	for _, tt := range []struct {
 		name                  string
 		provider              *v1alpha1.Provider
-		fs                    fs.FS
+		clientCertContent     string
+		clientKeyContent      string
 		sendRequestToProvider externaldata.SendRequestToProvider
 		errorExpected         bool
 	}{
 		{
-			name:          "provider not found",
-			errorExpected: true,
-		},
-		{
-			name: "invalid client cert path",
-			provider: &v1alpha1.Provider{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "dummy-provider",
-				},
-				Spec: v1alpha1.ProviderSpec{
-					URL:      "https://example.com",
-					Timeout:  1,
-					CABundle: caBundle,
-				},
-			},
-			fs: fstest.MapFS{
-				"client.key": {
-					Data: []byte("test"),
-				},
-			},
-			errorExpected: true,
-		},
-		{
-			name: "invalid client key path",
-			provider: &v1alpha1.Provider{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "dummy-provider",
-				},
-				Spec: v1alpha1.ProviderSpec{
-					URL:      "https://example.com",
-					Timeout:  1,
-					CABundle: caBundle,
-				},
-			},
-			fs: fstest.MapFS{
-				"client.crt": {
-					Data: []byte("test"),
-				},
-			},
-			errorExpected: true,
-		},
-		{
-			name: "invalid client cert and key content",
-			provider: &v1alpha1.Provider{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "dummy-provider",
-				},
-				Spec: v1alpha1.ProviderSpec{
-					URL:      "https://example.com",
-					Timeout:  1,
-					CABundle: caBundle,
-				},
-			},
-			fs: fstest.MapFS{
-				"client.crt": {
-					Data: []byte("test"),
-				},
-				"client.key": {
-					Data: []byte("test"),
-				},
-			},
-			errorExpected: true,
+			name:              "provider not found",
+			clientCertContent: clientCert,
+			clientKeyContent:  clientKey,
+			errorExpected:     true,
 		},
 		{
 			name: "error from SendRequestToProvider",
@@ -257,14 +201,8 @@ func TestDriver_ExternalData(t *testing.T) {
 					CABundle: caBundle,
 				},
 			},
-			fs: fstest.MapFS{
-				"client.crt": {
-					Data: []byte(clientCert),
-				},
-				"client.key": {
-					Data: []byte(clientKey),
-				},
-			},
+			clientCertContent: clientCert,
+			clientKeyContent:  clientKey,
 			sendRequestToProvider: func(ctx context.Context, provider *v1alpha1.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return nil, http.StatusBadRequest, errors.New("error from SendRequestToProvider")
 			},
@@ -282,14 +220,8 @@ func TestDriver_ExternalData(t *testing.T) {
 					CABundle: caBundle,
 				},
 			},
-			fs: fstest.MapFS{
-				"client.crt": {
-					Data: []byte(clientCert),
-				},
-				"client.key": {
-					Data: []byte(clientKey),
-				},
-			},
+			clientCertContent: clientCert,
+			clientKeyContent:  clientKey,
 			sendRequestToProvider: func(ctx context.Context, provider *v1alpha1.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return &externaldata.ProviderResponse{
 					APIVersion: "v1alpha1",
@@ -308,9 +240,37 @@ func TestDriver_ExternalData(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			clientCertFile, err := ioutil.TempFile("", "client-cert")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(clientCertFile.Name())
+
+			_, _ = clientCertFile.WriteString(tt.clientCertContent)
+			clientCertFile.Close()
+
+			clientKeyFile, err := ioutil.TempFile("", "client-key")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(clientKeyFile.Name())
+
+			_, _ = clientKeyFile.WriteString(tt.clientKeyContent)
+			clientKeyFile.Close()
+
+			clientCertWatcher, err := certwatcher.New(clientCertFile.Name(), clientKeyFile.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			go func() {
+				_ = clientCertWatcher.Start(context.Background())
+			}()
+
 			d, err := New(
 				AddExternalDataProviderCache(externaldata.NewCache()),
 				EnableExternalDataClientAuth(),
+				AddExternalDataClientCertWatcher(clientCertWatcher),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -320,12 +280,6 @@ func TestDriver_ExternalData(t *testing.T) {
 				if err := d.providerCache.Upsert(tt.provider); err != nil {
 					t.Fatal(err)
 				}
-			}
-
-			if tt.fs != nil {
-				d.fs = tt.fs
-				d.clientCertFile = "client.crt"
-				d.clientKeyFile = "client.key"
 			}
 
 			if tt.sendRequestToProvider != nil {

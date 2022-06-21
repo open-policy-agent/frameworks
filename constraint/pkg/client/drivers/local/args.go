@@ -2,7 +2,6 @@ package local
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -10,6 +9,7 @@ import (
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/topdown/print"
 	opatypes "github.com/open-policy-agent/opa/types"
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 )
 
 type Arg func(*Driver) error
@@ -46,10 +46,6 @@ func Defaults() Arg {
 
 		if d.sendRequestToProvider == nil {
 			d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
-		}
-
-		if d.fs == nil {
-			d.fs = os.DirFS("/")
 		}
 
 		return nil
@@ -120,10 +116,9 @@ func DisableBuiltins(builtins ...string) Arg {
 	}
 }
 
-func AddClientTLSKeyPair(certFile, keyFile string) Arg {
+func AddExternalDataClientCertWatcher(clientCertWatcher *certwatcher.CertWatcher) Arg {
 	return func(d *Driver) error {
-		d.clientCertFile = certFile
-		d.clientKeyFile = keyFile
+		d.clientCertWatcher = clientCertWatcher
 
 		return nil
 	}
