@@ -17,7 +17,7 @@ replace (
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v1.0.0
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/open-policy-agent/opa v0.42.2
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
