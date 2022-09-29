@@ -295,6 +295,15 @@ func TestClient_AddTemplate(t *testing.T) {
 			wantError:   nil,
 		},
 		{
+			name:    "Long name",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			template: cts.New(cts.OptName("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz123456789012"),
+				cts.OptCRDNames("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz123456789012"),
+			),
+			wantHandled: nil,
+			wantError:   clienterrors.ErrInvalidConstraintTemplate,
+		},
+		{
 			name:    "Multiple targets",
 			targets: []handler.TargetHandler{&handlertest.Handler{}},
 			template: cts.New(cts.OptTargets(
