@@ -768,7 +768,7 @@ func TestDriver_RemoveData_StorageErrors(t *testing.T) {
 			name: "commit error",
 			storage: &commitErrorStorage{
 				fakeStorage: fakeStorage{values: map[string]interface{}{
-					"/external/foo": "bar",
+					"/inventory/foo": "bar",
 				}},
 			},
 			wantErr: clienterrors.ErrTransaction,
