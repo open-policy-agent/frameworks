@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"sort"
@@ -240,7 +239,7 @@ func TestDriver_ExternalData(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			clientCertFile, err := ioutil.TempFile("", "client-cert")
+			clientCertFile, err := os.CreateTemp("", "client-cert")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -249,7 +248,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			_, _ = clientCertFile.WriteString(tt.clientCertContent)
 			clientCertFile.Close()
 
-			clientKeyFile, err := ioutil.TempFile("", "client-key")
+			clientKeyFile, err := os.CreateTemp("", "client-key")
 			if err != nil {
 				t.Fatal(err)
 			}
