@@ -1,6 +1,6 @@
 module github.com/open-policy-agent/frameworks/constraint
 
-go 1.17
+go 1.18
 
 // Prevent otel dependencies from getting out of sync.
 // Cannot be upgraded until k8s.io/component-base uses a more recent version of
