@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
@@ -238,6 +239,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	defer d.mtx.RUnlock()
 
 	for kind, kindConstraints := range constraintsByKind {
+		evalStartTime := time.Now()
 		compiler := d.compilers.getCompiler(target, kind)
 		if compiler == nil {
 			// The Template was just removed, so the Driver is in an inconsistent
@@ -254,6 +256,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 
 		resultSet, trace, err := d.eval(ctx, compiler, target, path, parsedInput, opts...)
+		evalEndTime := time.Since(evalStartTime)
 		if err != nil {
 			resultSet = make(rego.ResultSet, 0, len(kindConstraints))
 			for _, constraint := range kindConstraints {
@@ -277,6 +280,12 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		kindResults, err := drivers.ToResults(constraintsMap, resultSet)
 		if err != nil {
 			return nil, nil, err
+		}
+
+		for _, result := range kindResults {
+			result.ResultMeta = &types.ResultMeta{
+				ReviewMeta: types.NewReviewMeta(float64(evalEndTime.Nanoseconds())/1000000, types.RegoEngine, uint(len(kindResults))),
+			}
 		}
 
 		results = append(results, kindResults...)

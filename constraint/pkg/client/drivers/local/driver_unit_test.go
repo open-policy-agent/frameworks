@@ -171,6 +171,11 @@ func TestDriver_Query(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
+
+	expectingStatsString := fmt.Sprintf("evaluationLatency: %.4f, engineType: rego, batchSize: 1", res[0].GetEvaluationLatency())
+	if res[0].GetStatsString() == expectingStatsString {
+		t.Fatalf("did not receive expected StatsString; want: %s, got: %s", expectingStatsString, res[0].GetStatsString())
+	}
 }
 
 func TestDriver_ExternalData(t *testing.T) {

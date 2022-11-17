@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -725,5 +726,46 @@ func TestE2E_Tracing(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// TestE2E_Review_ResponseMeta tests that we can get stats out of evaluated constraints.
+func TestE2E_Review_ResponseMeta(t *testing.T) {
+	ctx := context.Background()
+	c := clienttest.New(t)
+	ct := clienttest.TemplateCheckData()
+	_, err := c.AddTemplate(ctx, ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	numConstrains := 3
+
+	for i := 1; i < numConstrains+1; i++ {
+		name := "constraint-" + strconv.Itoa(i)
+		constraint := cts.MakeConstraint(t, clienttest.KindCheckData, name, cts.WantData("bar"))
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	review := handlertest.Review{
+		Object: handlertest.Object{
+			Name: "foo",
+			Data: "qux",
+		},
+	}
+
+	responses, err := c.Review(ctx, review)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results := responses.Results()
+
+	for _, result := range results {
+		if result.GetStatsString() == "" {
+			t.Fatalf("expected to have a stats string, got empty string")
+		}
 	}
 }

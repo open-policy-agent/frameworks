@@ -9,6 +9,27 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+type EvaluationEngineType string
+
+const (
+	Undefined  EvaluationEngineType = "undefined"
+	RegoEngine EvaluationEngineType = "rego"
+)
+
+type ReviewMeta struct {
+	// evaluationLatency is the number of milliseconds it took to server a client.Review() call.
+	evaluationLatency float64
+	// engineType denotes an enum for which kind of underlying engine was used for a client.Review() call.
+	engineType EvaluationEngineType
+	// batchSize indicates how many constrains were evaluated for an underlying engine eval call.
+	batchSize uint
+}
+
+// ResultMeta coontains metadata, such as latency, etc., for a given Response.
+type ResultMeta struct {
+	*ReviewMeta `json:"reviewMeta,inline"`
+}
+
 type Result struct {
 	// Target is the target this violation is for.
 	Target string `json:"target"`
@@ -23,6 +44,8 @@ type Result struct {
 
 	// The enforcement action of the constraint
 	EnforcementAction string `json:"enforcementAction,omitempty"`
+
+	*ResultMeta `json:"-,inline"`
 }
 
 // Response is a collection of Constraint violations for a particular Target.
@@ -133,4 +156,28 @@ func (r *Responses) TraceDump() string {
 		_, _ = fmt.Fprintln(b, "")
 	}
 	return b.String()
+}
+
+type engineStats interface {
+	GetStatsString() string
+	GetEvaluationLatency() float64
+}
+
+// GetStatsString gives a ReviewMeta representation for logging.
+func (rm *ReviewMeta) GetStatsString() string {
+	return fmt.Sprintf("evaluationLatency: %.4f, engineType: %s, batchSize: %d", rm.evaluationLatency, rm.engineType, rm.batchSize)
+}
+
+// GetEvaluationLatency gets the latency spent evaluating a result.
+// Note that this latencyof a result latencies batched together.
+func (rm *ReviewMeta) GetEvaluationLatency() float64 {
+	return rm.evaluationLatency
+}
+
+func NewReviewMeta(latency float64, engine EvaluationEngineType, batch uint) *ReviewMeta {
+	return &ReviewMeta{
+		evaluationLatency: latency,
+		engineType:        engine,
+		batchSize:         batch,
+	}
 }
