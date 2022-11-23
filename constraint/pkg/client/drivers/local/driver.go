@@ -73,6 +73,20 @@ type Driver struct {
 	clientCertWatcher *certwatcher.CertWatcher
 }
 
+// regoResultMeta has rego specific metadata for a result.
+type regoResultMeta struct {
+	// templateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
+	templateRunTime float64
+	// engineType is an engine set string for the kind of underlying engine that was used for a client.Review() call.
+	engineType string
+	// constraintCount indicates how many constraints were evaluated for an underlying engine eval call.
+	constraintCount uint
+}
+
+func (rm *regoResultMeta) EngineStatsString() string {
+	return fmt.Sprintf("totalTemplateRuntime: %.4f, engineType: %s, constraintCount: %d", rm.templateRunTime, rm.engineType, rm.constraintCount)
+}
+
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
 // use in queries.
 func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTemplate) error {
@@ -283,8 +297,10 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 
 		for _, result := range kindResults {
-			result.ResultMeta = &types.ResultMeta{
-				ReviewMeta: types.NewReviewMeta(float64(evalEndTime.Nanoseconds())/1000000, types.RegoEngine, uint(len(kindResults))),
+			result.ResultMeta = &regoResultMeta{
+				templateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
+				engineType:      "rego",
+				constraintCount: uint(len(kindResults)),
 			}
 		}
 

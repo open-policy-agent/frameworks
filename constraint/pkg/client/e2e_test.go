@@ -729,8 +729,8 @@ func TestE2E_Tracing(t *testing.T) {
 	}
 }
 
-// TestE2E_Review_ResponseMeta tests that we can get stats out of evaluated constraints.
-func TestE2E_Review_ResponseMeta(t *testing.T) {
+// TestE2E_Review_ResultMeta tests that we can get stats out of evaluated constraints.
+func TestE2E_Review_ResultMeta(t *testing.T) {
 	ctx := context.Background()
 	c := clienttest.New(t)
 	ct := clienttest.TemplateCheckData()
@@ -764,7 +764,7 @@ func TestE2E_Review_ResponseMeta(t *testing.T) {
 	results := responses.Results()
 
 	for _, result := range results {
-		if result.GetStatsString() == "" {
+		if result.ResultMeta.EngineStatsString() == "" {
 			t.Fatalf("expected to have a stats string, got empty string")
 		}
 	}

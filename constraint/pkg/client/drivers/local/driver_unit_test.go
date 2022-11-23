@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -172,9 +173,15 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
 
-	expectingStatsString := fmt.Sprintf("evaluationLatency: %.4f, engineType: rego, batchSize: 1", res[0].GetEvaluationLatency())
-	if res[0].GetStatsString() == expectingStatsString {
-		t.Fatalf("did not receive expected StatsString; want: %s, got: %s", expectingStatsString, res[0].GetStatsString())
+	statsString := res[0].ResultMeta.EngineStatsString()
+	partOfExcpectedStatsString := fmt.Sprintf("engineType: rego, constraintCount: 1")
+	if !strings.Contains(statsString, partOfExcpectedStatsString) {
+		t.Fatalf("did not find expected string: %s, in: %s", partOfExcpectedStatsString, statsString)
+	}
+
+	partOfNonExpectingString := "totalTemplateRuntime: 0.0000"
+	if strings.Contains(statsString, partOfNonExpectingString) {
+		t.Fatalf("did not expect string: %s, in: %s", partOfNonExpectingString, statsString)
 	}
 }
 
