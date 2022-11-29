@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -173,15 +172,25 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
 
-	statsString := res[0].ResultMeta.EngineStatsString()
-	partOfExcpectedStatsString := fmt.Sprintf("engineType: rego, constraintCount: 1")
-	if !strings.Contains(statsString, partOfExcpectedStatsString) {
-		t.Fatalf("did not find expected string: %s, in: %s", partOfExcpectedStatsString, statsString)
+	stats, err := res[0].ResultMeta.EngineStats()
+	if err != nil {
+		t.Fatalf("got Query() (#3) error = %v, want %v", err, nil)
 	}
 
-	partOfNonExpectingString := "totalTemplateRuntime: 0.0000"
-	if strings.Contains(statsString, partOfNonExpectingString) {
-		t.Fatalf("did not expect string: %s, in: %s", partOfNonExpectingString, statsString)
+	trt, found := stats["templateRunTime"]
+	if !found {
+		t.Fatalf("did not find %v in engine stats", "templateRunTime")
+	}
+	if trt == 0 {
+		t.Fatalf("expected %v's value to be positive was zero", "templateRunTime")
+	}
+
+	cc, found := stats["constraintCount"]
+	if !found {
+		t.Fatalf("did not find %v in engine stats", "constraintCount")
+	}
+	if cc != 1.0 { // this comes our as as float64
+		t.Fatalf("expected %v constraint count, got %v", 1, cc)
 	}
 }
 

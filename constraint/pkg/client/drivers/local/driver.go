@@ -75,16 +75,23 @@ type Driver struct {
 
 // regoResultMeta has rego specific metadata for a result.
 type regoResultMeta struct {
-	// templateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
-	templateRunTime float64
-	// engineType is an engine set string for the kind of underlying engine that was used for a client.Review() call.
-	engineType string
-	// constraintCount indicates how many constraints were evaluated for an underlying engine eval call.
-	constraintCount uint
+	// TemplateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
+	TemplateRunTime float64 `json:"templateRunTime"`
+	// ConstraintCount indicates how many constraints were evaluated for an underlying engine eval call.
+	ConstraintCount uint `json:"constraintCount"`
 }
 
-func (rm *regoResultMeta) EngineStatsString() string {
-	return fmt.Sprintf("totalTemplateRuntime: %.4f, engineType: %s, constraintCount: %d", rm.templateRunTime, rm.engineType, rm.constraintCount)
+func (rm *regoResultMeta) EngineStats() (map[string]interface{}, error) {
+	var mapInterface map[string]interface{}
+	marshalb, err := json.Marshal(rm)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(marshalb, &mapInterface)
+	if err != nil {
+		return nil, err
+	}
+	return mapInterface, nil
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
@@ -298,9 +305,8 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		for _, result := range kindResults {
 			result.ResultMeta = &regoResultMeta{
-				templateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
-				engineType:      "rego",
-				constraintCount: uint(len(kindResults)),
+				TemplateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
+				ConstraintCount: uint(len(kindResults)),
 			}
 		}
 
