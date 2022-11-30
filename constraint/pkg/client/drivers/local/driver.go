@@ -73,25 +73,12 @@ type Driver struct {
 	clientCertWatcher *certwatcher.CertWatcher
 }
 
-// regoResultMeta has rego specific metadata for a result.
-type regoResultMeta struct {
+// RegoEvaluationMeta has rego specific metadata from evaluation.
+type RegoEvaluationMeta struct {
 	// TemplateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
 	TemplateRunTime float64 `json:"templateRunTime"`
-	// ConstraintCount indicates how many constraints were evaluated for an underlying engine eval call.
+	// ConstraintCount indicates how many constraints were evaluated for an underlying rego engine eval call.
 	ConstraintCount uint `json:"constraintCount"`
-}
-
-func (rm *regoResultMeta) EngineStats() (map[string]interface{}, error) {
-	var mapInterface map[string]interface{}
-	marshalb, err := json.Marshal(rm)
-	if err != nil {
-		return nil, err
-	}
-	err = json.Unmarshal(marshalb, &mapInterface)
-	if err != nil {
-		return nil, err
-	}
-	return mapInterface, nil
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
@@ -304,7 +291,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 
 		for _, result := range kindResults {
-			result.ResultMeta = &regoResultMeta{
+			result.EvaluationMeta = RegoEvaluationMeta{
 				TemplateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
 				ConstraintCount: uint(len(kindResults)),
 			}

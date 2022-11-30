@@ -765,26 +765,17 @@ func TestE2E_Review_ResultMeta(t *testing.T) {
 
 	// for each result check that we have the constraintCount == 3 and a positive templateRunTime
 	for _, result := range results {
-		stats, err := result.ResultMeta.EngineStats()
-		if err != nil {
-			t.Fatalf("expected nil err got %v", err)
+		stats, ok := result.EvaluationMeta.(local.RegoEvaluationMeta)
+		if !ok {
+			t.Fatalf("could not type convert to RegoEvaluationMeta")
 		}
 
-		trt, found := stats["templateRunTime"]
-		if !found {
-			t.Fatalf("did not find %v in engine stats", "templateRunTime")
-		}
-		if trt == 0 {
-			t.Fatalf("expected %v's value to be positive was zero", "templateRunTime")
+		if stats.TemplateRunTime == 0 {
+			t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
 		}
 
-		cc, found := stats["constraintCount"]
-		if !found {
-			t.Fatalf("did not find %v in engine stats", "constraintCount")
-		}
-
-		if cc != float64(numConstrains) { // constraintCount comes out as float64
-			t.Fatalf("expected %v constraint count, got %v", numConstrains, cc)
+		if stats.ConstraintCount != uint(numConstrains) {
+			t.Fatalf("expected %v constraint count, got %v", numConstrains, "ConstraintCount")
 		}
 	}
 }

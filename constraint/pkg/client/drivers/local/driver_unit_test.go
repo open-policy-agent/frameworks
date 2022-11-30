@@ -172,25 +172,17 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
 
-	stats, err := res[0].ResultMeta.EngineStats()
-	if err != nil {
-		t.Fatalf("got Query() (#3) error = %v, want %v", err, nil)
+	stats, ok := res[0].EvaluationMeta.(RegoEvaluationMeta)
+	if !ok {
+		t.Fatalf("could not type convert to RegoEvaluationMeta")
 	}
 
-	trt, found := stats["templateRunTime"]
-	if !found {
-		t.Fatalf("did not find %v in engine stats", "templateRunTime")
-	}
-	if trt == 0 {
-		t.Fatalf("expected %v's value to be positive was zero", "templateRunTime")
+	if stats.TemplateRunTime == 0 {
+		t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
 	}
 
-	cc, found := stats["constraintCount"]
-	if !found {
-		t.Fatalf("did not find %v in engine stats", "constraintCount")
-	}
-	if cc != 1.0 { // this comes our as as float64
-		t.Fatalf("expected %v constraint count, got %v", 1, cc)
+	if stats.ConstraintCount != uint(1) {
+		t.Fatalf("expected %v constraint count, got %v", 1, "ConstraintCount")
 	}
 }
 
