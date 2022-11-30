@@ -729,8 +729,8 @@ func TestE2E_Tracing(t *testing.T) {
 	}
 }
 
-// TestE2E_Review_ResultMeta tests that we can get stats out of evaluated constraints.
-func TestE2E_Review_ResultMeta(t *testing.T) {
+// TestE2E_Review_RegoEvaluationMeta tests that we can get stats out of evaluated constraints.
+func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
 	ctx := context.Background()
 	c := clienttest.New(t)
 	ct := clienttest.TemplateCheckData()

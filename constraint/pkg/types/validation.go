@@ -137,13 +137,3 @@ func (r *Responses) TraceDump() string {
 	}
 	return b.String()
 }
-
-// ResultMeta defines an interface to expose metadata for a Result.
-type ResultMeta interface {
-	// EngineStats gives an amorphous representation of engine stats
-	// such as the total runtime of the evaluation and the number of constraints evalauted
-	// against a template. The underlying enigne type defines and implements
-	// structs for this interface. This function is primarily inteded for logging
-	// out for the consumers of the constraint framework library.
-	EngineStats() (map[string]interface{}, error)
-}
