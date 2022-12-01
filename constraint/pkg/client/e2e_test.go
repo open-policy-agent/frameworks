@@ -440,7 +440,7 @@ func TestClient_Review(t *testing.T) {
 
 			results := responses.Results()
 
-			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata")
+			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")
 			if diff := cmp.Diff(tt.wantResults, results, diffOpt); diff != "" {
 				t.Error(diff)
 			}
@@ -488,7 +488,8 @@ func TestClient_Review_Details(t *testing.T) {
 
 	results := responses.Results()
 
-	if diff := cmp.Diff(want, results); diff != "" {
+	diffOpt := cmpopts.IgnoreFields(types.Result{}, "EvaluationMeta")
+	if diff := cmp.Diff(want, results, diffOpt); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -568,7 +569,7 @@ func TestClient_Review_Print(t *testing.T) {
 
 			results := rsps.Results()
 			if diff := cmp.Diff(tc.wantResults, results,
-				cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+				cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 				t.Error(diff)
 			}
 
@@ -606,7 +607,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -655,7 +656,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 		t.Fatal(diff)
 	}
 
