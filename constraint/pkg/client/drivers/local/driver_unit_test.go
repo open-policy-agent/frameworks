@@ -171,6 +171,19 @@ func TestDriver_Query(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
+
+	stats, ok := res[0].EvaluationMeta.(RegoEvaluationMeta)
+	if !ok {
+		t.Fatalf("could not type convert to RegoEvaluationMeta")
+	}
+
+	if stats.TemplateRunTime == 0 {
+		t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
+	}
+
+	if stats.ConstraintCount != uint(1) {
+		t.Fatalf("expected %v constraint count, got %v", 1, "ConstraintCount")
+	}
 }
 
 func TestDriver_ExternalData(t *testing.T) {

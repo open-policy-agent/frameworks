@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -439,7 +440,7 @@ func TestClient_Review(t *testing.T) {
 
 			results := responses.Results()
 
-			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata")
+			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")
 			if diff := cmp.Diff(tt.wantResults, results, diffOpt); diff != "" {
 				t.Error(diff)
 			}
@@ -487,7 +488,8 @@ func TestClient_Review_Details(t *testing.T) {
 
 	results := responses.Results()
 
-	if diff := cmp.Diff(want, results); diff != "" {
+	diffOpt := cmpopts.IgnoreFields(types.Result{}, "EvaluationMeta")
+	if diff := cmp.Diff(want, results, diffOpt); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -567,7 +569,7 @@ func TestClient_Review_Print(t *testing.T) {
 
 			results := rsps.Results()
 			if diff := cmp.Diff(tc.wantResults, results,
-				cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+				cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 				t.Error(diff)
 			}
 
@@ -605,7 +607,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -654,7 +656,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -725,5 +727,56 @@ func TestE2E_Tracing(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// TestE2E_Review_RegoEvaluationMeta tests that we can get stats out of evaluated constraints.
+func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
+	ctx := context.Background()
+	c := clienttest.New(t)
+	ct := clienttest.TemplateCheckData()
+	_, err := c.AddTemplate(ctx, ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+	numConstrains := 3
+
+	for i := 1; i < numConstrains+1; i++ {
+		name := "constraint-" + strconv.Itoa(i)
+		constraint := cts.MakeConstraint(t, clienttest.KindCheckData, name, cts.WantData("bar"))
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	review := handlertest.Review{
+		Object: handlertest.Object{
+			Name: "foo",
+			Data: "qux",
+		},
+	}
+
+	responses, err := c.Review(ctx, review)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	results := responses.Results()
+
+	// for each result check that we have the constraintCount == 3 and a positive templateRunTime
+	for _, result := range results {
+		stats, ok := result.EvaluationMeta.(local.RegoEvaluationMeta)
+		if !ok {
+			t.Fatalf("could not type convert to RegoEvaluationMeta")
+		}
+
+		if stats.TemplateRunTime == 0 {
+			t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
+		}
+
+		if stats.ConstraintCount != uint(numConstrains) {
+			t.Fatalf("expected %v constraint count, got %v", numConstrains, "ConstraintCount")
+		}
 	}
 }
