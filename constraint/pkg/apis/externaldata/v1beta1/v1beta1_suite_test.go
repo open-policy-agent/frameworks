@@ -27,8 +27,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var cfg *rest.Config
-var c client.Client
+var (
+	cfg *rest.Config
+	c   client.Client
+)
 
 func TestMain(m *testing.M) {
 	t := &envtest.Environment{
@@ -49,6 +51,8 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	t.Stop()
+	if err := t.Stop(); err != nil {
+		log.Fatal(err)
+	}
 	os.Exit(code)
 }

@@ -33,7 +33,8 @@ func TestStorageProvider(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "default",
-		}}
+		},
+	}
 	g := gomega.NewGomegaWithT(t)
 
 	// Test Create
