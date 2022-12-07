@@ -3,7 +3,7 @@ package externaldata
 import (
 	"testing"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1alpha1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -15,16 +15,16 @@ const (
 
 type cacheTestCase struct {
 	Name          string
-	Provider      *v1alpha1.Provider
+	Provider      *v1beta1.Provider
 	ErrorExpected bool
 }
 
-func createProvider(name string, url string, timeout int, caBundle string, insecureTLSSkipVerify bool) *v1alpha1.Provider {
-	return &v1alpha1.Provider{
+func createProvider(name string, url string, timeout int, caBundle string, insecureTLSSkipVerify bool) *v1beta1.Provider {
+	return &v1beta1.Provider{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: v1alpha1.ProviderSpec{
+		Spec: v1beta1.ProviderSpec{
 			URL:                   url,
 			Timeout:               timeout,
 			CABundle:              caBundle,
@@ -102,7 +102,7 @@ func TestUpsert(t *testing.T) {
 		},
 		{
 			Name:          "empty provider",
-			Provider:      &v1alpha1.Provider{},
+			Provider:      &v1beta1.Provider{},
 			ErrorExpected: true,
 		},
 	}
