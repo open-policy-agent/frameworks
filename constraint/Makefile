@@ -30,7 +30,7 @@ docker-internal-test:
 
 # Hook to run docker tests
 test:
-	docker build . -t constraint-test && docker run -it constraint-test
+	docker build . -t constraint-test && docker run constraint-test
 
 # Install CRDs into a cluster
 install: manifests
