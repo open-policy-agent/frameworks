@@ -74,15 +74,11 @@ generate: generate-defaults
 	# those functions exist and can be added manually to the conversion file.
 	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
 	# conversion-gen and get us back to running `make generate` in our CI pipeline
-	# conversion-gen \
-	# 	--input-dirs "./pkg/apis/templates/...,./pkg/apis/externaldata/..." \
-	# 	--go-header-file=./hack/boilerplate.go.txt \
-	# 	--output-file-base=zz_generated.conversion \
-	# 	--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 	conversion-gen \
-		--input-dirs "./pkg/apis/externaldata/..." \
+		--input-dirs "./pkg/apis/templates/...,./pkg/apis/externaldata/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
+		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 
 CRD_SOURCE_FILE := deploy/crds.yaml
 FILE_STUB := "package schema\

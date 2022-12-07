@@ -39,7 +39,7 @@ type ProviderSpec struct {
 
 // Provider is the Schema for the Provider API
 // +k8s:openapi-gen=true
-// +k8s:conversion-gen-external-types=github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata
+// +k8s:conversion-gen-external-types=github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1beta1
 type Provider struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
