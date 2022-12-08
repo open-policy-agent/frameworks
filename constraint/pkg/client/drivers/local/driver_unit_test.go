@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/v1beta1"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
@@ -189,7 +189,7 @@ func TestDriver_Query(t *testing.T) {
 func TestDriver_ExternalData(t *testing.T) {
 	for _, tt := range []struct {
 		name                  string
-		provider              *v1beta1.Provider
+		provider              *unversioned.Provider
 		clientCertContent     string
 		clientKeyContent      string
 		sendRequestToProvider externaldata.SendRequestToProvider
@@ -203,11 +203,11 @@ func TestDriver_ExternalData(t *testing.T) {
 		},
 		{
 			name: "error from SendRequestToProvider",
-			provider: &v1beta1.Provider{
+			provider: &unversioned.Provider{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "dummy-provider",
 				},
-				Spec: v1beta1.ProviderSpec{
+				Spec: unversioned.ProviderSpec{
 					URL:      "https://example.com",
 					Timeout:  1,
 					CABundle: caBundle,
@@ -215,18 +215,18 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(ctx context.Context, provider *v1beta1.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return nil, http.StatusBadRequest, errors.New("error from SendRequestToProvider")
 			},
 			errorExpected: true,
 		},
 		{
 			name: "valid response",
-			provider: &v1beta1.Provider{
+			provider: &unversioned.Provider{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "dummy-provider",
 				},
-				Spec: v1beta1.ProviderSpec{
+				Spec: unversioned.ProviderSpec{
 					URL:      "https://example.com",
 					Timeout:  1,
 					CABundle: caBundle,
@@ -234,9 +234,9 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(ctx context.Context, provider *v1beta1.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return &externaldata.ProviderResponse{
-					APIVersion: "v1alpha1",
+					APIVersion: "v1beta1",
 					Kind:       "Provider",
 					Response: externaldata.Response{
 						Idempotent: true,
