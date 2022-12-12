@@ -153,7 +153,7 @@ func TestRemove(t *testing.T) {
 	tc := []cacheTestCase{
 		{
 			Name:          "valid provider",
-			Provider:      createProvider("test", "http://test", 1, ""),
+			Provider:      createProvider("test", "https://test", 1, ""),
 			ErrorExpected: false,
 		},
 	}
