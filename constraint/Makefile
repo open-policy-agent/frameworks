@@ -30,7 +30,7 @@ docker-internal-test:
 
 # Hook to run docker tests
 test:
-	docker build . -t constraint-test && docker run -it constraint-test
+	docker build . -t constraint-test && docker run constraint-test
 
 # Install CRDs into a cluster
 install: manifests
@@ -38,9 +38,9 @@ install: manifests
 
 # Install the generation dependencies on the local machine
 gen-dependencies:
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0
-	go install k8s.io/code-generator/cmd/conversion-gen@v0.23.3
-	go install k8s.io/code-generator/cmd/defaulter-gen@v0.23.3
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
+	go install k8s.io/code-generator/cmd/conversion-gen@v0.25.4
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.25.4
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
@@ -75,7 +75,7 @@ generate: generate-defaults
 	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
 	# conversion-gen and get us back to running `make generate` in our CI pipeline
 	conversion-gen \
-		--input-dirs "./pkg/apis/templates/..." \
+		--input-dirs "./pkg/apis/templates/...,./pkg/apis/externaldata/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
 		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1

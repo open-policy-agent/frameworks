@@ -18,9 +18,11 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v1.0.0
 	github.com/google/go-cmp v0.5.9
+	github.com/onsi/gomega v1.18.1
 	github.com/open-policy-agent/opa v0.47.2
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
+	golang.org/x/net v0.4.0
 	k8s.io/apiextensions-apiserver v0.24.7
 	k8s.io/apimachinery v0.24.7
 	k8s.io/client-go v0.24.7
@@ -89,7 +91,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.7.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.16.0 // indirect
-	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
 	golang.org/x/sys v0.3.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
