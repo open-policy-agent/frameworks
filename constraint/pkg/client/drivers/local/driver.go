@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -56,6 +56,10 @@ type Driver struct {
 	// print statements are removed from modules at compile-time.
 	printEnabled bool
 
+	// backfillResults adds results for constraint (kind, name)s that have not
+	// created a violation from the underlying engine.
+	backfillResults bool
+
 	// printHook specifies where to send the output of Rego print() statements.
 	printHook print.Hook
 
@@ -76,9 +80,14 @@ type Driver struct {
 // RegoEvaluationMeta has rego specific metadata from evaluation.
 type RegoEvaluationMeta struct {
 	// TemplateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
-	TemplateRunTime float64 `json:"templateRunTime"`
+	TemplateRunTimeMillis float64 `json:"templateRunTimeMillis"`
 	// ConstraintCount indicates how many constraints were evaluated for an underlying rego engine eval call.
 	ConstraintCount uint `json:"constraintCount"`
+	// Backfilled false indicates that the result was returned from the rego engine
+	// (i.e. violated a constraint or errored during evaluation). Backfilled true
+	// indicates that the result was artificially added post evaluation for debugging purposes.
+	// see driver.backfillResults .
+	Backfilled bool `json:"backfilled"`
 }
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
@@ -124,7 +133,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	// Note that this discards "status" as we only copy spec.parameters.
 	params, _, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
-		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, err)
+		return fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, err)
 	}
 
 	// default .spec.parameters so that we don't need to default this in Rego.
@@ -292,12 +301,64 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		for _, result := range kindResults {
 			result.EvaluationMeta = RegoEvaluationMeta{
-				TemplateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
-				ConstraintCount: uint(len(kindResults)),
+				TemplateRunTimeMillis: float64(evalEndTime.Nanoseconds()) / 1000000,
+				ConstraintCount:       uint(len(kindResults)),
+				Backfilled:            false,
 			}
 		}
 
 		results = append(results, kindResults...)
+
+		// back fill results that were not returned from rego
+		if d.backfillResults {
+			backFilledResultSet := make(rego.ResultSet, 0)
+
+			// make a set of the seen results' constraint keys to seek against
+			evaluated := map[drivers.ConstraintKey]struct{}{}
+			for _, result := range kindResults {
+				key := drivers.ConstraintKey{
+					Kind: result.Constraint.GetKind(),
+					Name: result.Constraint.GetName(),
+				}
+
+				evaluated[key] = struct{}{}
+			}
+
+			for _, constraint := range kindConstraints {
+				seekKey := drivers.ConstraintKey{
+					Kind: constraint.GetKind(),
+					Name: constraint.GetName(),
+				}
+				_, found := evaluated[seekKey]
+
+				if !found {
+					backFilledResultSet = append(backFilledResultSet, rego.Result{
+						Bindings: map[string]interface{}{
+							"result": map[string]interface{}{
+								"msg": "this is a backfilled result",
+								"key": map[string]interface{}{
+									"kind": constraint.GetKind(),
+									"name": constraint.GetName(),
+								},
+							},
+						},
+					})
+				}
+			}
+
+			backFilledKindResults, err := drivers.ToResults(constraintsMap, backFilledResultSet)
+			if err != nil {
+				return nil, nil, err
+			}
+			for _, backFilledResult := range backFilledKindResults {
+				backFilledResult.EvaluationMeta = RegoEvaluationMeta{
+					TemplateRunTimeMillis: float64(evalEndTime.Nanoseconds()) / 1000000,
+					ConstraintCount:       uint(len(backFilledKindResults)),
+					Backfilled:            true,
+				}
+			}
+			results = append(results, backFilledKindResults...)
+		}
 	}
 
 	traceString := traceBuilder.String()

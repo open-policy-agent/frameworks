@@ -68,6 +68,14 @@ func PrintEnabled(enabled bool) Arg {
 	}
 }
 
+func BackfillResults(enabled bool) Arg {
+	return func(d *Driver) error {
+		d.backfillResults = enabled
+
+		return nil
+	}
+}
+
 func PrintHook(hook print.Hook) Arg {
 	return func(d *Driver) error {
 		d.printHook = hook

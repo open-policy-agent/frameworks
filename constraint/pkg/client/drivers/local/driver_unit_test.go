@@ -177,7 +177,7 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("could not type convert to RegoEvaluationMeta")
 	}
 
-	if stats.TemplateRunTime == 0 {
+	if stats.TemplateRunTimeMillis == 0 {
 		t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
 	}
 

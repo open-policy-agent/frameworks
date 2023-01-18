@@ -448,6 +448,80 @@ func TestClient_Review(t *testing.T) {
 	}
 }
 
+// TestClient_Review_Backfill proves that we can backfill results after the engine evaluation if no results
+// for a (constraint kind, name) tuple are returned from the engine.
+func TestClient_Review_Backfill(t *testing.T) {
+	ctx := context.Background()
+
+	d, err := local.New(local.BackfillResults(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := client.NewClient(client.Targets(&handlertest.Handler{}), client.Driver(d))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ct := clienttest.TemplateCheckData()
+	_, err = c.AddTemplate(ctx, ct)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	constraint := cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar"))
+	_, err = c.AddConstraint(ctx, constraint)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	review := handlertest.Review{
+		Object: handlertest.Object{
+			Name: "foo",
+			Data: "bar",
+		},
+	}
+
+	responses, err := c.Review(ctx, review)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []*types.Result{{
+		Target:            handlertest.TargetName,
+		Msg:               "this is a backfilled result",
+		EnforcementAction: constraints.EnforcementActionDeny,
+		Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
+			cts.WantData("bar")),
+		Metadata: map[string]interface{}{"details": nil},
+	}}
+
+	results := responses.Results()
+
+	if diff := cmp.Diff(want, results,
+		cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+		t.Error(diff)
+	}
+
+	// check the evaluation metadata
+	stats, ok := results[0].EvaluationMeta.(local.RegoEvaluationMeta) // len==1 is implied by "want" var
+	if !ok {
+		t.Fatalf("could not type convert to RegoEvaluationMeta")
+	}
+
+	if stats.TemplateRunTimeMillis == 0 {
+		t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
+	}
+
+	if stats.ConstraintCount != uint(1) {
+		t.Fatalf("expected %v constraint count, got %v", 1, "ConstraintCount")
+	}
+
+	if stats.Backfilled != true {
+		t.Fatalf("expected %v result to be true, got %v", false, "Backfilled")
+	}
+}
+
 func TestClient_Review_Details(t *testing.T) {
 	ctx := context.Background()
 
@@ -771,7 +845,7 @@ func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
 			t.Fatalf("could not type convert to RegoEvaluationMeta")
 		}
 
-		if stats.TemplateRunTime == 0 {
+		if stats.TemplateRunTimeMillis == 0 {
 			t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
 		}
 
