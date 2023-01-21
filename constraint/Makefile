@@ -1,6 +1,8 @@
 # When updating this, make sure to update the corresponding action in
 # workflow.yaml
-GOLANGCI_LINT_VERSION := v1.45.2
+GOLANGCI_LINT_VERSION ?= 1.50.0
+KUSTOMIZE_VERSION ?= 3.8.9
+KUBERNETES_VERSION ?= 1.26.0
 
 # Detects the location of the user golangci-lint cache.
 GOLANGCI_LINT_CACHE := $(shell pwd)/.tmp/golangci-lint
@@ -18,19 +20,15 @@ all: lint test
 
 # Run tests
 # TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, add `generate` back as a dependency target
-native-test: gen-dependencies manifests
-	go test ./pkg/... -coverprofile cover.out
-
-# Docker internal test
-docker-internal-test:
-	make native-test
-# The remote driver has some unimplemented functions
-# which result in a panic during testing.
-#	./tests/test_remote_driver.sh
+native-test: gen-dependencies manifests envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(KUBERNETES_VERSION) --bin-dir $(LOCALBIN) -p path)" \
+	GO111MODULE=on \
+	go test -mod vendor ./pkg/... -race -bench . -coverprofile cover.out
 
 # Hook to run docker tests
-test:
-	docker build . -t constraint-test && docker run constraint-test
+.PHONY: test
+test: __test-image
+	docker run --rm -v $(shell pwd):/app constraint-test make native-test
 
 # Install CRDs into a cluster
 install: manifests
@@ -60,7 +58,7 @@ manifests:
 lint:
 	docker run --rm -v $(shell pwd):/app \
 		-v ${GOLANGCI_LINT_CACHE}:/root/.cache/golangci-lint \
-		-w /app golangci/golangci-lint:${GOLANGCI_LINT_VERSION}-alpine \
+		-w /app golangci/golangci-lint:v${GOLANGCI_LINT_VERSION}-alpine \
 		golangci-lint run -v
 
 # Generate code
@@ -109,3 +107,22 @@ generate-defaults: constraint-template-string-constant
 vendor:
 	go mod vendor
 	go mod tidy
+
+.PHONY: __test-image
+__test-image:
+	docker buildx build . \
+		-t constraint-test \
+		--load \
+		--build-arg KUSTOMIZE_VERSION=$(KUSTOMIZE_VERSION)
+
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/.tmp/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+ENVTEST ?= $(LOCALBIN)/setup-envtest
+
+.PHONY: envtest
+envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
+$(ENVTEST): $(LOCALBIN)
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20230118154835-9241bceb3098
