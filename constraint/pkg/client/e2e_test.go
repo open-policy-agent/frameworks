@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -441,7 +443,7 @@ func TestClient_Review(t *testing.T) {
 
 			results := responses.Results()
 
-			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")
+			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata")
 			if diff := cmp.Diff(tt.wantResults, results, diffOpt); diff != "" {
 				t.Error(diff)
 			}
@@ -489,8 +491,7 @@ func TestClient_Review_Details(t *testing.T) {
 
 	results := responses.Results()
 
-	diffOpt := cmpopts.IgnoreFields(types.Result{}, "EvaluationMeta")
-	if diff := cmp.Diff(want, results, diffOpt); diff != "" {
+	if diff := cmp.Diff(want, results); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -570,7 +571,7 @@ func TestClient_Review_Print(t *testing.T) {
 
 			results := rsps.Results()
 			if diff := cmp.Diff(tc.wantResults, results,
-				cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+				cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 				t.Error(diff)
 			}
 
@@ -608,7 +609,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -657,7 +658,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -834,24 +835,103 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 	}
 }
 
-// TestE2E_Review_RegoEvaluationMeta tests that we can get stats out of evaluated constraints.
-func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
+func TestE2E_DriverCfg(t *testing.T) {
+	tests := []struct {
+		name         string
+		statsEnabled bool
+	}{
+		{
+			name:         "disabled",
+			statsEnabled: false,
+		},
+		{
+			name:         "enabled",
+			statsEnabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := clienttest.New(t)
+
+			_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
+
+			rsps, err := c.Review(ctx, obj, drivers.Stats(tt.statsEnabled))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			stats := rsps.StatsEntries
+			if stats == nil && tt.statsEnabled {
+				t.Fatal("got nil stats but stats enabled for Review")
+			} else if len(stats) != 0 && !tt.statsEnabled {
+				t.Fatal("got stats but stats disabled")
+			}
+
+			_, err = c.AddData(ctx, &obj.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// TestE2E_Review_StatsEntries tests that we can get stats out of evaluated constraints.
+// In particular, this test makes sure we have stats for both violating constraint kind, name pairs
+// and non violating ones.
+func TestE2E_Review_StatsEntries(t *testing.T) {
 	ctx := context.Background()
-	c := clienttest.New(t)
-	ct := clienttest.TemplateCheckData()
-	_, err := c.AddTemplate(ctx, ct)
+	d, err := rego.New(rego.GatherStats())
 	if err != nil {
 		t.Fatal(err)
 	}
-	numConstrains := 3
+	testHandler := &handlertest.Handler{}
+	c, err := client.NewClient(client.Targets(testHandler), client.Driver(d))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	for i := 1; i < numConstrains+1; i++ {
+	_, err = c.AddTemplate(ctx, clienttest.TemplateCheckData())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.AddTemplate(ctx, clienttest.TemplateForbidDuplicates())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	numConstrains := 3
+	kindSet := map[string]struct{}{}
+	for i := 0; i < numConstrains; i++ {
 		name := "constraint-" + strconv.Itoa(i)
-		constraint := cts.MakeConstraint(t, clienttest.KindCheckData, name, cts.WantData("bar"))
-		_, err = c.AddConstraint(ctx, constraint)
+
+		_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindCheckData, name, cts.WantData("bar")))
 		if err != nil {
 			t.Fatal(err)
 		}
+		kindSet[clienttest.KindCheckData] = struct{}{}
+
+		_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindForbidDuplicates, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		kindSet[clienttest.KindForbidDuplicates] = struct{}{}
+	}
+
+	// sanity check
+	if 2 != len(kindSet) {
+		t.Fatalf("set up failed")
 	}
 
 	review := handlertest.Review{
@@ -866,21 +946,69 @@ func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := responses.Results()
+	for _, se := range responses.StatsEntries {
+		if se.Scope == instrumentation.TemplateScope {
+			if se.Stats == nil {
+				t.Errorf("missing stats for: %v missing stats", se.StatsFor)
+			}
 
-	// for each result check that we have the constraintCount == 3 and a positive templateRunTime
-	for _, result := range results {
-		stats, ok := result.EvaluationMeta.(rego.EvaluationMeta)
-		if !ok {
-			t.Fatalf("could not type convert to RegoEvaluationMeta")
+			for _, stat := range se.Stats {
+				// now check that descriptions are able to be fetched.
+				desc := c.GetDescriptionForStat(instrumentation.RegoSource, stat.Name)
+
+				switch stat.Name {
+				case "templateRunTimeNanos":
+					want := "the number of nanoseconds it took to evaluate all constraints for a template"
+					if desc != want {
+						t.Errorf("want: %s, got: %s", want, desc)
+					}
+				case "constraintCount":
+					want := "the number of constraints that were evaluated at the same time for the given constraint kind"
+					if desc != want {
+						t.Errorf("want: %s, got: %s", want, desc)
+					}
+				}
+
+				if stat.Source.Value != instrumentation.RegoEngineSource {
+					t.Errorf("the only supported source for now is \"rego\" was: %s", stat.Source.Value)
+				}
+
+				switch actualValue := stat.Value.(type) {
+				case uint64:
+				case int:
+					if !(actualValue > 0) {
+						t.Errorf("expected positive value for stat: %s; got: %d", stat.Name, actualValue)
+					}
+				default:
+					t.Errorf("unknown stat value type: %T for stat: %s", actualValue, actualValue)
+				}
+			}
+
+			if se.Labels == nil || len(se.Labels) == 0 {
+				t.Errorf("expected labels but did not find any")
+			}
+
+			foundTargetLabel := false
+			for _, label := range se.Labels {
+				if label.Name == "target" && label.Value == testHandler.GetName() {
+					foundTargetLabel = true
+					break
+				}
+			}
+
+			if !foundTargetLabel {
+				t.Fatalf("did not find target label for: %s", testHandler.GetName())
+			}
+
+			delete(kindSet, se.StatsFor)
+		} else {
+			t.Fatalf("encountered an unknown Key: %s", reflect.ValueOf(se.Scope))
 		}
+	}
 
-		if stats.TemplateRunTime == 0 {
-			t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
-		}
-
-		if stats.ConstraintCount != uint(numConstrains) {
-			t.Fatalf("expected %v constraint count, got %v", numConstrains, "ConstraintCount")
+	if len(kindSet) != 0 {
+		for key := range kindSet {
+			t.Errorf("did not see stats for ConstraintKey: %v", key)
 		}
 	}
 }

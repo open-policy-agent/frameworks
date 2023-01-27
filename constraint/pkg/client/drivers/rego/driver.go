@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -31,6 +33,12 @@ import (
 const (
 	libRoot   = "data.lib"
 	violation = "violation"
+
+	templateRunTimeNanosName         = "templateRunTimeNanos"
+	templateRunTimeMillisDescription = "the number of nanoseconds it took to evaluate all constraints for a template"
+
+	constraintCountName        = "constraintCount"
+	constraintCountDescription = "the number of constraints that were evaluated at the same time for the given constraint kind"
 )
 
 var _ drivers.Driver = &Driver{}
@@ -72,14 +80,9 @@ type Driver struct {
 
 	// clientCertWatcher is a watcher for the TLS certificate used to communicate with providers.
 	clientCertWatcher *certwatcher.CertWatcher
-}
 
-// EvaluationMeta has rego specific metadata from evaluation.
-type EvaluationMeta struct {
-	// TemplateRunTime is the number of milliseconds it took to evaluate all constraints for a template.
-	TemplateRunTime float64 `json:"templateRunTime"`
-	// ConstraintCount indicates how many constraints were evaluated for an underlying rego engine eval call.
-	ConstraintCount uint `json:"constraintCount"`
+	// gatherStats controls whether the driver gathers any stats around its API calls.
+	gatherStats bool
 }
 
 // Name returns the name of the driver.
@@ -188,11 +191,12 @@ func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Pat
 // input is the already-parsed Rego Value to use as input.
 // Returns the Rego results, the trace if requested, or an error if there was
 // a problem executing the query.
-func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string, path []string, input ast.Value, opts ...drivers.QueryOpt) (rego.ResultSet, *string, error) {
-	cfg := &drivers.QueryCfg{}
+func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string, path []string, input ast.Value, opts ...drivers.Opt) (rego.ResultSet, *string, error) {
+	allOptions := &drivers.Options{}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(allOptions)
 	}
+	cfg := allOptions.EngineCfg
 
 	queryPath := strings.Builder{}
 	queryPath.WriteString("data")
@@ -216,7 +220,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 	}
 
 	buf := topdown.NewBufferTracer()
-	if d.traceEnabled || cfg.TracingEnabled {
+	if d.traceEnabled || (cfg != nil && cfg.TracingEnabled) {
 		args = append(args, rego.QueryTracer(buf))
 	}
 
@@ -224,7 +228,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 	res, err := r.Eval(ctx)
 
 	var t *string
-	if d.traceEnabled || cfg.TracingEnabled {
+	if d.traceEnabled || (cfg != nil && cfg.TracingEnabled) {
 		b := &bytes.Buffer{}
 		topdown.PrettyTrace(b, *buf)
 		t = pointer.String(b.String())
@@ -233,9 +237,9 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 	return res, t, err
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.Opt) (*drivers.QueryResponse, error) {
 	if len(constraints) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	constraintsByKind := toConstraintsByKind(constraints)
@@ -250,11 +254,20 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	// once per call to Query instead of once per compiler.
 	reviewMap, err := toInterfaceMap(review)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
+
+	allOptions := &drivers.Options{}
+	for _, opt := range opts {
+		opt(allOptions)
+	}
+	driverCfg := allOptions.DriverCfg
+	engineCfg := allOptions.EngineCfg
+
+	var statsEntries []*instrumentation.StatsEntry
 
 	for kind, kindConstraints := range constraintsByKind {
 		evalStartTime := time.Now()
@@ -263,14 +276,14 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			// The Template was just removed, so the Driver is in an inconsistent
 			// state with Client. Raise this as an error rather than attempting to
 			// continue.
-			return nil, nil, fmt.Errorf("missing Template %q for target %q", kind, target)
+			return nil, fmt.Errorf("missing Template %q for target %q", kind, target)
 		}
 
 		// Parse input into an ast.Value to avoid round-tripping through JSON when
 		// possible.
 		parsedInput, err := toParsedInput(target, kindConstraints, reviewMap)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		resultSet, trace, err := d.eval(ctx, compiler, target, path, parsedInput, opts...)
@@ -297,25 +310,58 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 		kindResults, err := drivers.ToResults(constraintsMap, resultSet)
 		if err != nil {
-			return nil, nil, err
-		}
-
-		for _, result := range kindResults {
-			result.EvaluationMeta = EvaluationMeta{
-				TemplateRunTime: float64(evalEndTime.Nanoseconds()) / 1000000,
-				ConstraintCount: uint(len(kindResults)),
-			}
+			return nil, err
 		}
 
 		results = append(results, kindResults...)
+
+		if d.gatherStats || (driverCfg != nil && driverCfg.StatsEnabled) {
+			statsEntries = append(statsEntries,
+				&instrumentation.StatsEntry{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: kind,
+					Stats: []*instrumentation.Stat{
+						{
+							Name:  templateRunTimeNanosName,
+							Value: uint64(evalEndTime.Nanoseconds()),
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: instrumentation.RegoEngineSource,
+							},
+						},
+						{
+							Name:  constraintCountName,
+							Value: len(kindConstraints),
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: instrumentation.RegoEngineSource,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: d.traceEnabled || (engineCfg != nil && engineCfg.TracingEnabled),
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: d.printEnabled,
+						},
+						{
+							Name:  "EnableExternalDataClientAuth",
+							Value: d.enableExternalDataClientAuth,
+						},
+					},
+				})
+		}
 	}
 
 	traceString := traceBuilder.String()
 	if len(traceString) != 0 {
-		return results, &traceString, nil
+		return &drivers.QueryResponse{Results: results, Trace: &traceString, StatsEntries: statsEntries}, nil
 	}
 
-	return results, nil, nil
+	return &drivers.QueryResponse{Results: results, StatsEntries: statsEntries}, nil
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
@@ -356,6 +402,17 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
+	switch statName {
+	case templateRunTimeNanosName:
+		return templateRunTimeMillisDescription, nil
+	case constraintCountName:
+		return constraintCountDescription, nil
+	default:
+		return "", fmt.Errorf("unknown stat name")
+	}
 }
 
 func (d *Driver) getTLSCertificate() (*tls.Certificate, error) {

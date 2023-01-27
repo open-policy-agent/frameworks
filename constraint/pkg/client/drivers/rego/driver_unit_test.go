@@ -44,6 +44,14 @@ fooisbar[msg] {
   }
 `
 
+	NeverViolate string = `
+  package foobar
+
+  violation[{"msg": "always violate"}] {
+	  false
+  }
+`
+
 	ExternalData string = `
 	package foobar
 
@@ -140,7 +148,7 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 	}
 
-	res, _, err := d.Query(
+	qr, err := d.Query(
 		ctx,
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
@@ -149,7 +157,7 @@ func TestDriver_Query(t *testing.T) {
 	if err != nil {
 		t.Fatalf("got Query() error = %v, want %v", err, nil)
 	}
-	if len(res) == 0 {
+	if len(qr.Results) == 0 {
 		t.Fatalf("got 0 errors on normal query; want 1")
 	}
 
@@ -159,7 +167,7 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
 	}
 
-	res, _, err = d.Query(
+	qr, err = d.Query(
 		ctx,
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
@@ -168,21 +176,8 @@ func TestDriver_Query(t *testing.T) {
 	if err != nil {
 		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
 	}
-	if len(res) == 0 {
+	if len(qr.Results) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
-	}
-
-	stats, ok := res[0].EvaluationMeta.(EvaluationMeta)
-	if !ok {
-		t.Fatalf("could not type convert to RegoEvaluationMeta")
-	}
-
-	if stats.TemplateRunTime == 0 {
-		t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
-	}
-
-	if stats.ConstraintCount != uint(1) {
-		t.Fatalf("expected %v constraint count, got %v", 1, "ConstraintCount")
 	}
 }
 
@@ -311,7 +306,7 @@ func TestDriver_ExternalData(t *testing.T) {
 				t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 			}
 
-			res, _, err := d.Query(
+			qr, err := d.Query(
 				ctx,
 				cts.MockTargetHandler,
 				[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
@@ -320,11 +315,11 @@ func TestDriver_ExternalData(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got Query() error = %v, want %v", err, nil)
 			}
-			if tt.errorExpected && len(res) == 0 {
+			if tt.errorExpected && len(qr.Results) == 0 {
 				t.Fatalf("got 0 errors on normal query; want 1")
 			}
-			if !tt.errorExpected && len(res) > 0 {
-				t.Fatalf("got %d errors on normal query; want 0", len(res))
+			if !tt.errorExpected && len(qr.Results) > 0 {
+				t.Fatalf("got %d errors on normal query; want 0", len(qr.Results))
 			}
 		})
 	}

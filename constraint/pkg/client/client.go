@@ -11,11 +11,13 @@ import (
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -616,7 +618,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 // Review makes sure the provided object satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.QueryOpt) (*types.Responses, error) {
+func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Opt) (*types.Responses, error) {
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 
@@ -670,7 +672,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	for target, review := range reviews {
 		constraints := constraintsByTarget[target]
 
-		resp, err := c.review(ctx, target, constraints, review, opts...)
+		resp, stats, err := c.review(ctx, target, constraints, review, opts...)
 		if err != nil {
 			errMap.Add(target, err)
 			continue
@@ -684,6 +686,18 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 		resp.Sort()
 
 		responses.ByTarget[target] = resp
+		if stats != nil {
+			// add the target label to these stats for future collation.
+			targetLabel := &instrumentation.Label{Name: "target", Value: target}
+			for _, stat := range stats {
+				if stat.Labels == nil || len(stat.Labels) == 0 {
+					stat.Labels = []*instrumentation.Label{targetLabel}
+				} else {
+					stat.Labels = append(stat.Labels, targetLabel)
+				}
+			}
+			responses.StatsEntries = append(responses.StatsEntries, stats...)
+		}
 	}
 
 	if len(errMap) == 0 {
@@ -693,8 +707,9 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
+func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.Opt) (*types.Response, []*instrumentation.StatsEntry, error) {
 	var results []*types.Result
+	var stats []*instrumentation.StatsEntry
 	var tracesBuilder strings.Builder
 	errs := &errors.ErrorMap{}
 
@@ -703,11 +718,11 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 	for _, constraint := range constraints {
 		template, ok := c.templates[strings.ToLower(constraint.GetObjectKind().GroupVersionKind().Kind)]
 		if !ok {
-			return nil, fmt.Errorf("%w: while loading driver for constraint %s", ErrMissingConstraintTemplate, constraint.GetName())
+			return nil, nil, fmt.Errorf("%w: while loading driver for constraint %s", ErrMissingConstraintTemplate, constraint.GetName())
 		}
 		driver := c.driverForTemplate(template.template)
 		if driver == "" {
-			return nil, fmt.Errorf("%w: while loading driver for constraint %s", clienterrors.ErrNoDriver, constraint.GetName())
+			return nil, nil, fmt.Errorf("%w: while loading driver for constraint %s", clienterrors.ErrNoDriver, constraint.GetName())
 		}
 		driverToConstraints[driver] = append(driverToConstraints[driver], constraint)
 	}
@@ -716,17 +731,21 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		if len(driverToConstraints[driverName]) == 0 {
 			continue
 		}
-		driverResults, trace, err := driver.Query(ctx, target, driverToConstraints[driverName], review, opts...)
+		qr, err := driver.Query(ctx, target, driverToConstraints[driverName], review, opts...)
 		if err != nil {
 			errs.Add(driverName, err)
 			continue
 		}
-		results = append(results, driverResults...)
+		if qr != nil {
+			results = append(results, qr.Results...)
 
-		if trace != nil {
-			tracesBuilder.WriteString(fmt.Sprintf("DRIVER %s:\n\n", driverName))
-			tracesBuilder.WriteString(*trace)
-			tracesBuilder.WriteString("\n\n")
+			stats = append(stats, qr.StatsEntries...)
+
+			if qr.Trace != nil {
+				tracesBuilder.WriteString(fmt.Sprintf("DRIVER %s:\n\n", driverName))
+				tracesBuilder.WriteString(*qr.Trace)
+				tracesBuilder.WriteString("\n\n")
+			}
 		}
 	}
 
@@ -749,7 +768,7 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		Trace:   trace,
 		Target:  target,
 		Results: results,
-	}, errRet
+	}, stats, errRet
 }
 
 // Dump dumps the state of OPA to aid in debugging.
@@ -765,6 +784,36 @@ func (c *Client) Dump(ctx context.Context) (string, error) {
 		dumpBuilder.WriteString("\n\n")
 	}
 	return dumpBuilder.String(), nil
+}
+
+func (c *Client) GetDescriptionForStat(source instrumentation.Source, statName string) string {
+	if source.Type != instrumentation.EngineSourceType {
+		// only handle engine source for now
+		return instrumentation.UnknownDescription
+	}
+
+	// this is written in a general form
+	// but it only works for rego drivers for now.
+	for dName, d := range c.drivers {
+		if strings.EqualFold(dName, source.Value) {
+			if source.Value == instrumentation.RegoSource.Value {
+				// no other drivers implement the GetDescriptionForStat yet
+				regoD, ok := d.(*rego.Driver)
+				if !ok {
+					return instrumentation.UnknownDescription
+				}
+
+				desc, err := regoD.GetDescriptionForStat(statName)
+				if err != nil {
+					return instrumentation.UnknownDescription
+				}
+
+				return desc
+			}
+		}
+	}
+
+	return instrumentation.UnknownDescription
 }
 
 // knownTargets returns a sorted list of known target names.

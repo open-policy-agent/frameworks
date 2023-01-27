@@ -197,7 +197,7 @@ func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Pat
 	return nil
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) ([]*types.Result, *string, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.Opt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
@@ -209,7 +209,8 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		}
 		results = append(results, result)
 	}
-	return results, nil, nil
+
+	return &drivers.QueryResponse{Results: results}, nil
 }
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
