@@ -80,7 +80,7 @@ func TestToVersionless(t *testing.T) {
 							},
 							Validation: &templates.Validation{
 								// A default was applied
-								LegacySchema:    pointer.BoolPtr(true),
+								LegacySchema:    pointer.Bool(true),
 								OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
 							},
 						},
