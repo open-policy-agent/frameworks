@@ -304,10 +304,10 @@ func TestClient_Review(t *testing.T) {
 			namespaces: nil,
 			targets: []handler.TargetHandler{
 				&handlertest.Handler{
-					Name: pointer.StringPtr("foo1"),
+					Name: pointer.String("foo1"),
 				},
 				&handlertest.Handler{
-					Name: pointer.StringPtr("foo2"),
+					Name: pointer.String("foo2"),
 				},
 			},
 			templates: []*templates.ConstraintTemplate{

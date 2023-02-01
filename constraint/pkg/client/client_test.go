@@ -316,8 +316,8 @@ func TestClient_AddTemplate(t *testing.T) {
 		{
 			name: "Change targets",
 			targets: []handler.TargetHandler{
-				&handlertest.Handler{Name: pointer.StringPtr("foo")},
-				&handlertest.Handler{Name: pointer.StringPtr("bar")},
+				&handlertest.Handler{Name: pointer.String("foo")},
+				&handlertest.Handler{Name: pointer.String("bar")},
 			},
 			before: cts.New(cts.OptTargets(
 				cts.Target("foo", cts.ModuleDeny),
@@ -915,7 +915,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name: "deny all invalid Constraint",
 			target: &handlertest.Handler{
-				ForbiddenEnforcement: pointer.StringPtr("forbidden"),
+				ForbiddenEnforcement: pointer.String("forbidden"),
 			},
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
@@ -1408,7 +1408,7 @@ violation[msg] {msg := "always"}`,
 					Conversion: &apiextensions.CustomResourceConversion{
 						Strategy: apiextensions.NoneConverter,
 					},
-					PreserveUnknownFields: pointer.BoolPtr(false),
+					PreserveUnknownFields: pointer.Bool(false),
 				},
 				Status: apiextensions.CustomResourceDefinitionStatus{
 					StoredVersions: []string{"v1beta1"},
