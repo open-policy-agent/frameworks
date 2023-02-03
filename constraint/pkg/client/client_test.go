@@ -12,7 +12,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -53,7 +54,7 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -135,7 +136,7 @@ func TestClient_AddData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -240,7 +241,7 @@ func TestClient_RemoveData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -367,6 +368,13 @@ func TestClient_AddTemplate(t *testing.T) {
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
+			name:        "No Engine",
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptTargets(cts.TargetNoEngine(handlertest.TargetName))),
+			wantHandled: nil,
+			wantError:   clienterrors.ErrNoDriver,
+		},
+		{
 			name:    "Missing Rule",
 			targets: []handler.TargetHandler{&handlertest.Handler{}},
 			template: cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `
@@ -390,7 +398,7 @@ r = 5
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -500,7 +508,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -562,7 +570,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -627,7 +635,7 @@ func TestClient_GetTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -694,7 +702,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -734,7 +742,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
-	d, err := local.New()
+	d, err := rego.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -956,7 +964,7 @@ func TestClient_AddConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1081,7 +1089,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1173,7 +1181,7 @@ violation[{"msg": "msg"}] {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New(local.Externs(tc.allowedFields...))
+			d, err := rego.New(rego.Externs(tc.allowedFields...))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1245,12 +1253,23 @@ func TestClient_CreateCRD(t *testing.T) {
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1311,17 +1330,38 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}, {
-						Target: "handler.2",
-						Rego: `package foo
+										violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+						{
+							Target: "handler.2",
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1340,12 +1380,23 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: "",
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: "",
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1364,12 +1415,23 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want: &apiextensions.CustomResourceDefinition{
@@ -1421,7 +1483,7 @@ violation[msg] {msg := "always"}`,
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}

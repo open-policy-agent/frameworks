@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
 func defaults() []client.Opt {
-	d, err := local.New()
+	d, err := rego.New()
 	if err != nil {
 		panic(err)
 	}

@@ -11,6 +11,10 @@ import (
 
 // A Driver implements Rego query execution of Templates and Constraints.
 type Driver interface {
+	// Name returns the name of the driver, used to uniquely identify a driver
+	// and in errors returned to the user.
+	Name() string
+
 	// AddTemplate compiles a Template's code to be specified by
 	// Constraints and referenced in Query. Replaces the existing Template if it
 	// already exists.
