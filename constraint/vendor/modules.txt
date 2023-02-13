@@ -118,10 +118,11 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
-# github.com/google/gofuzz v1.1.0
+# github.com/google/gofuzz v1.2.0
 ## explicit; go 1.12
 github.com/google/gofuzz
-# github.com/google/uuid v1.1.2
+github.com/google/gofuzz/bytesource
+# github.com/google/uuid v1.3.0
 ## explicit
 github.com/google/uuid
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0
@@ -129,8 +130,8 @@ github.com/google/uuid
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/imdario/mergo v0.3.6
-## explicit
+# github.com/imdario/mergo v0.3.12
+## explicit; go 1.13
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.1
 ## explicit; go 1.18
@@ -146,7 +147,7 @@ github.com/json-iterator/go
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
-# github.com/matttproud/golang_protobuf_extensions v1.0.2
+# github.com/matttproud/golang_protobuf_extensions v1.0.4
 ## explicit; go 1.9
 github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/mitchellh/mapstructure v1.4.1
@@ -173,7 +174,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/open-policy-agent/opa v0.47.2
+# github.com/open-policy-agent/opa v0.49.0
 ## explicit; go 1.17
 github.com/open-policy-agent/opa/ast
 github.com/open-policy-agent/opa/ast/internal/scanner
@@ -209,7 +210,9 @@ github.com/open-policy-agent/opa/internal/lcss
 github.com/open-policy-agent/opa/internal/leb128
 github.com/open-policy-agent/opa/internal/merge
 github.com/open-policy-agent/opa/internal/planner
-github.com/open-policy-agent/opa/internal/providers
+github.com/open-policy-agent/opa/internal/providers/aws
+github.com/open-policy-agent/opa/internal/providers/aws/crypto
+github.com/open-policy-agent/opa/internal/providers/aws/v4
 github.com/open-policy-agent/opa/internal/ref
 github.com/open-policy-agent/opa/internal/rego/opa
 github.com/open-policy-agent/opa/internal/semver
@@ -346,7 +349,7 @@ go.opentelemetry.io/proto/otlp/collector/trace/v1
 go.opentelemetry.io/proto/otlp/common/v1
 go.opentelemetry.io/proto/otlp/resource/v1
 go.opentelemetry.io/proto/otlp/trace/v1
-# golang.org/x/net v0.4.0
+# golang.org/x/net v0.5.0
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -359,21 +362,21 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
-## explicit; go 1.11
+# golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
+## explicit; go 1.17
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.3.0
+# golang.org/x/sys v0.4.0
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/term v0.3.0
+# golang.org/x/term v0.4.0
 ## explicit; go 1.17
 golang.org/x/term
-# golang.org/x/text v0.5.0
+# golang.org/x/text v0.6.0
 ## explicit; go 1.17
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
@@ -408,14 +411,14 @@ google.golang.org/appengine/internal/log
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21
-## explicit; go 1.15
+# google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
+## explicit; go 1.19
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
 google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.51.0
+# google.golang.org/grpc v1.52.3
 ## explicit; go 1.17
 google.golang.org/grpc
 google.golang.org/grpc/attributes
