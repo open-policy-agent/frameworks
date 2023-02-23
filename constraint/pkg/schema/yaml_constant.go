@@ -7,7 +7,8 @@ const constraintTemplateCRDYaml = `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.10.0
+    controller-gen.kubebuilder.io/version: v0.11.3
+  creationTimestamp: null
   name: constrainttemplates.templates.gatekeeper.sh
 spec:
   group: templates.gatekeeper.sh
@@ -82,6 +83,9 @@ spec:
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
+                        required:
+                        - engine
+                        - source
                         type: object
                       type: array
                       x-kubernetes-list-map-keys:
@@ -203,6 +207,9 @@ spec:
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
+                        required:
+                        - engine
+                        - source
                         type: object
                       type: array
                       x-kubernetes-list-map-keys:
@@ -324,6 +331,9 @@ spec:
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
+                        required:
+                        - engine
+                        - source
                         type: object
                       type: array
                       x-kubernetes-list-map-keys:

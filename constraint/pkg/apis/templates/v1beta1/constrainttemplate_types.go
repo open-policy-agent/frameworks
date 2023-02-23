@@ -75,7 +75,7 @@ type Code struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// The source code for the template. Required.
-	Source *templates.Anything `json:"source,omitempty"`
+	Source *templates.Anything `json:"source"`
 }
 
 // CreateCRDError represents a single error caught during parsing, compiling, etc.

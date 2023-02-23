@@ -12,6 +12,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -277,7 +278,7 @@ func (c *Client) RemoveTemplate(ctx context.Context, templ *templates.Constraint
 	for driverN := range cached.activeDrivers {
 		driver, ok := c.drivers[driverN]
 		if !ok {
-			return resp, clienterrors.ErrNoDriver
+			return resp, fmt.Errorf("%w: could not clean up %q", clienterrors.ErrNoDriver, driverN)
 		}
 
 		err := driver.RemoveTemplate(ctx, template)
@@ -686,6 +687,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	var results []*types.Result
 	var tracesBuilder strings.Builder
+	var errs *errors.ErrorMap
 
 	driverToConstraints := map[string][]*unstructured.Unstructured{}
 
@@ -707,7 +709,11 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		}
 		driverResults, trace, err := driver.Query(ctx, target, driverToConstraints[driverName], review, opts...)
 		if err != nil {
-			return nil, err
+			if errs == nil {
+				errs = &clienterrors.ErrorMap{}
+			}
+			errs.Add(driverName, err)
+			continue
 		}
 		results = append(results, driverResults...)
 
@@ -728,7 +734,7 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		Trace:   trace,
 		Target:  target,
 		Results: results,
-	}, nil
+	}, errs
 }
 
 // Dump dumps the state of OPA to aid in debugging.
