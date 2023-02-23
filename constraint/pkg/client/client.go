@@ -687,7 +687,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, error) {
 	var results []*types.Result
 	var tracesBuilder strings.Builder
-	var errs *errors.ErrorMap
+	errs := &errors.ErrorMap{}
 
 	driverToConstraints := map[string][]*unstructured.Unstructured{}
 
@@ -709,9 +709,6 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		}
 		driverResults, trace, err := driver.Query(ctx, target, driverToConstraints[driverName], review, opts...)
 		if err != nil {
-			if errs == nil {
-				errs = &clienterrors.ErrorMap{}
-			}
 			errs.Add(driverName, err)
 			continue
 		}
@@ -730,11 +727,20 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 		trace = &traceStr
 	}
 
+	// golang idiom is nil on no errors, so we should
+	// only return errs if it is non-empty, otherwise
+	// we get a non-nil interface (even if errs is nil, since
+	// the interface would still hold type info).
+	var errRet error
+	if len(*errs) > 0 {
+		errRet = errs
+	}
+
 	return &types.Response{
 		Trace:   trace,
 		Target:  target,
 		Results: results,
-	}, errs
+	}, errRet
 }
 
 // Dump dumps the state of OPA to aid in debugging.
