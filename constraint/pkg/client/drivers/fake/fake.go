@@ -1,4 +1,4 @@
-package dummy
+package fake
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/dummy/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
@@ -110,13 +110,13 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 	if len(ct.Spec.Targets) != 1 {
 		return errors.New("wrong number of targets defined, only 1 target allowed")
 	}
-	var dummyCode templates.Code
+	var fakeCode templates.Code
 	found := false
 	for _, code := range ct.Spec.Targets[0].Code {
 		if code.Engine != d.name {
 			continue
 		}
-		dummyCode = code
+		fakeCode = code
 		found = true
 		break
 	}
@@ -124,7 +124,7 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 		return errors.New("SimplePolicy code not defined")
 	}
 
-	source, err := schema.GetSource(dummyCode)
+	source, err := schema.GetSource(fakeCode)
 	if err != nil {
 		return err
 	}

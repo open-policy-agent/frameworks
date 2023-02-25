@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/dummy"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/dummy/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -52,10 +52,10 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 		"constraint3": constraint3.DeepCopy(),
 	}
 
-	cleanSlate := func() (*dummy.Driver, *dummy.Driver, *dummy.Driver, *Client) {
-		driverA := dummy.New("driverA")
-		driverB := dummy.New("driverB")
-		driverC := dummy.New("driverC")
+	cleanSlate := func() (*fake.Driver, *fake.Driver, *fake.Driver, *Client) {
+		driverA := fake.New("driverA")
+		driverB := fake.New("driverB")
+		driverC := fake.New("driverC")
 
 		client, err := NewClient(
 			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
@@ -734,9 +734,9 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 	})
 
 	t.Run("Multi-Driver Template, Reverse Order", func(t *testing.T) {
-		driverA := dummy.New("driverA")
-		driverB := dummy.New("driverB")
-		driverC := dummy.New("driverC")
+		driverA := fake.New("driverA")
+		driverB := fake.New("driverB")
+		driverC := fake.New("driverC")
 
 		client, err := NewClient(
 			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
@@ -820,10 +820,10 @@ func TestMultiDriverRemoveTemplate(t *testing.T) {
 		"constraint2": constraint2.DeepCopy(),
 	}
 
-	cleanSlate := func() (*dummy.Driver, *dummy.Driver, *dummy.Driver, *Client) {
-		driverA := dummy.New("driverA")
-		driverB := dummy.New("driverB")
-		driverC := dummy.New("driverC")
+	cleanSlate := func() (*fake.Driver, *fake.Driver, *fake.Driver, *Client) {
+		driverA := fake.New("driverA")
+		driverB := fake.New("driverB")
+		driverC := fake.New("driverC")
 
 		client, err := NewClient(
 			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
@@ -908,7 +908,7 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "One Driver",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverA")),
+				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -922,7 +922,7 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "One Driver, Mismatch",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverA")),
+				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -936,8 +936,8 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "Multi Driver",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverA")),
-				Driver(dummy.New("driverB")),
+				Driver(fake.New("driverA")),
+				Driver(fake.New("driverB")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -951,8 +951,8 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "Multi Driver, Second",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverB")),
-				Driver(dummy.New("driverA")),
+				Driver(fake.New("driverB")),
+				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -966,7 +966,7 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "One Driver, Multi-Template",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverA")),
+				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -981,7 +981,7 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "One Driver, Multi-Template Second",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverB")),
+				Driver(fake.New("driverB")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -996,8 +996,8 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "Two Driver, Multi-Template",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverA")),
-				Driver(dummy.New("driverB")),
+				Driver(fake.New("driverA")),
+				Driver(fake.New("driverB")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -1012,8 +1012,8 @@ func TestDriverForTemplate(t *testing.T) {
 			name: "Two Driver, Multi-Template, Second",
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
-				Driver(dummy.New("driverB")),
-				Driver(dummy.New("driverA")),
+				Driver(fake.New("driverB")),
+				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(

@@ -57,6 +57,9 @@ func Driver(d drivers.Driver) Opt {
 		if d.Name() == "" {
 			return ErrNoDriverName
 		}
+		if _, ok := client.drivers[d.Name()]; ok {
+			return fmt.Errorf("%w: %s", ErrDuplicateDriver, d.Name())
+		}
 		client.drivers[d.Name()] = d
 		client.driverPriority[d.Name()] = len(client.drivers)
 		return nil
