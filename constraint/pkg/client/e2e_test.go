@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -678,18 +679,33 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	}
 }
 
+// TestE2E_Tracing checks that a Tracing(enabled/disabled) works as expected
+// and that TraceDump reflects API consumer expectations.
 func TestE2E_Tracing(t *testing.T) {
 	tests := []struct {
 		name           string
 		tracingEnabled bool
+		deny           bool
 	}{
 		{
-			name:           "disabled",
+			name:           "tracing disabled without violations",
 			tracingEnabled: false,
+			deny:           false,
 		},
 		{
-			name:           "enabled",
+			name:           "tracing enabled with violations",
 			tracingEnabled: true,
+			deny:           true,
+		},
+		{
+			name:           "tracing disabled with violations",
+			tracingEnabled: false,
+			deny:           true,
+		},
+		{
+			name:           "tracing enabled without violations",
+			tracingEnabled: true,
+			deny:           false,
 		},
 	}
 
@@ -698,14 +714,26 @@ func TestE2E_Tracing(t *testing.T) {
 			ctx := context.Background()
 			c := clienttest.New(t)
 
-			_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
-			if err != nil {
-				t.Fatal(err)
-			}
+			if tt.deny {
+				_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
+				if err != nil {
+					t.Fatal(err)
+				}
 
-			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
-			if err != nil {
-				t.Fatal(err)
+				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				_, err := c.AddTemplate(ctx, clienttest.TemplateAllow())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindAllow, "foo"))
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
@@ -725,6 +753,82 @@ func TestE2E_Tracing(t *testing.T) {
 			_, err = c.AddData(ctx, &obj.Object)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			td := rsps.TraceDump()
+			if tt.tracingEnabled {
+				if tt.deny {
+					if !strings.Contains(td, "Trace:") || strings.Contains(td, "Trace: TRACING DISABLED") {
+						t.Fatalf("did not find a trace when we were expecting to see one: %s", td)
+					}
+				} else {
+					if strings.Contains(td, "Trace: TRACING DISABLED") {
+						t.Fatalf("tracing is not disabled, we just didn't see a violation: %s", td)
+					}
+				}
+			} else {
+				if tt.deny {
+					if !strings.Contains(td, "Trace: TRACING DISABLED") {
+						t.Fatalf("tracing is disabled, there shouldn't be a trace: %s", td)
+					}
+				} else {
+					if strings.Contains(td, "Trace: TRACING DISABLED") {
+						t.Fatalf("tracing is disabled, but there were no violations so \"Trace: TRACING DISABLED:\" shouldn't be present: %s", td)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestE2E_Tracing_Ignored tests that non evaluations don't have a misleading
+// message: \"Trace: TRACING DISABLED\" trace on a TraceDump().
+// A non evaluation can occur when a review doesn't match the constraint's match
+// criteria.
+func TestE2E_Tracing_Unmatched(t *testing.T) {
+	tests := []struct {
+		name           string
+		tracingEnabled bool
+	}{
+		{
+			name:           "disabled",
+			tracingEnabled: false,
+		},
+		{
+			name:           "enabled",
+			tracingEnabled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := clienttest.New(t, client.Targets([]handler.TargetHandler{&handlertest.Handler{Cache: &handlertest.Cache{}}}...))
+
+			_, err := c.AddData(ctx, &handlertest.Object{Namespace: "ns"})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddTemplate(ctx, clienttest.TemplateDeny())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo", cts.MatchNamespace("aaa")))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			obj := handlertest.Review{Object: handlertest.Object{Name: "bar", Namespace: "ns"}}
+
+			rsps, err := c.Review(ctx, obj, drivers.Tracing(tt.tracingEnabled))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			td := rsps.TraceDump()
+			if strings.Contains(td, "Trace: TRACING DISABLED") {
+				t.Fatalf("\"Trace: TRACING DISABLED:\" shouldn't be present: %s", td)
 			}
 		})
 	}
