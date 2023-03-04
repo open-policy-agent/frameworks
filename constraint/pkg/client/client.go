@@ -39,6 +39,11 @@ type Client struct {
 	// added to the client.
 	driverPriority map[string]int
 
+	// ignoreNoReferentialDriverWarning toggles whether we warn the user
+	// when there is no registered driver that supports referential data when
+	// they call AddData()
+	ignoreNoReferentialDriverWarning bool
+
 	// drivers contains the drivers for policy engines understood
 	// by the constraint framework client.
 	// Does not require mutex locking as Driver is threadsafe
@@ -547,6 +552,8 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 				}
 				continue
 			}
+		} else if !c.ignoreNoReferentialDriverWarning {
+			errMap[name] = ErrNoReferentialDriver
 		}
 
 		resp.Handled[name] = true
@@ -586,6 +593,8 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 				errMap[target] = err
 				continue
 			}
+		} else if !c.ignoreNoReferentialDriverWarning {
+			errMap[target] = ErrNoReferentialDriver
 		}
 
 		resp.Handled[target] = true

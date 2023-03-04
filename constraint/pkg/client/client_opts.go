@@ -65,3 +65,10 @@ func Driver(d drivers.Driver) Opt {
 		return nil
 	}
 }
+
+func IgnoreNoReferentialDriverWarning(ignore bool) Opt {
+	return func(client *Client) error {
+		client.ignoreNoReferentialDriverWarning = ignore
+		return nil
+	}
+}

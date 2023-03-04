@@ -33,10 +33,12 @@ type Driver interface {
 	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 
 	// AddData caches data to be used for referential Constraints. Replaces data
-	// if it already exists at the specified path.
+	// if it already exists at the specified path. This is a deprecated method that
+	// will only be called for the "Rego" driver.
 	AddData(ctx context.Context, target string, path storage.Path, data interface{}) error
 	// RemoveData removes cached data, so the data at the specified path can no
-	// longer be used in referential Constraints.
+	// longer be used in referential Constraints. This is a deprecated method that
+	// will only be called for the "Rego" driver.
 	RemoveData(ctx context.Context, target string, path storage.Path) error
 
 	// Query runs the passed target's Constraints against review.
