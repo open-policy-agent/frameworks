@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -44,7 +45,16 @@ func TemplateAllow() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   ModuleAllow,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: ModuleAllow,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -74,7 +84,16 @@ func TemplateDeny() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   ModuleDeny,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: ModuleDeny,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -104,7 +123,16 @@ func TemplateDenyPrint() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleDenyPrint,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleDenyPrint,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -145,8 +173,17 @@ func TemplateDenyImport() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleImportDenyRego,
-		Libs:   []string{moduleImportDenyLib},
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleImportDenyRego,
+						Libs: []string{moduleImportDenyLib},
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -179,7 +216,16 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleCheckData,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleCheckData,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -230,7 +276,16 @@ func TemplateRuntimeError() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleRuntimeError,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleRuntimeError,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -260,7 +315,16 @@ func TemplateForbidDuplicates() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleForbidDuplicates,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleForbidDuplicates,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct
@@ -291,7 +355,16 @@ func TemplateFuture() *templates.ConstraintTemplate {
 
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   moduleFuture,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleFuture,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct

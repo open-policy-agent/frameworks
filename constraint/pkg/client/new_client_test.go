@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
 
@@ -31,7 +31,7 @@ func TestNewClient(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opts := tc.clientOpts
 
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}

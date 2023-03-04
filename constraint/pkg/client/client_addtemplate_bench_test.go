@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 )
@@ -241,8 +242,17 @@ func makeConstraintTemplate(i int, module string, libs ...string) *templates.Con
 	ct.Spec.CRD.Spec.Names.Kind = kind
 	ct.Spec.Targets = []templates.Target{{
 		Target: handlertest.TargetName,
-		Rego:   module,
-		Libs:   libs,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: module,
+						Libs: libs,
+					}).ToUnstructured(),
+				},
+			},
+		},
 	}}
 
 	return ct

@@ -73,7 +73,8 @@ generate: generate-defaults
 	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
 	# conversion-gen and get us back to running `make generate` in our CI pipeline
 	conversion-gen \
-		--input-dirs "./pkg/apis/templates/...,./pkg/apis/externaldata/..." \
+		--input-dirs "./pkg/apis/templates/v1,./pkg/apis/templates/v1beta1,./pkg/apis/templates/v1alpha1,./pkg/apis/externaldata/v1alpha1,./pkg/apis/externaldata/v1beta1" \
+		--output-base=./ \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.conversion \
 		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
@@ -125,4 +126,4 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20230118154835-9241bceb3098
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GCO_ENABLED=0 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20230118154835-9241bceb3098

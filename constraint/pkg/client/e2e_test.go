@@ -13,7 +13,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -542,7 +542,7 @@ func TestClient_Review_Print(t *testing.T) {
 			var printed []string
 			printHook := appendingPrintHook{printed: &printed}
 
-			d, err := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			d, err := rego.New(rego.PrintEnabled(tc.printEnabled), rego.PrintHook(printHook))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -719,7 +719,7 @@ func TestE2E_Tracing(t *testing.T) {
 			if trace == nil && tt.tracingEnabled {
 				t.Fatal("got nil trace but tracing enabled for Review")
 			} else if trace != nil && !tt.tracingEnabled {
-				t.Fatalf("got trace but tracing disabled: %v", *trace)
+				t.Fatalf("got trace but tracing disabled: <<%v>>", *trace)
 			}
 
 			_, err = c.AddData(ctx, &obj.Object)
@@ -766,7 +766,7 @@ func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
 
 	// for each result check that we have the constraintCount == 3 and a positive templateRunTime
 	for _, result := range results {
-		stats, ok := result.EvaluationMeta.(local.RegoEvaluationMeta)
+		stats, ok := result.EvaluationMeta.(rego.EvaluationMeta)
 		if !ok {
 			t.Fatalf("could not type convert to RegoEvaluationMeta")
 		}

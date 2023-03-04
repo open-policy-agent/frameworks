@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -91,11 +92,7 @@ func TestStorageConstraintTemplate(t *testing.T) {
 }
 
 func TestTypeConversion(t *testing.T) {
-	scheme := runtime.NewScheme()
-	if err := AddToScheme(scheme); err != nil {
-		t.Fatalf("Could not add to scheme: %v", err)
-	}
-	versioned := &ConstraintTemplate{
+	regoOnly := &ConstraintTemplate{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConstraintTemplate",
 			APIVersion: "templates.gatekeeper.sh/v1",
@@ -142,23 +139,483 @@ func TestTypeConversion(t *testing.T) {
 			},
 		},
 	}
-	versionedCopy := versioned.DeepCopy()
-	// Kind and API Version do not survive the conversion process
-	versionedCopy.Kind = ""
-	versionedCopy.APIVersion = ""
 
-	unversioned := &templates.ConstraintTemplate{}
-	if err := scheme.Convert(versioned, unversioned, nil); err != nil {
-		t.Fatalf("Conversion error: %v", err)
+	regoOnlyExpectedResult := regoOnly.DeepCopy()
+	regoOnlyExpectedResult.Spec.Targets[0].Code = append(regoOnlyExpectedResult.Spec.Targets[0].Code,
+		Code{
+			Engine: regoSchema.Name,
+			Source: &templates.Anything{
+				Value: (&regoSchema.Source{
+					Rego: regoOnlyExpectedResult.Spec.Targets[0].Rego,
+					Libs: regoOnlyExpectedResult.Spec.Targets[0].Libs,
+				}).ToUnstructured(),
+			},
+		},
+	)
+
+	tests := []struct {
+		name     string
+		input    *ConstraintTemplate
+		expected *ConstraintTemplate
+	}{
+		{
+			name:     "Rego Only",
+			input:    regoOnly,
+			expected: regoOnlyExpectedResult,
+		},
+		{
+			name: "Rego in Code",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Non Rego",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Mixed, Rego in Code",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Mixed, Rego in Dedicated Field",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Rego Clobber",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "this rego should be clobbered"}] { true }`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "MustHaveMoreCats",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind:       "MustHaveMoreCats",
+								ShortNames: []string{"mhmc"},
+							},
+							Validation: &Validation{
+								OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{
+									Type: "object",
+									Properties: map[string]apiextensionsv1.JSONSchemaProps{
+										"message": {
+											Type: "string",
+										},
+										"labels": {
+											Type: "array",
+											Items: &apiextensionsv1.JSONSchemaPropsOrArray{
+												Schema: &apiextensionsv1.JSONSchemaProps{
+													Type: "object",
+													Properties: map[string]apiextensionsv1.JSONSchemaProps{
+														"key":          {Type: "string"},
+														"allowedRegex": {Type: "string"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "sometarget",
+							Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+							Code: []Code{
+								{
+									Engine: "k8sadmission",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"my-k8s-code": `validate-super-strict`},
+									},
+								},
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
-	recast := &ConstraintTemplate{}
-	if err := scheme.Convert(unversioned, recast, nil); err != nil {
-		t.Fatalf("Recast conversion error: %v", err)
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatalf("Could not add to scheme: %v", err)
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expected := test.expected
+			// if expected is nil, this should be a lossless round-trip
+			if expected == nil {
+				expected = test.input.DeepCopy()
+			}
 
-	if !reflect.DeepEqual(versionedCopy, recast) {
-		t.Fatalf("Unexpected template difference.  Diff: %v", cmp.Diff(versionedCopy, recast))
+			// Kind and API Version do not survive the conversion process
+			expected.Kind = ""
+			expected.APIVersion = ""
+
+			unversioned := &templates.ConstraintTemplate{}
+			if err := scheme.Convert(test.input, unversioned, nil); err != nil {
+				t.Fatalf("Conversion error: %v", err)
+			}
+
+			recast := &ConstraintTemplate{}
+			if err := scheme.Convert(unversioned, recast, nil); err != nil {
+				t.Fatalf("Recast conversion error: %v", err)
+			}
+
+			if !reflect.DeepEqual(expected, recast) {
+				t.Fatalf("Unexpected template difference.  Diff: %v", cmp.Diff(expected, recast))
+			}
+		})
 	}
 }
 

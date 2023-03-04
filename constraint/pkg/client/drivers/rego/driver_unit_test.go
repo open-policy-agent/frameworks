@@ -1,4 +1,4 @@
-package local
+package rego
 
 import (
 	"context"
@@ -172,7 +172,7 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
 
-	stats, ok := res[0].EvaluationMeta.(RegoEvaluationMeta)
+	stats, ok := res[0].EvaluationMeta.(EvaluationMeta)
 	if !ok {
 		t.Fatalf("could not type convert to RegoEvaluationMeta")
 	}
@@ -252,6 +252,9 @@ func TestDriver_ExternalData(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			clientCertFile, err := os.CreateTemp("", "client-cert")
 			if err != nil {
 				t.Fatal(err)
@@ -276,7 +279,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			}
 
 			go func() {
-				_ = clientCertWatcher.Start(context.Background())
+				_ = clientCertWatcher.Start(ctx)
 			}()
 
 			d, err := New(
@@ -299,7 +302,6 @@ func TestDriver_ExternalData(t *testing.T) {
 			}
 
 			tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, ExternalData)))
-			ctx := context.Background()
 
 			if err := d.AddTemplate(ctx, tmpl); err != nil {
 				t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
