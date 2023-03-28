@@ -758,22 +758,22 @@ func TestE2E_Tracing(t *testing.T) {
 			td := rsps.TraceDump()
 			if tt.tracingEnabled {
 				if tt.deny {
-					if !strings.Contains(td, "Trace:") || strings.Contains(td, "Trace: TRACING DISABLED") {
+					if !strings.Contains(td, "Trace:") || strings.Contains(td, types.TracingDisabledHeader) {
 						t.Fatalf("did not find a trace when we were expecting to see one: %s", td)
 					}
 				} else {
-					if strings.Contains(td, "Trace: TRACING DISABLED") {
+					if strings.Contains(td, types.TracingDisabledHeader) {
 						t.Fatalf("tracing is not disabled, we just didn't see a violation: %s", td)
 					}
 				}
 			} else {
 				if tt.deny {
-					if !strings.Contains(td, "Trace: TRACING DISABLED") {
+					if !strings.Contains(td, types.TracingDisabledHeader) {
 						t.Fatalf("tracing is disabled, there shouldn't be a trace: %s", td)
 					}
 				} else {
-					if strings.Contains(td, "Trace: TRACING DISABLED") {
-						t.Fatalf("tracing is disabled, but there were no violations so \"Trace: TRACING DISABLED:\" shouldn't be present: %s", td)
+					if strings.Contains(td, types.TracingDisabledHeader) {
+						t.Fatalf("tracing is disabled, but there were no violations so \"%s\" shouldn't be present: %s", types.TracingDisabledHeader, td)
 					}
 				}
 			}
@@ -781,7 +781,7 @@ func TestE2E_Tracing(t *testing.T) {
 	}
 }
 
-// TestE2E_Tracing_Ignored tests that non evaluations don't have a misleading
+// TestE2E_Tracing_Unmatched tests that non evaluations don't have a misleading
 // message: \"Trace: TRACING DISABLED\" trace on a TraceDump().
 // A non evaluation can occur when a review doesn't match the constraint's match
 // criteria.
@@ -827,8 +827,8 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 			}
 
 			td := rsps.TraceDump()
-			if strings.Contains(td, "Trace: TRACING DISABLED") {
-				t.Fatalf("\"Trace: TRACING DISABLED:\" shouldn't be present: %s", td)
+			if strings.Contains(td, types.TracingDisabledHeader) {
+				t.Fatalf("\"%s\" shouldn't be present: %s", types.TracingDisabledHeader, td)
 			}
 		})
 	}
