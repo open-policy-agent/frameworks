@@ -9,6 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+const (
+	TracingDisabledHeader = "Trace: TRACING DISABLED"
+)
+
 type Result struct {
 	// Target is the target this violation is for.
 	Target string `json:"target"`
@@ -65,7 +69,16 @@ func (r *Response) TraceDump() string {
 	b := &strings.Builder{}
 	_, _ = fmt.Fprintf(b, "Target: %s\n", r.Target)
 	if r.Trace == nil {
-		_, _ = fmt.Fprintf(b, "Trace: TRACING DISABLED\n\n")
+		if r.Results != nil {
+			// only say "Trace: TRACING DISABLED" if there are results
+			// otherwise, we risk to confuse consumers who see the msg
+			// and think that evaluation did not happen.
+
+			// Note that if there were NO violating results AND the trace
+			// was turned on, then r.Trace != nil.
+			b.WriteString(TracingDisabledHeader)
+			b.WriteString("\n\n")
+		}
 	} else {
 		_, _ = fmt.Fprintf(b, "Trace:\n%s\n\n", *r.Trace)
 	}
