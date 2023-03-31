@@ -878,11 +878,6 @@ func TestE2E_DriverCfg(t *testing.T) {
 			} else if len(stats) != 0 && !tt.statsEnabled {
 				t.Fatal("got stats but stats disabled")
 			}
-
-			_, err = c.AddData(ctx, &obj.Object)
-			if err != nil {
-				t.Fatal(err)
-			}
 		})
 	}
 }
@@ -892,7 +887,7 @@ func TestE2E_DriverCfg(t *testing.T) {
 // and non violating ones.
 func TestE2E_Review_StatsEntries(t *testing.T) {
 	ctx := context.Background()
-	d, err := rego.New(rego.GatherStats())
+	d, err := rego.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -941,7 +936,7 @@ func TestE2E_Review_StatsEntries(t *testing.T) {
 		},
 	}
 
-	responses, err := c.Review(ctx, review)
+	responses, err := c.Review(ctx, review, drivers.Stats(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -963,13 +958,13 @@ func TestE2E_Review_StatsEntries(t *testing.T) {
 						t.Errorf("want: %s, got: %s", want, desc)
 					}
 				case "constraintCount":
-					want := "the number of constraints that were evaluated at the same time for the given constraint kind"
+					want := "the number of constraints that were evaluated for the given constraint kind"
 					if desc != want {
 						t.Errorf("want: %s, got: %s", want, desc)
 					}
 				}
 
-				if stat.Source.Value != instrumentation.RegoEngineSource {
+				if stat.Source.Value != instrumentation.RegoSource.Value {
 					t.Errorf("the only supported source for now is \"rego\" was: %s", stat.Source.Value)
 				}
 

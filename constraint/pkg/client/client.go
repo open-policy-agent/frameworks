@@ -11,7 +11,6 @@ import (
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -618,7 +617,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 // Review makes sure the provided object satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Opt) (*types.Responses, error) {
+func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.QueryOpt) (*types.Responses, error) {
 	responses := types.NewResponses()
 	errMap := make(clienterrors.ErrorMap)
 
@@ -707,7 +706,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Op
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.Opt) (*types.Response, []*instrumentation.StatsEntry, error) {
+func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, []*instrumentation.StatsEntry, error) {
 	var results []*types.Result
 	var stats []*instrumentation.StatsEntry
 	var tracesBuilder strings.Builder
@@ -792,28 +791,17 @@ func (c *Client) GetDescriptionForStat(source instrumentation.Source, statName s
 		return instrumentation.UnknownDescription
 	}
 
-	// this is written in a general form
-	// but it only works for rego drivers for now.
-	for dName, d := range c.drivers {
-		if strings.EqualFold(dName, source.Value) {
-			if source.Value == instrumentation.RegoSource.Value {
-				// no other drivers implement the GetDescriptionForStat yet
-				regoD, ok := d.(*rego.Driver)
-				if !ok {
-					return instrumentation.UnknownDescription
-				}
-
-				desc, err := regoD.GetDescriptionForStat(statName)
-				if err != nil {
-					return instrumentation.UnknownDescription
-				}
-
-				return desc
-			}
-		}
+	driver, ok := c.drivers[source.Value]
+	if !ok {
+		return instrumentation.UnknownDescription
 	}
 
-	return instrumentation.UnknownDescription
+	desc, err := driver.GetDescriptionForStat(statName)
+	if err != nil {
+		return instrumentation.UnknownDescription
+	}
+
+	return desc
 }
 
 // knownTargets returns a sorted list of known target names.

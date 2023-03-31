@@ -2,6 +2,8 @@
 // support more observability throughout the constraint framework.
 package instrumentation
 
+import "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
+
 const (
 	// scope constants.
 	TemplateScope = "template"
@@ -11,12 +13,11 @@ const (
 
 	// source constants.
 	EngineSourceType = "engine"
-	RegoEngineSource = "rego"
 )
 
 var RegoSource = Source{
 	Type:  EngineSourceType,
-	Value: RegoEngineSource,
+	Value: schema.Name,
 }
 
 // Label is a name/value tuple to add metadata

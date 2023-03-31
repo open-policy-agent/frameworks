@@ -197,7 +197,7 @@ func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Pat
 	return nil
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.Opt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
@@ -215,4 +215,8 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return "", nil
+}
+
+func (d *Driver) GetDescriptionForStat(_ string) (string, error) {
+	return "", fmt.Errorf("unknown stat name")
 }
