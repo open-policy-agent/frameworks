@@ -15,9 +15,12 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
@@ -178,6 +181,460 @@ func TestDriver_Query(t *testing.T) {
 	}
 	if len(qr.Results) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
+	}
+}
+
+// TestDriver_Query_Stats tests that StatsEntries are returned for both
+// violating and non violating constraints. It tests both the QueryOpt.Stats()
+// and the GatherStats() modes.
+func TestDriver_Query_Stats(t *testing.T) {
+	ctx := context.Background()
+
+	c1 := cts.MakeConstraint(t, "Fakes", "foo-1")
+	c2 := cts.MakeConstraint(t, "Fakes", "foo-2")
+	c3 := cts.MakeConstraint(t, "Fakes-2", "foo-1")
+	c4 := cts.MakeConstraint(t, "Fakes-2", "foo-2")
+
+	prepareDriverFunc := func(d *Driver) {
+		/// Start Kind: Fakes
+		tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, AlwaysViolate)))
+		if err := d.AddTemplate(ctx, tmpl); err != nil {
+			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+		}
+		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, NeverViolate)))
+		if err := d.AddTemplate(ctx, tmpl); err != nil {
+			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+		}
+
+		if err := d.AddConstraint(ctx, c1); err != nil {
+			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+		}
+		if err := d.AddConstraint(ctx, c2); err != nil {
+			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+		}
+		/// End Kind: Fakes
+
+		/// Start Kind: Fakes-2
+		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, AlwaysViolate)), cts.OptCRDNames("Fakes-2"))
+		if err := d.AddTemplate(ctx, tmpl); err != nil {
+			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+		}
+		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, NeverViolate)), cts.OptCRDNames("Fakes-2"))
+		if err := d.AddTemplate(ctx, tmpl); err != nil {
+			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+		}
+
+		if err := d.AddConstraint(ctx, c1); err != nil {
+			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+		}
+		if err := d.AddConstraint(ctx, c2); err != nil {
+			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+		}
+		/// End Kind: Fakes-2
+	}
+
+	target := cts.MockTargetHandler
+	review := map[string]interface{}{}
+
+	tests := []struct {
+		name                 string
+		driverArgs           []Arg
+		constraints          []*unstructured.Unstructured
+		opts                 []drivers.QueryOpt
+		expectedStatsEntries []*instrumentation.StatsEntry
+	}{
+		{
+			name:                 "violations; no stats enabled",
+			constraints:          []*unstructured.Unstructured{c1},
+			opts:                 []drivers.QueryOpt{},
+			expectedStatsEntries: []*instrumentation.StatsEntry{},
+		},
+		{
+			name:                 "no violations; no stats enabled",
+			constraints:          []*unstructured.Unstructured{c2},
+			opts:                 []drivers.QueryOpt{},
+			expectedStatsEntries: []*instrumentation.StatsEntry{},
+		},
+		{
+			name:        "violations; stats enabled",
+			constraints: []*unstructured.Unstructured{c1},
+			opts: []drivers.QueryOpt{
+				drivers.Stats(true),
+			},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 1,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "violations; stats enabled w driver args",
+			constraints: []*unstructured.Unstructured{c1},
+			opts:        []drivers.QueryOpt{},
+			driverArgs:  []Arg{GatherStats()},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 1,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "no violations; stats enabled",
+			constraints: []*unstructured.Unstructured{c2},
+			opts: []drivers.QueryOpt{
+				drivers.Stats(true),
+			},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 1,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "no violations; stats enabled w driver args",
+			constraints: []*unstructured.Unstructured{c2},
+			opts:        []drivers.QueryOpt{},
+			driverArgs:  []Arg{GatherStats()},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 1,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "violations and no violations; stats enabled",
+			constraints: []*unstructured.Unstructured{c1, c2},
+			opts: []drivers.QueryOpt{
+				drivers.Stats(true),
+			},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 2,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "violations and no violations; stats enabled; multiple kinds",
+			constraints: []*unstructured.Unstructured{c1, c2, c3, c4},
+			opts: []drivers.QueryOpt{
+				drivers.Stats(true),
+			},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 2,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes-2",
+					Stats: []*instrumentation.Stat{
+						{
+							Name:  "templateRunTimeNS",
+							Value: uint64(0),
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 2,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: false,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: false,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "violations; stats enabled; driver args on",
+			constraints: []*unstructured.Unstructured{c1},
+			opts: []drivers.QueryOpt{
+				drivers.Stats(true),
+			},
+			driverArgs: []Arg{
+				Tracing(true),
+				PrintEnabled(true),
+			},
+			expectedStatsEntries: []*instrumentation.StatsEntry{
+				{
+					Scope:    instrumentation.TemplateScope,
+					StatsFor: "Fakes",
+					Stats: []*instrumentation.Stat{
+						{
+							Name: "templateRunTimeNS",
+							// Value: uint64(0), // tested separately
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+						{
+							Name:  "constraintCount",
+							Value: 1,
+							Source: instrumentation.Source{
+								Type:  instrumentation.EngineSourceType,
+								Value: schema.Name,
+							},
+						},
+					},
+					Labels: []*instrumentation.Label{
+						{
+							Name:  "TracingEnabled",
+							Value: true,
+						},
+						{
+							Name:  "PrintEnabled",
+							Value: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var d *Driver
+			var err error
+
+			if tc.driverArgs == nil {
+				d, err = New()
+			} else {
+				d, err = New(tc.driverArgs...)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			prepareDriverFunc(d)
+
+			response, err := d.Query(context.Background(), target, tc.constraints, review, tc.opts...)
+			if err != nil {
+				t.Fatalf("unexpected error in Query: %v", err)
+			}
+			if response == nil {
+				t.Fatalf("Query response is nil")
+			}
+
+			if len(response.StatsEntries) != len(tc.expectedStatsEntries) {
+				t.Errorf("expected %d stats, but got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
+			}
+
+			for i, expectedStatEntry := range tc.expectedStatsEntries {
+				actualStatsEntry := response.StatsEntries[i]
+
+				if diff := cmp.Diff(expectedStatEntry, actualStatsEntry, cmpopts.IgnoreFields(instrumentation.Stat{}, "Value")); diff != "" {
+					t.Errorf("stat entries don't match; diff %s", diff)
+				}
+
+				for j, expectedStat := range expectedStatEntry.Stats {
+					actualStat := actualStatsEntry.Stats[j]
+
+					switch actualStat.Name {
+					case templateRunTimeNS:
+						switch actualValue := actualStat.Value.(type) {
+						case uint64:
+							fmt.Println(templateRunTimeNS, actualValue)
+							if !(actualValue > 0) {
+								t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
+							}
+						default:
+							t.Errorf("unknown stat value type: %T for stat: %s", actualValue, actualValue)
+						}
+					case constraintCountName:
+						if actualStat.Value != expectedStat.Value {
+							t.Errorf("%s values don't match; want: %s; got: %s", constraintCountName, expectedStat.Value, actualStat.Value)
+						}
+					}
+				}
+			}
+		})
 	}
 }
 
