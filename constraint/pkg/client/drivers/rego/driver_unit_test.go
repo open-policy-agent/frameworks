@@ -620,7 +620,6 @@ func TestDriver_Query_Stats(t *testing.T) {
 					case templateRunTimeNS:
 						switch actualValue := actualStat.Value.(type) {
 						case uint64:
-							fmt.Println(templateRunTimeNS, actualValue)
 							if !(actualValue > 0) {
 								t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
 							}
