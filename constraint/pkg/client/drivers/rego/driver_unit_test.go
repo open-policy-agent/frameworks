@@ -285,11 +285,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -325,11 +325,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -366,11 +366,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -406,11 +406,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -447,11 +447,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -488,11 +488,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -520,11 +520,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: false,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: false,
 						},
 					},
@@ -565,11 +565,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: true,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: true,
 						},
 					},

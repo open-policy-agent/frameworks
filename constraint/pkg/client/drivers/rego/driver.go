@@ -38,6 +38,9 @@ const (
 
 	constraintCountName        = "constraintCount"
 	constraintCountDescription = "the number of constraints that were evaluated for the given constraint kind"
+
+	tracingEnabledLabelName = "TracingEnabled"
+	printEnabledLabelName   = "PrintEnabled"
 )
 
 var _ drivers.Driver = &Driver{}
@@ -336,11 +339,11 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 					},
 					Labels: []*instrumentation.Label{
 						{
-							Name:  "TracingEnabled",
+							Name:  tracingEnabledLabelName,
 							Value: d.traceEnabled || cfg.TracingEnabled,
 						},
 						{
-							Name:  "PrintEnabled",
+							Name:  printEnabledLabelName,
 							Value: d.printEnabled,
 						},
 					},
