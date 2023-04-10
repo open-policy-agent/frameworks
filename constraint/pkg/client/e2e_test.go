@@ -18,6 +18,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -877,5 +878,59 @@ func TestE2E_DriverStats(t *testing.T) {
 				t.Fatal("got stats but stats disabled")
 			}
 		})
+	}
+}
+
+func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
+	unknownDriverSource := instrumentation.Source{
+		Type:  instrumentation.EngineSourceType,
+		Value: "unknown_driver",
+	}
+	unknownSourceType := instrumentation.Source{
+		Type:  "unknown_source",
+		Value: "unknown_value",
+	}
+	validSource := instrumentation.RegoSource
+
+	c := clienttest.New(t)
+	tests := []struct {
+		name            string
+		source          instrumentation.Source
+		statName        string
+		expectedUnknown bool
+	}{
+		{
+			name:            "unknown driver source",
+			source:          unknownDriverSource,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "unknown source type",
+			source:          unknownSourceType,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with unknown stat",
+			source:          validSource,
+			statName:        "this_stat_does_not_exist",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with known stat",
+			source:          validSource,
+			statName:        "templateRunTimeNS",
+			expectedUnknown: false,
+		},
+	}
+
+	for _, tc := range tests {
+		desc := c.GetDescriptionForStat(tc.source, tc.statName)
+		if tc.expectedUnknown && desc != instrumentation.UnknownDescription {
+			t.Errorf("expected unknown description for stat %q, got: %q", tc.statName, desc)
+		} else if !tc.expectedUnknown && desc == instrumentation.UnknownDescription {
+			t.Errorf("expected actual description for stat %q, got: %q", tc.statName, desc)
+		}
 	}
 }
