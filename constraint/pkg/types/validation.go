@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -27,13 +28,10 @@ type Result struct {
 
 	// The enforcement action of the constraint
 	EnforcementAction string `json:"enforcementAction,omitempty"`
-
-	// EvaluationMeta has metadata for a Result's evaluation.
-	EvaluationMeta interface{} `json:"evaluationMeta,omitempty"`
 }
 
 // Response is a collection of Constraint violations for a particular Target.
-// Each Result is for a distinct Constraint.
+// Each Result represents a violation for a distinct Constraint.
 type Response struct {
 	Trace   *string
 	Target  string
@@ -90,14 +88,16 @@ func (r *Response) TraceDump() string {
 
 func NewResponses() *Responses {
 	return &Responses{
-		ByTarget: make(map[string]*Response),
-		Handled:  make(map[string]bool),
+		ByTarget:     make(map[string]*Response),
+		Handled:      make(map[string]bool),
+		StatsEntries: make([]*instrumentation.StatsEntry, 0),
 	}
 }
 
 type Responses struct {
-	ByTarget map[string]*Response
-	Handled  map[string]bool
+	ByTarget     map[string]*Response
+	Handled      map[string]bool
+	StatsEntries []*instrumentation.StatsEntry
 }
 
 func (r *Responses) Results() []*Result {

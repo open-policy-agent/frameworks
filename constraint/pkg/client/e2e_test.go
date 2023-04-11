@@ -3,7 +3,6 @@ package client_test
 import (
 	"context"
 	"errors"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -441,7 +441,7 @@ func TestClient_Review(t *testing.T) {
 
 			results := responses.Results()
 
-			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")
+			diffOpt := cmpopts.IgnoreFields(types.Result{}, "Metadata")
 			if diff := cmp.Diff(tt.wantResults, results, diffOpt); diff != "" {
 				t.Error(diff)
 			}
@@ -489,8 +489,7 @@ func TestClient_Review_Details(t *testing.T) {
 
 	results := responses.Results()
 
-	diffOpt := cmpopts.IgnoreFields(types.Result{}, "EvaluationMeta")
-	if diff := cmp.Diff(want, results, diffOpt); diff != "" {
+	if diff := cmp.Diff(want, results); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -570,7 +569,7 @@ func TestClient_Review_Print(t *testing.T) {
 
 			results := rsps.Results()
 			if diff := cmp.Diff(tc.wantResults, results,
-				cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+				cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 				t.Error(diff)
 			}
 
@@ -608,7 +607,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -657,7 +656,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		EnforcementAction: constraints.EnforcementActionDeny,
 	}}
 
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata", "EvaluationMeta")); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(types.Result{}, "Metadata")); diff != "" {
 		t.Fatal(diff)
 	}
 
@@ -834,53 +833,104 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 	}
 }
 
-// TestE2E_Review_RegoEvaluationMeta tests that we can get stats out of evaluated constraints.
-func TestE2E_Review_RegoEvaluationMeta(t *testing.T) {
-	ctx := context.Background()
-	c := clienttest.New(t)
-	ct := clienttest.TemplateCheckData()
-	_, err := c.AddTemplate(ctx, ct)
-	if err != nil {
-		t.Fatal(err)
-	}
-	numConstrains := 3
-
-	for i := 1; i < numConstrains+1; i++ {
-		name := "constraint-" + strconv.Itoa(i)
-		constraint := cts.MakeConstraint(t, clienttest.KindCheckData, name, cts.WantData("bar"))
-		_, err = c.AddConstraint(ctx, constraint)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	review := handlertest.Review{
-		Object: handlertest.Object{
-			Name: "foo",
-			Data: "qux",
+// TestE2E_DriverStats tests that we can turn on and off the Stats() QueryOpt.
+func TestE2E_DriverStats(t *testing.T) {
+	tests := []struct {
+		name         string
+		statsEnabled bool
+	}{
+		{
+			name:         "disabled",
+			statsEnabled: false,
+		},
+		{
+			name:         "enabled",
+			statsEnabled: true,
 		},
 	}
 
-	responses, err := c.Review(ctx, review)
-	if err != nil {
-		t.Fatal(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := clienttest.New(t)
+
+			_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
+
+			rsps, err := c.Review(ctx, obj, drivers.Stats(tt.statsEnabled))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			stats := rsps.StatsEntries
+			if stats == nil && tt.statsEnabled {
+				t.Fatal("got nil stats but stats enabled for Review")
+			} else if len(stats) != 0 && !tt.statsEnabled {
+				t.Fatal("got stats but stats disabled")
+			}
+		})
+	}
+}
+
+func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
+	unknownDriverSource := instrumentation.Source{
+		Type:  instrumentation.EngineSourceType,
+		Value: "unknown_driver",
+	}
+	unknownSourceType := instrumentation.Source{
+		Type:  "unknown_source",
+		Value: "unknown_value",
+	}
+	validSource := instrumentation.RegoSource
+
+	c := clienttest.New(t)
+	tests := []struct {
+		name            string
+		source          instrumentation.Source
+		statName        string
+		expectedUnknown bool
+	}{
+		{
+			name:            "unknown driver source",
+			source:          unknownDriverSource,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "unknown source type",
+			source:          unknownSourceType,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with unknown stat",
+			source:          validSource,
+			statName:        "this_stat_does_not_exist",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with known stat",
+			source:          validSource,
+			statName:        "templateRunTimeNS",
+			expectedUnknown: false,
+		},
 	}
 
-	results := responses.Results()
-
-	// for each result check that we have the constraintCount == 3 and a positive templateRunTime
-	for _, result := range results {
-		stats, ok := result.EvaluationMeta.(rego.EvaluationMeta)
-		if !ok {
-			t.Fatalf("could not type convert to RegoEvaluationMeta")
-		}
-
-		if stats.TemplateRunTime == 0 {
-			t.Fatalf("expected %v's value to be positive was zero", "TemplateRunTime")
-		}
-
-		if stats.ConstraintCount != uint(numConstrains) {
-			t.Fatalf("expected %v constraint count, got %v", numConstrains, "ConstraintCount")
+	for _, tc := range tests {
+		desc := c.GetDescriptionForStat(tc.source, tc.statName)
+		if tc.expectedUnknown && desc != instrumentation.UnknownDescription {
+			t.Errorf("expected unknown description for stat %q, got: %q", tc.statName, desc)
+		} else if !tc.expectedUnknown && desc == instrumentation.UnknownDescription {
+			t.Errorf("expected actual description for stat %q, got: %q", tc.statName, desc)
 		}
 	}
 }
