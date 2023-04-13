@@ -21,6 +21,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/utils/pointer"
 )
@@ -408,30 +409,22 @@ func TestClient_Review(t *testing.T) {
 
 			for _, ns := range tt.namespaces {
 				_, err := c.AddData(ctx, &handlertest.Object{Namespace: ns})
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			}
 
 			for _, ct := range tt.templates {
 				_, err := c.AddTemplate(ctx, ct)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			}
 
 			for _, constraint := range tt.constraints {
 				_, err := c.AddConstraint(ctx, constraint)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			}
 
 			for _, obj := range tt.inventory {
 				_, err := c.AddData(ctx, obj)
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			}
 
 			responses, err := c.Review(ctx, tt.toReview)
@@ -715,24 +708,16 @@ func TestE2E_Tracing(t *testing.T) {
 
 			if tt.deny {
 				_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 
 				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			} else {
 				_, err := c.AddTemplate(ctx, clienttest.TemplateAllow())
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 
 				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindAllow, "foo"))
-				if err != nil {
-					t.Fatal(err)
-				}
+				assert.NoError(t, err)
 			}
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
