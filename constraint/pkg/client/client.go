@@ -358,18 +358,18 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, clienterrors.ErrNoDriver
 	}
 
-	constraintWDefaults, err := c.withDefaultParams(constraint, template)
+	constraintWithDefaults, err := c.withDefaultParams(constraint, template)
 	if err != nil {
 		return resp, err
 	}
 
-	changed, err := cached.AddConstraint(constraintWDefaults)
+	changed, err := cached.AddConstraint(constraintWithDefaults)
 	if err != nil {
 		return resp, err
 	}
 
 	if changed {
-		err = driver.AddConstraint(ctx, constraintWDefaults)
+		err = driver.AddConstraint(ctx, constraintWithDefaults)
 		if err != nil {
 			return resp, err
 		}
@@ -387,7 +387,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 //
 //	Returns a copy of the constraint with the defaults or an error in processing the schema and constraint.
 func (c *Client) withDefaultParams(constraint *unstructured.Unstructured, templ *templates.ConstraintTemplate) (*unstructured.Unstructured, error) {
-	if templ.Spec.CRD.Spec.Validation == nil || templ.Spec.CRD.Spec.Validation.LegacySchema != nil {
+	if templ.Spec.CRD.Spec.Validation == nil || templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema == nil {
 		return constraint, nil
 	}
 
