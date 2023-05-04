@@ -11,6 +11,9 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
 )
 
 // templateClient handles per-ConstraintTemplate operations.
@@ -58,6 +61,44 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 	}
 
 	return crds.ValidateCR(constraint, e.crd)
+}
+
+// ApplyDefaultParams will apply any default parameters defined in the CRD of the constraint's
+// corresponding template.
+// Assumes ValidateConstraint() called is called so the constraint is a valid CRD.
+func (e *templateClient) ApplyDefaultParams(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	cpy := constraint.DeepCopy()
+
+	params, found, err := unstructured.NestedFieldNoCopy(cpy.Object, "spec", "parameters")
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		params = make(map[string]interface{})
+	}
+
+	// sequentially get the structural schema for the spec field
+	structural, err := schema.NewStructural(e.crd.Spec.Validation.OpenAPIV3Schema)
+	if err != nil {
+		return nil, err
+	}
+	specStructural, ok := structural.Properties["spec"]
+	if !ok {
+		return nil, fmt.Errorf("failed to fetch structural schema for spec")
+	}
+
+	// if the template CRD defines parameters to begin with, then we look to default any
+	// parameters that specified a default in their schema definition.
+	structuralParameters, ok := specStructural.Properties["parameters"]
+	if ok {
+		defaulting.Default(params, &structuralParameters)
+
+		if err := unstructured.SetNestedField(cpy.Object, params, "spec", "parameters"); err != nil {
+			return nil, err
+		}
+	}
+
+	return cpy, nil
 }
 
 func (e *templateClient) getTemplate() *templates.ConstraintTemplate {

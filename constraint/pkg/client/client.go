@@ -323,8 +323,8 @@ func (c *Client) GetTemplate(templ *templates.ConstraintTemplate) (*templates.Co
 	return template.getTemplate(), nil
 }
 
-// getTemplateEntry returns the template entry for a given constraint.
-func (c *Client) getTemplateForKind(kind string) *templateClient {
+// getTemplateClientForKind returns the template entry for a given constraint.
+func (c *Client) getTemplateClientForKind(kind string) *templateClient {
 	name := strings.ToLower(kind)
 
 	return c.templates[name]
@@ -345,7 +345,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	}
 
 	kind := constraint.GetKind()
-	cached := c.getTemplateForKind(kind)
+	cached := c.getTemplateClientForKind(kind)
 	if cached == nil {
 		templateName := strings.ToLower(kind)
 		return resp, templateNotFound(templateName)
@@ -358,7 +358,7 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 		return resp, clienterrors.ErrNoDriver
 	}
 
-	constraintWithDefaults, err := c.withDefaultParams(constraint, template)
+	constraintWithDefaults, err := cached.ApplyDefaultParams(constraint)
 	if err != nil {
 		return resp, err
 	}
@@ -382,51 +382,6 @@ func (c *Client) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 	return resp, nil
 }
 
-// withDefaultParams injects any default values defined in the OpenAPIV3Schema
-// to the constraint spec only if a parameter is not already defined in the constraint.
-//
-//	Returns a copy of the constraint with the defaults or an error in processing the schema and constraint.
-func (c *Client) withDefaultParams(constraint *unstructured.Unstructured, templ *templates.ConstraintTemplate) (*unstructured.Unstructured, error) {
-	if templ.Spec.CRD.Spec.Validation == nil || templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema == nil {
-		return constraint, nil
-	}
-
-	cpy := constraint.DeepCopy()
-	defaults := map[string]*apiextensions.JSON{}
-	schema := templ.Spec.CRD.Spec.Validation.OpenAPIV3Schema
-
-	for paramName := range schema.Properties {
-		paramProps := schema.Properties[paramName]
-
-		if paramProps.Default != nil {
-			defaults[paramName] = paramProps.Default
-		}
-	}
-
-	_, _, err := unstructured.NestedFieldNoCopy(cpy.Object, "spec", "parameters")
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, err)
-	}
-
-	for paramName, defaultParam := range defaults {
-		// only look to default parameters that are not found
-		_, found, err := unstructured.NestedFieldNoCopy(cpy.Object, "spec", "parameters", paramName)
-		if err != nil {
-			return nil, fmt.Errorf("could not find parameter %s in CRD %w: %v", paramName, apiconstraints.ErrInvalidConstraint, err)
-		}
-
-		// by definition, if we looked up a paramName, it was a parameter
-		// that had a Default defined in the schema so we are right to default it.
-		if !found {
-			if err := unstructured.SetNestedField(cpy.Object, *defaultParam, "spec", "parameters", paramName); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return cpy, nil
-}
-
 // RemoveConstraint removes a constraint from OPA. On error, the responses
 // return value will still be populated so that partial results can be analyzed.
 func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) (*types.Responses, error) {
@@ -442,7 +397,7 @@ func (c *Client) RemoveConstraint(ctx context.Context, constraint *unstructured.
 
 	kind := constraint.GetKind()
 
-	cached := c.getTemplateForKind(kind)
+	cached := c.getTemplateClientForKind(kind)
 	if cached == nil {
 		// The Template has been deleted, so nothing to do and no reason to return
 		// error.
@@ -483,7 +438,7 @@ func (c *Client) GetConstraint(constraint *unstructured.Unstructured) (*unstruct
 	defer c.mtx.RUnlock()
 
 	kind := constraint.GetKind()
-	template := c.getTemplateForKind(kind)
+	template := c.getTemplateClientForKind(kind)
 	if template == nil {
 		templateName := strings.ToLower(kind)
 		return nil, templateNotFound(templateName)
@@ -517,7 +472,7 @@ func (c *Client) validateConstraint(constraint *unstructured.Unstructured) error
 	}
 
 	kind := constraint.GetKind()
-	template := c.getTemplateForKind(kind)
+	template := c.getTemplateClientForKind(kind)
 	if template == nil {
 		templateName := strings.ToLower(kind)
 		return templateNotFound(templateName)
