@@ -1277,18 +1277,11 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				t.Fatalf("got GetConstraint() error = %v, want %v",
 					err, tc.wantGetConstraintError)
 			}
-
 			if tc.wantGetConstraintError != nil {
 				return
 			}
+
 			// we expect the constraints to be parametrized as per the open api v3 defaults
-
-			if tc.validationSpec != nil {
-				if diff := cmp.Diff(constraint.Object["spec"], cached.Object["spec"]); diff == "" {
-					t.Error("cached Constraint does equals stored constraint; it shouldn't")
-				}
-			}
-
 			if tc.wantSpec != nil {
 				if diff := cmp.Diff(tc.wantSpec, cached.Object["spec"]); diff != "" {
 					t.Error("cached Constraint does not equal wantConstraint constraint", diff)

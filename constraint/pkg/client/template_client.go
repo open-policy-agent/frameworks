@@ -10,10 +10,9 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // templateClient handles per-ConstraintTemplate operations.
@@ -67,9 +66,7 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 // corresponding template.
 // Assumes ValidateConstraint() called is called so the constraint is a valid CRD.
 func (e *templateClient) ApplyDefaultParams(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
-	cpy := constraint.DeepCopy()
-
-	params, found, err := unstructured.NestedFieldNoCopy(cpy.Object, "spec", "parameters")
+	params, found, err := unstructured.NestedFieldNoCopy(constraint.Object, "spec", "parameters")
 	if err != nil {
 		return nil, err
 	}
@@ -93,12 +90,12 @@ func (e *templateClient) ApplyDefaultParams(constraint *unstructured.Unstructure
 	if ok {
 		defaulting.Default(params, &structuralParameters)
 
-		if err := unstructured.SetNestedField(cpy.Object, params, "spec", "parameters"); err != nil {
+		if err := unstructured.SetNestedField(constraint.Object, params, "spec", "parameters"); err != nil {
 			return nil, err
 		}
 	}
 
-	return cpy, nil
+	return constraint, nil
 }
 
 func (e *templateClient) getTemplate() *templates.ConstraintTemplate {
