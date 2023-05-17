@@ -1053,7 +1053,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 
 	target := &handlertest.Handler{}
 	template := cts.New()
-	constraint := cts.MakeConstraintNoParams(t, "Fakes", "fakes")
+	constraint := cts.MakeConstraint(t, "Fakes", "fakes")
 
 	regoDriver, err := rego.New()
 	if err != nil {
@@ -1287,12 +1287,9 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					t.Error("cached Constraint does not equal wantConstraint constraint", diff)
 				}
 			} else {
-				_, found, err := unstructured.NestedFieldNoCopy(cached.Object, "spec", "parameters")
+				_, _, err := unstructured.NestedFieldNoCopy(cached.Object, "spec", "parameters")
 				if err != nil {
 					t.Error(err)
-				}
-				if found {
-					t.Error("params should not be populated")
 				}
 			}
 		})

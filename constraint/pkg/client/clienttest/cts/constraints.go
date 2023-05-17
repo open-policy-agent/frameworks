@@ -36,28 +36,6 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	return u
 }
 
-func MakeConstraintNoParams(t testing.TB, kind, name string, args ...ConstraintArg) *unstructured.Unstructured {
-	t.Helper()
-
-	u := &unstructured.Unstructured{Object: make(map[string]interface{})}
-
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   constraints.Group,
-		Version: "v1beta1",
-		Kind:    kind,
-	})
-	u.SetName(name)
-
-	for _, arg := range args {
-		err := arg(u)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	return u
-}
-
 type ConstraintArg func(*unstructured.Unstructured) error
 
 // MatchNamespace modifies the Constraint to only match objects with the passed
