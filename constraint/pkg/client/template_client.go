@@ -64,7 +64,7 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 
 // ApplyDefaultParams will apply any default parameters defined in the CRD of the constraint's
 // corresponding template.
-// Assumes ValidateConstraint() called is called so the constraint is a valid CRD.
+// Assumes ValidateConstraint() is called so the constraint is a valid CRD.
 func (e *templateClient) ApplyDefaultParams(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
 	structural, err := schema.NewStructural(e.crd.Spec.Validation.OpenAPIV3Schema)
 	if err != nil {
