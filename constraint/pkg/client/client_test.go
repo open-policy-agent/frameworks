@@ -12,8 +12,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
+	fakeschema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -1052,13 +1052,13 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 	defaultBuzzJSON := apiextensions.JSON("NOTbuzz")
 
 	target := &handlertest.Handler{}
-	template := cts.New()
+	template := cts.New(cts.OptTargets(
+		cts.TargetCustomEngines(
+			handlertest.TargetName,
+			cts.Code("fake", (&fakeschema.Source{RejectWith: "rejected"}).ToUnstructured()),
+		),
+	))
 	constraint := cts.MakeConstraint(t, "Fakes", "fakes")
-
-	regoDriver, err := rego.New()
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	defaultHandled := map[string]bool{handlertest.TargetName: true}
 	tcs := []struct {
@@ -1073,10 +1073,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 		wantHandled            map[string]bool
 		wantAddConstraintError error
 		wantGetConstraintError error
-
-		// driver is pulled out to test actual driver implementations.
-		// default is fake.
-		driver drivers.Driver
 	}{
 		{
 			name: "defaults for one",
@@ -1101,7 +1097,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"foo": defaults,
 				},
 			},
-			driver: regoDriver,
 		},
 		{
 			name: "defaults for two",
@@ -1136,7 +1131,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"bar": defaults2,
 				},
 			},
-			driver: regoDriver,
 		},
 		{
 			name: "defaults for two, one mixed",
@@ -1181,7 +1175,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"fuzz": "buzz",
 				},
 			},
-			driver: regoDriver,
 		},
 		{
 			name: "defaults; rego driver",
@@ -1206,7 +1199,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"foo": defaults,
 				},
 			},
-			driver: regoDriver,
 		},
 	}
 
@@ -1221,10 +1213,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 			if tc.wantHandled == nil {
 				tc.wantHandled = defaultHandled
 			}
-			if tc.driver == nil {
-				d := fake.New("")
-				tc.driver = d
-			}
 			if tc.validationSpec != nil {
 				baseTemplate.Spec.CRD.Spec.Validation = tc.validationSpec
 			}
@@ -1232,7 +1220,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				baseConstraint.Object["spec"] = tc.constraintSpec
 			}
 
-			c, err := client.NewClient(client.Targets(target), client.Driver(tc.driver))
+			c, err := client.NewClient(client.Targets(target), client.Driver(fake.New("fake")))
 			if err != nil {
 				t.Fatal(err)
 			}
