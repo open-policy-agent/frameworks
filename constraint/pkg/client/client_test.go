@@ -1078,12 +1078,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 		// default is fake.
 		driver drivers.Driver
 	}{
-		// this no op test case is tested implicitly in all
-		// AddConstraint calls outside of this test
-		{
-			name:   "no defaults",
-			driver: regoDriver,
-		},
 		{
 			name: "defaults for one",
 			validationSpec: &templates.Validation{
@@ -1144,9 +1138,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 			},
 			driver: regoDriver,
 		},
-		// this is the most interesting test as it shows:
-		// - two parameters defaulting
-		// - one parameter that is defined in the constraint AND does not default
 		{
 			name: "defaults for two, one mixed",
 			validationSpec: &templates.Validation{
@@ -1178,9 +1169,6 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					},
 				},
 			},
-			// note that since the constraint is already creted when we modify it
-			// in place to simulate a constraint defining a fuzz parameter, we
-			// won't actually trigger a schema validation error.
 			constraintSpec: map[string]interface{}{
 				"parameters": map[string]interface{}{
 					"fuzz": "buzz",
