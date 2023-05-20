@@ -1075,7 +1075,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 		wantGetConstraintError error
 
 		// driver is pulled out to test actual driver implementations.
-		// defulat is fake.
+		// default is fake.
 		driver drivers.Driver
 	}{
 		// this no op test case is tested implicitly in all
@@ -1225,9 +1225,9 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc := tc
-			// given a template and constraint for it
-			template := template.DeepCopy()
-			constraint := constraint.DeepCopy()
+			// given a baseTemplate and constraint for it
+			baseTemplate := template.DeepCopy()
+			baseConstraint := constraint.DeepCopy()
 
 			// handle tc defaults
 			if tc.wantHandled == nil {
@@ -1238,10 +1238,10 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				tc.driver = d
 			}
 			if tc.validationSpec != nil {
-				template.Spec.CRD.Spec.Validation = tc.validationSpec
+				baseTemplate.Spec.CRD.Spec.Validation = tc.validationSpec
 			}
 			if tc.constraintSpec != nil {
-				constraint.Object["spec"] = tc.constraintSpec
+				baseConstraint.Object["spec"] = tc.constraintSpec
 			}
 
 			c, err := client.NewClient(client.Targets(target), client.Driver(tc.driver))
@@ -1250,15 +1250,15 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			if template != nil {
-				_, err = c.AddTemplate(ctx, template)
+			if baseTemplate != nil {
+				_, err = c.AddTemplate(ctx, baseTemplate)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			// when we add the constraint
-			r, err := c.AddConstraint(ctx, constraint)
+			r, err := c.AddConstraint(ctx, baseConstraint)
 			if !errors.Is(err, tc.wantAddConstraintError) {
 				t.Fatalf("got AddConstraint() error = %v, want %v",
 					err, tc.wantAddConstraintError)
@@ -1272,7 +1272,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				t.Error(diff)
 			}
 
-			cached, err := c.GetConstraint(constraint)
+			cached, err := c.GetConstraint(baseConstraint)
 			if !errors.Is(err, tc.wantGetConstraintError) {
 				t.Fatalf("got GetConstraint() error = %v, want %v",
 					err, tc.wantGetConstraintError)
