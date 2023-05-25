@@ -26,6 +26,7 @@ import (
 	"k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/matchconditions"
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
+	celAPI "k8s.io/apiserver/pkg/apis/cel"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
 
@@ -47,7 +48,7 @@ import (
 //   Other friction points are commented with the keyword FRICTION.
 
 const (
-	Name = "K8sValidation"
+	Name = "K8sNativeValidation"
 
 	runTimeNS            = "runTimeNS"
 	runTimeNSDescription = "the number of nanoseconds it took to evaluate the constraint"
@@ -103,13 +104,13 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 		for i := range matchConditions {
 			matchExpressionAccessors[i] = (*matchconditions.MatchCondition)(&matchConditions[i])
 		}
-		matcher = matchconditions.NewMatcher(d.filterCompiler.Compile(matchExpressionAccessors, celVars, 10000000), nil, failurePolicy, "validatingadmissionpolicy", validatorCode.Name)
+		matcher = matchconditions.NewMatcher(d.filterCompiler.Compile(matchExpressionAccessors, celVars, celAPI.PerCallLimit), nil, failurePolicy, "validatingadmissionpolicy", validatorCode.Name)
 	}
 	validator := validatingadmissionpolicy.NewValidator(
-		d.filterCompiler.Compile(convertv1alpha1Validations(validatorCode.Spec.Validations), celVars, 10000000),
+		d.filterCompiler.Compile(convertv1alpha1Validations(validatorCode.Spec.Validations), celVars, celAPI.PerCallLimit),
 		matcher,
-		d.filterCompiler.Compile(convertv1alpha1AuditAnnotations(validatorCode.Spec.AuditAnnotations), celVars, 10000000),
-		d.filterCompiler.Compile(convertV1Alpha1MessageExpressions(validatorCode.Spec.Validations), celVars, 10000000),
+		d.filterCompiler.Compile(convertv1alpha1AuditAnnotations(validatorCode.Spec.AuditAnnotations), celVars, celAPI.PerCallLimit),
+		d.filterCompiler.Compile(convertV1Alpha1MessageExpressions(validatorCode.Spec.Validations), celVars, celAPI.PerCallLimit),
 		failurePolicy,
 		nil,
 	)
