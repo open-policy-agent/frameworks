@@ -606,31 +606,39 @@ func TestDriver_Query_Stats(t *testing.T) {
 				t.Errorf("expected %d stats, but got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
 			}
 
-			for i, expectedStatEntry := range tc.expectedStatsEntries {
-				actualStatsEntry := response.StatsEntries[i]
+			if len(tc.expectedStatsEntries) != len(response.StatsEntries) {
+				t.Errorf("stat entry counts don't match; want %d, got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
+			}
+			for _, expectedStatEntry := range tc.expectedStatsEntries {
+				found := false
+				for _, actualStatsEntry := range response.StatsEntries {
+					if diff := cmp.Diff(expectedStatEntry, actualStatsEntry, cmpopts.IgnoreFields(instrumentation.Stat{}, "Value")); diff != "" {
+						continue
+					}
+					found = true
 
-				if diff := cmp.Diff(expectedStatEntry, actualStatsEntry, cmpopts.IgnoreFields(instrumentation.Stat{}, "Value")); diff != "" {
-					t.Errorf("stat entries don't match; diff %s", diff)
-				}
+					for j, expectedStat := range expectedStatEntry.Stats {
+						actualStat := actualStatsEntry.Stats[j]
 
-				for j, expectedStat := range expectedStatEntry.Stats {
-					actualStat := actualStatsEntry.Stats[j]
-
-					switch actualStat.Name {
-					case templateRunTimeNS:
-						switch actualValue := actualStat.Value.(type) {
-						case uint64:
-							if !(actualValue > 0) {
-								t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
+						switch actualStat.Name {
+						case templateRunTimeNS:
+							switch actualValue := actualStat.Value.(type) {
+							case uint64:
+								if !(actualValue > 0) {
+									t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
+								}
+							default:
+								t.Errorf("unknown stat value type: %T for stat: %s", actualValue, actualValue)
 							}
-						default:
-							t.Errorf("unknown stat value type: %T for stat: %s", actualValue, actualValue)
-						}
-					case constraintCountName:
-						if actualStat.Value != expectedStat.Value {
-							t.Errorf("%s values don't match; want: %s; got: %s", constraintCountName, expectedStat.Value, actualStat.Value)
+						case constraintCountName:
+							if actualStat.Value != expectedStat.Value {
+								t.Errorf("%s values don't match; want: %s; got: %s", constraintCountName, expectedStat.Value, actualStat.Value)
+							}
 						}
 					}
+				}
+				if !found {
+					t.Errorf("expected stat entry not found: %v; got %v", expectedStatEntry, response.StatsEntries)
 				}
 			}
 		})
