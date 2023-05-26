@@ -12,6 +12,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
+	fakeschema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -1034,6 +1036,237 @@ func TestClient_AddConstraint(t *testing.T) {
 
 			if _, err := c.GetConstraint(tc.constraint); err == nil {
 				t.Error("constraint not cleared from cache")
+			}
+		})
+	}
+}
+
+// TestClient_AddConstraint_withDefaultParams makes sure that we can inject
+// OpenAPIV3 Default parameters into a constraint that does not define its parameters
+// but its template defines defaults for the parameters in the spec's schema.
+func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
+	defaults := []interface{}{"foo", "bar", "baz"}
+	defaults2 := []interface{}{"a", "b", "c"}
+	defaultsJSON := apiextensions.JSON(defaults)
+	defaults2JSON := apiextensions.JSON(defaults2)
+	defaultBuzzJSON := apiextensions.JSON("NOTbuzz")
+
+	target := &handlertest.Handler{}
+	template := cts.New(cts.OptTargets(
+		cts.TargetCustomEngines(
+			handlertest.TargetName,
+			cts.Code("fake", (&fakeschema.Source{RejectWith: "rejected"}).ToUnstructured()),
+		),
+	))
+	constraint := cts.MakeConstraint(t, "Fakes", "fakes")
+
+	defaultHandled := map[string]bool{handlertest.TargetName: true}
+	tcs := []struct {
+		name string
+		// validationSpec will be used to mutate the CRD Spec to show different cases.
+		validationSpec *templates.Validation
+		// constraintSpec will be used to simulate the spec for a constraint
+		// like for a constraint that actually defines a parameter.
+		constraintSpec map[string]interface{}
+
+		wantSpec               map[string]interface{}
+		wantHandled            map[string]bool
+		wantAddConstraintError error
+		wantGetConstraintError error
+	}{
+		{
+			name: "defaults for one",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+				},
+			},
+		},
+		{
+			name: "defaults for two",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"bar": {
+							Type:    "array",
+							Default: &defaults2JSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+					"bar": defaults2,
+				},
+			},
+		},
+		{
+			name: "defaults for two, one mixed",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"bar": {
+							Type:    "array",
+							Default: &defaults2JSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"fuzz": {
+							Type:    "string",
+							Default: &defaultBuzzJSON,
+						},
+					},
+				},
+			},
+			constraintSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"fuzz": "buzz",
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo":  defaults,
+					"bar":  defaults2,
+					"fuzz": "buzz",
+				},
+			},
+		},
+		{
+			name: "defaults; rego driver",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			// given a baseTemplate and constraint for it
+			baseTemplate := template.DeepCopy()
+			baseConstraint := constraint.DeepCopy()
+
+			// handle tc defaults
+			if tc.wantHandled == nil {
+				tc.wantHandled = defaultHandled
+			}
+			if tc.validationSpec != nil {
+				baseTemplate.Spec.CRD.Spec.Validation = tc.validationSpec
+			}
+			if tc.constraintSpec != nil {
+				baseConstraint.Object["spec"] = tc.constraintSpec
+			}
+
+			c, err := client.NewClient(client.Targets(target), client.Driver(fake.New("fake")))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			if baseTemplate != nil {
+				_, err = c.AddTemplate(ctx, baseTemplate)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// when we add the constraint
+			r, err := c.AddConstraint(ctx, baseConstraint)
+			if !errors.Is(err, tc.wantAddConstraintError) {
+				t.Fatalf("got AddConstraint() error = %v, want %v",
+					err, tc.wantAddConstraintError)
+			}
+
+			if r == nil {
+				t.Fatal("got AddConstraint() == nil, want non-nil")
+			}
+
+			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+
+			cached, err := c.GetConstraint(baseConstraint)
+			if !errors.Is(err, tc.wantGetConstraintError) {
+				t.Fatalf("got GetConstraint() error = %v, want %v",
+					err, tc.wantGetConstraintError)
+			}
+			if tc.wantGetConstraintError != nil {
+				return
+			}
+
+			// we expect the constraints to be parametrized as per the open api v3 defaults
+			if tc.wantSpec != nil {
+				if diff := cmp.Diff(tc.wantSpec, cached.Object["spec"]); diff != "" {
+					t.Error("cached Constraint does not equal wantConstraint constraint", diff)
+				}
+			} else {
+				_, _, err := unstructured.NestedFieldNoCopy(cached.Object, "spec", "parameters")
+				if err != nil {
+					t.Error(err)
+				}
 			}
 		})
 	}
