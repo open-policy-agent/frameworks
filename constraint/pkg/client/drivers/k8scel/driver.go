@@ -236,7 +236,7 @@ func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 	case runTimeNS:
 		return runTimeNSDescription, nil
 	default:
-		return "", fmt.Errorf("unknown stat name for K8sValidation: %s", statName)
+		return "", fmt.Errorf("unknown stat name for K8sNativeValidation: %s", statName)
 	}
 }
 
