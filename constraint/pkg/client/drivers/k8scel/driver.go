@@ -84,7 +84,7 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 		break
 	}
 	if rawCode == nil {
-		return errors.New("K8sValidation code not defined")
+		return errors.New("K8sNativeValidation code not defined")
 	}
 
 	validatorCode := &admissionv1alpha1.ValidatingAdmissionPolicy{}
