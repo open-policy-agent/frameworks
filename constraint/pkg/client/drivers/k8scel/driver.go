@@ -78,7 +78,7 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 		}
 		objMap, ok := code.Source.Value.(map[string]interface{})
 		if !ok {
-			return errors.New("K8sValidation code malformed")
+			return errors.New("K8sNativeValidation code malformed")
 		}
 		rawCode = objMap
 		break
