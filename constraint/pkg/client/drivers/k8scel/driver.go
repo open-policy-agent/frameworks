@@ -186,7 +186,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			VersionedOldObject: request.GetOldObject(),
 			VersionedObject:    request.GetObject(),
 		}
-		response := validator.Validate(ctx, versionedAttr, constraint, 10000000)
+		response := validator.Validate(ctx, versionedAttr, constraint, celAPI.PerCallLimit)
 
 		enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 		if err != nil {
@@ -264,7 +264,7 @@ func NewWrapper(req *admissionv1.AdmissionRequest) (*RequestWrapper, error) {
 	var oldObject runtime.Object
 	if len(req.OldObject.Raw) != 0 {
 		oldObject = &unstructured.Unstructured{}
-		if err := json.Unmarshal(req.Object.Raw, oldObject); err != nil {
+		if err := json.Unmarshal(req.OldObject.Raw, oldObject); err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal old object", err)
 		}
 	}
@@ -275,7 +275,7 @@ func NewWrapper(req *admissionv1.AdmissionRequest) (*RequestWrapper, error) {
 	var options runtime.Object
 	if len(req.Options.Raw) != 0 {
 		options = &unstructured.Unstructured{}
-		if err := json.Unmarshal(req.Object.Raw, options); err != nil {
+		if err := json.Unmarshal(req.Options.Raw, options); err != nil {
 			return nil, fmt.Errorf("%w: could not unmarshal options", err)
 		}
 	}
@@ -390,12 +390,12 @@ func convertv1alpha1FailurePolicyTypeTov1FailurePolicyType(policyType *admission
 func convertv1alpha1Validations(inputValidations []admissionv1alpha1.Validation) []cel.ExpressionAccessor {
 	celExpressionAccessor := make([]cel.ExpressionAccessor, len(inputValidations))
 	for i, validation := range inputValidations {
-		validation := validatingadmissionpolicy.ValidationCondition{
+		celValidation := validatingadmissionpolicy.ValidationCondition{
 			Expression: validation.Expression,
 			Message:    validation.Message,
 			Reason:     validation.Reason,
 		}
-		celExpressionAccessor[i] = &validation
+		celExpressionAccessor[i] = &celValidation
 	}
 	return celExpressionAccessor
 }
@@ -416,11 +416,11 @@ func convertV1Alpha1MessageExpressions(inputValidations []admissionv1alpha1.Vali
 func convertv1alpha1AuditAnnotations(inputValidations []admissionv1alpha1.AuditAnnotation) []cel.ExpressionAccessor {
 	celExpressionAccessor := make([]cel.ExpressionAccessor, len(inputValidations))
 	for i, validation := range inputValidations {
-		validation := validatingadmissionpolicy.AuditAnnotationCondition{
+		celValidation := validatingadmissionpolicy.AuditAnnotationCondition{
 			Key:             validation.Key,
 			ValueExpression: validation.ValueExpression,
 		}
-		celExpressionAccessor[i] = &validation
+		celExpressionAccessor[i] = &celValidation
 	}
 	return celExpressionAccessor
 }

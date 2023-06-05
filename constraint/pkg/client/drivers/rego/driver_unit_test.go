@@ -628,11 +628,11 @@ func TestDriver_Query_Stats(t *testing.T) {
 									t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
 								}
 							default:
-								t.Errorf("unknown stat value type: %T for stat: %s", actualValue, actualValue)
+								t.Errorf("unknown stat value type: %T for stat: %+v", actualValue, actualValue)
 							}
 						case constraintCountName:
 							if actualStat.Value != expectedStat.Value {
-								t.Errorf("%s values don't match; want: %s; got: %s", constraintCountName, expectedStat.Value, actualStat.Value)
+								t.Errorf("%s values don't match; want: %+v; got: %+v", constraintCountName, expectedStat.Value, actualStat.Value)
 							}
 						}
 					}
