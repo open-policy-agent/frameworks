@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -743,6 +744,7 @@ func TestDriver_ExternalData(t *testing.T) {
 
 			d, err := New(
 				AddExternalDataProviderCache(externaldata.NewCache()),
+				AddExternalDataProviderResponseCache(externaldata.NewProviderResponseCache(context.Background(), 1*time.Minute)),
 				EnableExternalDataClientAuth(),
 				AddExternalDataClientCertWatcher(clientCertWatcher),
 			)
