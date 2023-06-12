@@ -23,6 +23,7 @@ import (
 	"github.com/open-policy-agent/opa/format"
 	"github.com/open-policy-agent/opa/internal/file/archive"
 	"github.com/open-policy-agent/opa/internal/merge"
+	"github.com/open-policy-agent/opa/loader/extension"
 	"github.com/open-policy-agent/opa/metrics"
 	"github.com/open-policy-agent/opa/util"
 )
@@ -391,6 +392,7 @@ type Reader struct {
 	verificationConfig    *VerificationConfig
 	skipVerify            bool
 	processAnnotations    bool
+	jsonOptions           *ast.JSONOptions
 	capabilities          *ast.Capabilities
 	files                 map[string]FileInfo // files in the bundle signature payload
 	sizeLimitBytes        int64
@@ -460,6 +462,12 @@ func (r *Reader) WithCapabilities(caps *ast.Capabilities) *Reader {
 	return r
 }
 
+// WithJSONOptions sets the JSONOptions to use when parsing policy files
+func (r *Reader) WithJSONOptions(opts *ast.JSONOptions) *Reader {
+	r.jsonOptions = opts
+	return r
+}
+
 // WithSizeLimitBytes sets the size limit to apply to files in the bundle. If files are larger
 // than this, an error will be returned by the reader.
 func (r *Reader) WithSizeLimitBytes(n int64) *Reader {
@@ -492,6 +500,7 @@ func (r *Reader) ParserOptions() ast.ParserOptions {
 	return ast.ParserOptions{
 		ProcessAnnotation: r.processAnnotations,
 		Capabilities:      r.capabilities,
+		JSONOptions:       r.jsonOptions,
 	}
 }
 
@@ -592,10 +601,15 @@ func (r *Reader) Read() (Bundle, error) {
 				continue
 			}
 
+			var err error
 			var value interface{}
 
 			r.metrics.Timer(metrics.RegoDataParse).Start()
-			err := util.NewJSONDecoder(&buf).Decode(&value)
+			if handler := extension.FindExtension(".json"); handler != nil {
+				value, err = handler(buf.Bytes())
+			} else {
+				err = util.NewJSONDecoder(&buf).Decode(&value)
+			}
 			r.metrics.Timer(metrics.RegoDataParse).Stop()
 
 			if err != nil {
@@ -1082,10 +1096,14 @@ func (b Bundle) Equal(other Bundle) bool {
 		return false
 	}
 	for i := range b.Modules {
-		if b.Modules[i].URL != other.Modules[i].URL {
+		// To support bundles built from rootless filesystems we ignore a "/" prefix
+		// for URLs and Paths, such that "/file" and "file" are equivalent
+		if strings.TrimPrefix(b.Modules[i].URL, string(filepath.Separator)) !=
+			strings.TrimPrefix(other.Modules[i].URL, string(filepath.Separator)) {
 			return false
 		}
-		if b.Modules[i].Path != other.Modules[i].Path {
+		if strings.TrimPrefix(b.Modules[i].Path, string(filepath.Separator)) !=
+			strings.TrimPrefix(other.Modules[i].Path, string(filepath.Separator)) {
 			return false
 		}
 		if !b.Modules[i].Parsed.Equal(other.Modules[i].Parsed) {
