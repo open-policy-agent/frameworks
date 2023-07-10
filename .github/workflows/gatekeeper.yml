@@ -5,7 +5,7 @@ jobs:
   lint:
     name: "Gatekeeper Test"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Set up Go 1.20
         uses: actions/setup-go@v4
