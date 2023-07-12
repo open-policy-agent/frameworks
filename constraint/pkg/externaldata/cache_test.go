@@ -1,7 +1,10 @@
 package externaldata
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,6 +168,100 @@ func TestRemove(t *testing.T) {
 
 			if (cache != nil) && tt.ErrorExpected {
 				t.Fatalf("cache = \"%v\"; want nil", cache)
+			}
+		})
+	}
+}
+
+func TestProviderResponseCache(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	tests := []struct {
+		name        string
+		key         CacheKey
+		value       CacheValue
+		expected    *CacheValue
+		expectedErr error
+	}{
+		{
+			name:        "Upsert and Get",
+			key:         CacheKey{ProviderName: "test", Key: "key1"},
+			value:       CacheValue{Received: time.Now().Unix(), Value: "value1"},
+			expected:    &CacheValue{Received: time.Now().Unix(), Value: "value1"},
+			expectedErr: nil,
+		},
+		{
+			name:        "Remove",
+			key:         CacheKey{ProviderName: "test", Key: "key1"},
+			value:       CacheValue{Received: time.Now().Unix(), Value: "value1"},
+			expected:    nil,
+			expectedErr: fmt.Errorf("key 'test:key1' is not found in provider response cache"),
+		},
+		{
+			name:        "Invalidation",
+			key:         CacheKey{ProviderName: "test", Key: "key2"},
+			value:       CacheValue{Value: "value2"},
+			expected:    nil,
+			expectedErr: fmt.Errorf("key 'test:key2' is not found in provider response cache"),
+		},
+		{
+			name:        "Error",
+			key:         CacheKey{ProviderName: "test", Key: "key3"},
+			value:       CacheValue{},
+			expected:    nil,
+			expectedErr: fmt.Errorf("key 'test:key3' is not found in provider response cache"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.name {
+			case "Upsert and Get":
+				cache := NewProviderResponseCache(ctx, 1*time.Minute)
+				cache.Upsert(tt.key, tt.value)
+
+				cachedValue, err := cache.Get(tt.key)
+				if err != tt.expectedErr {
+					t.Errorf("Expected error to be %v, but got %v", tt.expectedErr, err)
+				}
+				if cachedValue != nil && cachedValue.Value != tt.expected.Value {
+					t.Errorf("Expected cached value to be %v, but got %v", tt.expected.Value, cachedValue.Value)
+				}
+			case "Remove":
+				cache := NewProviderResponseCache(ctx, 1*time.Minute)
+				cache.Remove(tt.key)
+
+				_, err := cache.Get(tt.key)
+				if err == nil {
+					t.Errorf("Expected error, but got nil")
+				}
+				if err.Error() != tt.expectedErr.Error() {
+					t.Errorf("Expected error message to be '%s', but got '%s'", tt.expectedErr.Error(), err.Error())
+				}
+			case "Invalidation":
+				cache := NewProviderResponseCache(ctx, 5*time.Second)
+				tt.value.Received = time.Now().Add(-10 * time.Second).Unix()
+				cache.Upsert(tt.key, tt.value)
+
+				time.Sleep(5 * time.Second)
+
+				_, err := cache.Get(tt.key)
+				if err == nil {
+					t.Errorf("Expected error, but got nil")
+				}
+				if err.Error() != tt.expectedErr.Error() {
+					t.Errorf("Expected error message to be '%s', but got '%s'", tt.expectedErr.Error(), err.Error())
+				}
+			case "Error":
+				cache := NewProviderResponseCache(ctx, 1*time.Minute)
+				_, err := cache.Get(tt.key)
+				if err == nil {
+					t.Errorf("Expected error, but got nil")
+				}
+				if err.Error() != tt.expectedErr.Error() {
+					t.Errorf("Expected error message to be '%s', but got '%s'", tt.expectedErr.Error(), err.Error())
+				}
 			}
 		})
 	}
