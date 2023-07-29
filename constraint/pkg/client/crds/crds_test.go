@@ -160,23 +160,27 @@ func TestValidateTemplate(t *testing.T) {
 func TestCreateSchema(t *testing.T) {
 	tests := []crdTestCase{
 		{
-			Name:           "Just EnforcementAction",
-			Template:       cts.New(),
-			Handler:        createTestTargetHandler(),
-			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{"match": cts.PropUnstructured()}),
+			Name:     "Just EnforcementAction",
+			Template: cts.New(),
+			Handler:  createTestTargetHandler(),
+			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
+				"match":      cts.PropUnstructured(),
+				"parameters": cts.PropTyped("object"),
+			}),
 		},
 		{
-			Name:     "Just Match",
+			Name:     "Add to the match schema",
 			Template: cts.New(),
 			Handler:  createTestTargetHandler(matchSchema(cts.PropMap{"labels": cts.PropUnstructured()})),
 			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
 				"match": cts.Prop(cts.PropMap{
 					"labels": cts.PropUnstructured(),
 				}),
+				"parameters": cts.PropTyped("object"),
 			}),
 		},
 		{
-			Name:     "Just Parameters",
+			Name:     "Add to the parameters schema",
 			Template: cts.New(cts.OptCRDSchema(cts.PropMap{"test": cts.PropUnstructured()})),
 			Handler:  createTestTargetHandler(),
 			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
@@ -187,7 +191,7 @@ func TestCreateSchema(t *testing.T) {
 			}),
 		},
 		{
-			Name:     "Match and Parameters",
+			Name:     "Add to match and parameters schemas",
 			Template: cts.New(cts.OptCRDSchema(cts.PropMap{"dragon": cts.PropUnstructured()})),
 			Handler:  createTestTargetHandler(matchSchema(cts.PropMap{"fire": cts.PropUnstructured()})),
 			ExpectedSchema: cts.ExpectedSchema(cts.PropMap{
@@ -205,7 +209,8 @@ func TestCreateSchema(t *testing.T) {
 			schema := crds.CreateSchema(tc.Template, tc.Handler)
 
 			if !reflect.DeepEqual(schema, tc.ExpectedSchema) {
-				t.Errorf("Unexpected schema output.  Diff: %v", cmp.Diff(*schema, tc.ExpectedSchema))
+				diff := cmp.Diff(schema.Properties["spec"], tc.ExpectedSchema.Properties["spec"])
+				t.Errorf("Unexpected schema output.  Diff: %v", diff)
 			}
 		})
 	}

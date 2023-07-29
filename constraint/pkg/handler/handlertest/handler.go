@@ -82,7 +82,7 @@ func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {
 	return apiextensions.JSONSchemaProps{
 		Type: "object",
 		Properties: map[string]apiextensions.JSONSchemaProps{
-			"label": {Type: "string"},
+			"matchNamespace": {Type: "string"},
 		},
 	}
 }
@@ -109,7 +109,7 @@ func (h *Handler) ValidateConstraint(constraint *unstructured.Unstructured) erro
 }
 
 func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.Matcher, error) {
-	ns, _, err := unstructured.NestedString(constraint.Object, "spec", "matchNamespace")
+	ns, _, err := unstructured.NestedString(constraint.Object, "spec", "match", "matchNamespace")
 	if err != nil {
 		return nil, fmt.Errorf("unable to get spec.matchNamespace: %w", err)
 	}

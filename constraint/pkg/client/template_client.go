@@ -74,7 +74,7 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 	if len(unknownFields) > 0 {
 		return fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, fmt.Sprintf("unknown fields: %v", unknownFields))
 	}
-	
+
 	return nil
 }
 

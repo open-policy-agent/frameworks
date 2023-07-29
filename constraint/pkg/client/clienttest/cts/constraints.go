@@ -42,7 +42,7 @@ type ConstraintArg func(*unstructured.Unstructured) error
 // Namespace.
 func MatchNamespace(namespace string) ConstraintArg {
 	return func(u *unstructured.Unstructured) error {
-		return unstructured.SetNestedField(u.Object, namespace, "spec", "matchNamespace")
+		return unstructured.SetNestedField(u.Object, namespace, "spec", "match", "matchNamespace")
 	}
 }
 
