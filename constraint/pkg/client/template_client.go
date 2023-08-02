@@ -12,7 +12,6 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
-	structuralpruning "k8s.io/apiextensions-apiserver/pkg/apiserver/schema/pruning"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -60,22 +59,7 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 		}
 	}
 
-	if err := crds.ValidateCR(constraint, e.crd); err != nil {
-		return err
-	}
-
-	// validate that there are no unknown fields in the CR
-	// NewStructural assumes the schema is validate
-	structural, err := schema.NewStructural(e.crd.Spec.Validation.OpenAPIV3Schema)
-	if err != nil {
-		return fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, err)
-	}
-	unknownFields := structuralpruning.PruneWithOptions(constraint.DeepCopy().Object, structural, true, schema.UnknownFieldPathOptions{TrackUnknownFieldPaths: true})
-	if len(unknownFields) > 0 {
-		return fmt.Errorf("%w: %v", apiconstraints.ErrInvalidConstraint, fmt.Sprintf("unknown fields: %v", unknownFields))
-	}
-
-	return nil
+	return crds.ValidateCR(constraint, e.crd)
 }
 
 // ApplyDefaultParams will apply any default parameters defined in the CRD of the constraint's

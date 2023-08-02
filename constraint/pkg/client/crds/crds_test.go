@@ -439,6 +439,23 @@ func TestCRValidation(t *testing.T) {
 			CR:            createCR(crName("mycr"), kind("Horse"), enforcementAction("dryrun")),
 			ErrorExpected: false,
 		},
+		{
+			Name: "unknown fields",
+			Template: cts.New(
+				cts.OptName("SomeName"),
+				cts.OptCRDNames("Horse"),
+			),
+			Handler: createTestTargetHandler(),
+			CR: func() *unstructured.Unstructured {
+				cr := createCR(crName("mycr"), kind("Horse"), params(`{"fast": true}`))
+				err := unstructured.SetNestedField(cr.Object, make(map[string]interface{}), "spec", "randomField")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return cr
+			}(),
+			ErrorExpected: true,
+		},
 	}
 
 	for _, tc := range tests {
