@@ -87,7 +87,7 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 	}
 
 	// validate that there are no unknown fields in the CR
-	// NewStructural assumes the schema is validate
+	// NewStructural assumes the schema is valid
 	structural, err := schema.NewStructural(crd.Spec.Validation.OpenAPIV3Schema)
 	if err != nil {
 		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, err)
