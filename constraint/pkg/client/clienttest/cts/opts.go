@@ -4,6 +4,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
 const (
@@ -28,6 +29,11 @@ var defaults = []Opt{
 
 func New(opts ...Opt) *templates.ConstraintTemplate {
 	tmpl := &templates.ConstraintTemplate{}
+
+	tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
+	tmpl.Spec.CRD.Spec.Validation.OpenAPIV3Schema = &apiextensions.JSONSchemaProps{
+		Type: "object",
+	}
 
 	opts = append(defaults, opts...)
 	for _, opt := range opts {

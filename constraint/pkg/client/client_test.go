@@ -868,6 +868,14 @@ func TestClient_AddConstraint(t *testing.T) {
 			wantGetConstraintError: nil,
 		},
 		{
+			name:                   "unknown fields",
+			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
+			constraint:             cts.MakeConstraint(t, "Foos", "foo", cts.Set(int64(3), "spec", "someRandomField")),
+			wantHandled:            nil,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: client.ErrMissingConstraint,
+		},
+		{
 			name:                   "No Name",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "Foos", ""),
@@ -945,10 +953,8 @@ func TestClient_AddConstraint(t *testing.T) {
 			name:     "invalid matcher",
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
-				cts.Set(int64(3), "spec", "matchNamespace")),
-			wantAddConstraintError: &clienterrors.ErrorMap{
-				handlertest.TargetName: constraints.ErrInvalidConstraint,
-			},
+				cts.Set(int64(3), "spec", "match", "matchNamespace")),
+			wantAddConstraintError: constraints.ErrSchema,
 			wantGetConstraintError: client.ErrMissingConstraint,
 		},
 		{

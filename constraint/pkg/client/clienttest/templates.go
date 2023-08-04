@@ -211,6 +211,9 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 	ct.Spec.CRD.Spec.Validation = &templates.Validation{
 		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
 			Type: "object",
+			Properties: map[string]apiextensions.JSONSchemaProps{
+				"wantData": {Type: "string"},
+			},
 		},
 	}
 
