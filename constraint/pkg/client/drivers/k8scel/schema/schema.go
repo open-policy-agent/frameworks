@@ -21,7 +21,7 @@ const (
 
 var (
 	ErrBadType      = errors.New("Could not recognize the type")
-	ErrMissingField = errors.New("Rego source missing required field")
+	ErrMissingField = errors.New("K8sNativeValidation source missing required field")
 )
 
 type Validation struct {
