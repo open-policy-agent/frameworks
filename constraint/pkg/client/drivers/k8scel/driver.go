@@ -9,18 +9,16 @@ import (
 	"sync"
 	"time"
 
-	rawCEL "github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types/ref"
-	celInterpreter "github.com/google/cel-go/interpreter"
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	pSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/temporarydeleteme"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,6 +29,7 @@ import (
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	celAPI "k8s.io/apiserver/pkg/apis/cel"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/cel/environment"
 )
 
 // NOTE: This is a PROTOTYPE driver. Do not use this for any critical work
@@ -105,7 +104,13 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 	if err != nil {
 		return err
 	}
-	matcher := matchconditions.NewMatcher(compileWrappedFilter(matchAccessors, celVars, celAPI.PerCallLimit), nil, failurePolicy, "validatingadmissionpolicy", ct.GetName())
+
+	filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
+	if err != nil {
+		return err
+	}
+
+	matcher := matchconditions.NewMatcher(filterCompiler.Compile(matchAccessors, celVars, environment.StoredExpressions), failurePolicy, "policy", "validate", ct.GetName())
 
 	validationAccessors, err := source.GetValidations()
 	if err != nil {
@@ -118,12 +123,11 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 	}
 
 	validator := validatingadmissionpolicy.NewValidator(
-		compileWrappedFilter(validationAccessors, celVars, celAPI.PerCallLimit),
+		filterCompiler.Compile(validationAccessors, celVars, environment.StoredExpressions),
 		matcher,
-		compileWrappedFilter(nil, celVars, celAPI.PerCallLimit),
-		compileWrappedFilter(messageAccessors, celVars, celAPI.PerCallLimit),
+		filterCompiler.Compile(nil, celVars, environment.StoredExpressions),
+		filterCompiler.Compile(messageAccessors, celVars, environment.StoredExpressions),
 		failurePolicy,
-		nil,
 	)
 
 	d.mux.Lock()
@@ -202,7 +206,27 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			return nil, err
 		}
 		ctx := context.WithValue(ctx, variablesKey, map[string]interface{}{"params": parameters})
-		response := validator.Validate(ctx, versionedAttr, constraint, celAPI.PerCallLimit)
+
+		var namespace *corev1.Namespace
+		namespaceName := request.GetNamespace()
+
+		// Special case, the namespace object has the namespace of itself (maybe a bug).
+		// unset it if the incoming object is a namespace
+		if gvk := request.GetKind(); gvk.Kind == "Namespace" && gvk.Version == "v1" && gvk.Group == "" {
+			namespaceName = ""
+		}
+
+		// if it is cluster scoped, namespaceName will be empty
+		// Otherwise, get the Namespace resource.
+		if namespaceName != "" {
+			namespace = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespaceName,
+				},
+			}
+		}
+
+		response := validator.Validate(ctx, schema.GroupVersionResource{}, versionedAttr, constraint, namespace, celAPI.RuntimeCELCostBudget, nil)
 
 		enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 		if err != nil {
@@ -387,56 +411,4 @@ func (w *RequestWrapper) AddAnnotationWithLevel(key, value string, level auditin
 
 func (w *RequestWrapper) GetReinvocationContext() admission.ReinvocationContext {
 	return nil
-}
-
-// temporary code that can go away after `variables` functionality is included (comes with k8s 1.28).
-
-var _ rawCEL.Program = &wrappedProgram{}
-
-// wrapProgram injects the ability to extract the value of the CEL environment variable `variables` from a golang context.
-type wrappedProgram struct {
-	rawCEL.Program
-}
-
-func (w *wrappedProgram) ContextEval(ctx context.Context, vars interface{}) (ref.Val, *rawCEL.EvalDetails, error) {
-	activation, ok := vars.(celInterpreter.Activation)
-	if !ok {
-		return nil, nil, errors.New("not an activation")
-	}
-	variables := ctx.Value(variablesKey)
-	if variables == nil {
-		return nil, nil, errors.New("No variables were provided to the CEL invocation")
-	}
-	mergedActivation := celInterpreter.NewHierarchicalActivation(activation, &varsActivation{vars: variables})
-	return w.Program.ContextEval(ctx, mergedActivation)
-}
-
-var _ celInterpreter.Activation = &varsActivation{}
-
-type varsActivation struct {
-	vars interface{}
-}
-
-func (a *varsActivation) ResolveName(name string) (interface{}, bool) {
-	if name == temporarydeleteme.VariablesName {
-		return a.vars, true
-	}
-	return nil, false
-}
-
-func (a *varsActivation) Parent() celInterpreter.Activation {
-	return nil
-}
-
-func compileWrappedFilter(expressionAccessors []cel.ExpressionAccessor, options cel.OptionalVariableDeclarations, perCallLimit uint64) cel.Filter {
-	compilationResults := make([]cel.CompilationResult, len(expressionAccessors))
-	for i, expressionAccessor := range expressionAccessors {
-		if expressionAccessor == nil {
-			continue
-		}
-		result := temporarydeleteme.CompileCELExpression(expressionAccessor, options, perCallLimit)
-		result.Program = &wrappedProgram{Program: result.Program}
-		compilationResults[i] = result
-	}
-	return cel.NewFilter(compilationResults)
 }

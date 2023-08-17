@@ -76,7 +76,7 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 			constraints.ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
 	}
 
-	validator, _, err := validation.NewSchemaValidator(crd.Spec.Validation)
+	validator, _, err := validation.NewSchemaValidator(crd.Spec.Validation.OpenAPIV3Schema)
 	if err != nil {
 		return err
 	}
