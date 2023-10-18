@@ -1,4 +1,4 @@
-FROM golang:1.19-bullseye as builder
+FROM golang:1.21-bullseye as builder
 
 ARG KUSTOMIZE_VERSION
 
