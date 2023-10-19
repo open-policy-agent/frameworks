@@ -106,7 +106,7 @@ func (d *Driver) Name() string {
 
 // AddTemplate adds templ to Driver. Normalizes modules into usable forms for
 // use in queries.
-func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
+func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate) error {
 	if len(ct.Spec.Targets) != 1 {
 		return errors.New("wrong number of targets defined, only 1 target allowed")
 	}
@@ -140,7 +140,7 @@ func (d *Driver) AddTemplate(ctx context.Context, ct *templates.ConstraintTempla
 
 // RemoveTemplate removes all Compilers and Constraints for templ.
 // Returns nil if templ does not exist.
-func (d *Driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTemplate) error {
+func (d *Driver) RemoveTemplate(_ context.Context, ct *templates.ConstraintTemplate) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 	if d.errOnTemplateRemove {
@@ -152,7 +152,7 @@ func (d *Driver) RemoveTemplate(ctx context.Context, ct *templates.ConstraintTem
 }
 
 // AddConstraint adds Constraint to storage. Used to validate state in tests.
-func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+func (d *Driver) AddConstraint(_ context.Context, constraint *unstructured.Unstructured) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 	if d.errOnConstraintAdd {
@@ -169,7 +169,7 @@ func (d *Driver) AddConstraint(ctx context.Context, constraint *unstructured.Uns
 }
 
 // RemoveConstraint removes Constraint from Rego storage. Used to validate state in tests.
-func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error {
+func (d *Driver) RemoveConstraint(_ context.Context, constraint *unstructured.Unstructured) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 	if d.errOnConstraintRemove {
@@ -188,16 +188,16 @@ func (d *Driver) RemoveConstraint(ctx context.Context, constraint *unstructured.
 }
 
 // AddData should not be a thing that drivers handle.
-func (d *Driver) AddData(ctx context.Context, target string, path storage.Path, data interface{}) error {
+func (d *Driver) AddData(_ context.Context, _ string, _ storage.Path, _ interface{}) error {
 	return nil
 }
 
 // RemoveData should not be a thing that drivers handle.
-func (d *Driver) RemoveData(ctx context.Context, target string, path storage.Path) error {
+func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
@@ -213,7 +213,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	return &drivers.QueryResponse{Results: results}, nil
 }
 
-func (d *Driver) Dump(ctx context.Context) (string, error) {
+func (d *Driver) Dump(_ context.Context) (string, error) {
 	return "", nil
 }
 
