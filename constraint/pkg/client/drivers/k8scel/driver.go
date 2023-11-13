@@ -9,13 +9,9 @@ import (
 	"sync"
 	"time"
 
-	rawCEL "github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types/ref"
-	celInterpreter "github.com/google/cel-go/interpreter"
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	pSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/temporarydeleteme"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -31,6 +27,7 @@ import (
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	celAPI "k8s.io/apiserver/pkg/apis/cel"
 	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/cel/environment"
 )
 
 // NOTE: This is a PROTOTYPE driver. Do not use this for any critical work
@@ -51,13 +48,9 @@ import (
 //   Other friction points are commented with the keyword FRICTION.
 
 const (
-	variablesKey = ctxKey("variables")
-
 	runTimeNS            = "runTimeNS"
 	runTimeNSDescription = "the number of nanoseconds it took to evaluate the constraint"
 )
-
-type ctxKey string
 
 var _ drivers.Driver = &Driver{}
 
@@ -96,6 +89,23 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 	// occurred
 	celVars := cel.OptionalVariableDeclarations{}
 
+	// We don't want to have access to parameters for anything other than driver-defined variables, so we
+	// can keep the user from accessing the full constraint schema.
+	celVarsWithParameters := cel.OptionalVariableDeclarations{HasParams: true}
+
+	// TODO add support for user-defined variables
+	vapVars := []cel.NamedExpressionAccessor{
+		&validatingadmissionpolicy.Variable{
+			Name:       "params",
+			Expression: "params.spec.parameters",
+		},
+	}
+	filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
+	if err != nil {
+		return err
+	}
+	filterCompiler.CompileAndStoreVariables(vapVars, celVarsWithParameters, environment.StoredExpressions)
+
 	failurePolicy, err := source.GetFailurePolicy()
 	if err != nil {
 		return err
@@ -105,7 +115,7 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 	if err != nil {
 		return err
 	}
-	matcher := matchconditions.NewMatcher(compileWrappedFilter(matchAccessors, celVars, celAPI.PerCallLimit), nil, failurePolicy, "validatingadmissionpolicy", ct.GetName())
+	matcher := matchconditions.NewMatcher(filterCompiler.Compile(matchAccessors, celVars, environment.StoredExpressions), failurePolicy, "validatingadmissionpolicy", "vap-matcher", ct.GetName())
 
 	validationAccessors, err := source.GetValidations()
 	if err != nil {
@@ -118,12 +128,11 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 	}
 
 	validator := validatingadmissionpolicy.NewValidator(
-		compileWrappedFilter(validationAccessors, celVars, celAPI.PerCallLimit),
+		filterCompiler.Compile(validationAccessors, celVars, environment.StoredExpressions),
 		matcher,
-		compileWrappedFilter(nil, celVars, celAPI.PerCallLimit),
-		compileWrappedFilter(messageAccessors, celVars, celAPI.PerCallLimit),
+		filterCompiler.Compile(nil, celVars, environment.StoredExpressions),
+		filterCompiler.Compile(messageAccessors, celVars, environment.StoredExpressions),
 		failurePolicy,
-		nil,
 	)
 
 	d.mux.Lock()
@@ -197,12 +206,9 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			VersionedOldObject: request.GetOldObject(),
 			VersionedObject:    request.GetObject(),
 		}
-		parameters, _, err := unstructured.NestedMap(constraint.Object, "spec", "parameters")
-		if err != nil {
-			return nil, err
-		}
-		ctx := context.WithValue(ctx, variablesKey, map[string]interface{}{"params": parameters})
-		response := validator.Validate(ctx, versionedAttr, constraint, celAPI.PerCallLimit)
+
+		// TODO: should namespace be made available, if possible? Generally that context should be present
+		response := validator.Validate(ctx, request.GetResource(), versionedAttr, constraint, nil, celAPI.PerCallLimit, nil)
 
 		enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 		if err != nil {
@@ -387,56 +393,4 @@ func (w *RequestWrapper) AddAnnotationWithLevel(_, _ string, _ auditinternal.Lev
 
 func (w *RequestWrapper) GetReinvocationContext() admission.ReinvocationContext {
 	return nil
-}
-
-// temporary code that can go away after `variables` functionality is included (comes with k8s 1.28).
-
-var _ rawCEL.Program = &wrappedProgram{}
-
-// wrapProgram injects the ability to extract the value of the CEL environment variable `variables` from a golang context.
-type wrappedProgram struct {
-	rawCEL.Program
-}
-
-func (w *wrappedProgram) ContextEval(ctx context.Context, vars interface{}) (ref.Val, *rawCEL.EvalDetails, error) {
-	activation, ok := vars.(celInterpreter.Activation)
-	if !ok {
-		return nil, nil, errors.New("not an activation")
-	}
-	variables := ctx.Value(variablesKey)
-	if variables == nil {
-		return nil, nil, errors.New("No variables were provided to the CEL invocation")
-	}
-	mergedActivation := celInterpreter.NewHierarchicalActivation(activation, &varsActivation{vars: variables})
-	return w.Program.ContextEval(ctx, mergedActivation)
-}
-
-var _ celInterpreter.Activation = &varsActivation{}
-
-type varsActivation struct {
-	vars interface{}
-}
-
-func (a *varsActivation) ResolveName(name string) (interface{}, bool) {
-	if name == temporarydeleteme.VariablesName {
-		return a.vars, true
-	}
-	return nil, false
-}
-
-func (a *varsActivation) Parent() celInterpreter.Activation {
-	return nil
-}
-
-func compileWrappedFilter(expressionAccessors []cel.ExpressionAccessor, options cel.OptionalVariableDeclarations, perCallLimit uint64) cel.Filter {
-	compilationResults := make([]cel.CompilationResult, len(expressionAccessors))
-	for i, expressionAccessor := range expressionAccessors {
-		if expressionAccessor == nil {
-			continue
-		}
-		result := temporarydeleteme.CompileCELExpression(expressionAccessor, options, perCallLimit)
-		result.Program = &wrappedProgram{Program: result.Program}
-		compilationResults[i] = result
-	}
-	return cel.NewFilter(compilationResults)
 }
