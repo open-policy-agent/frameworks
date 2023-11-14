@@ -5,7 +5,6 @@ go 1.18
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/glog v1.1.1
-	github.com/google/cel-go v0.16.1
 	github.com/google/go-cmp v0.5.9
 	github.com/onsi/gomega v1.27.7
 	github.com/open-policy-agent/opa v0.57.1
@@ -17,7 +16,7 @@ require (
 	k8s.io/apimachinery v0.28.3
 	k8s.io/apiserver v0.28.3
 	k8s.io/client-go v0.28.3
-	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
+	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/controller-runtime v0.15.0
 	sigs.k8s.io/yaml v1.3.0
 )
@@ -44,6 +43,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/google/cel-go v0.16.1 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.3.1 // indirect
