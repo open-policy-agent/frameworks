@@ -14,7 +14,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestMultiDriverAddTemplate(t *testing.T) {
@@ -58,7 +58,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 		driverC := fake.New("driverC")
 
 		client, err := NewClient(
-			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+			Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
@@ -739,7 +739,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 		driverC := fake.New("driverC")
 
 		client, err := NewClient(
-			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+			Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 			Driver(driverC),
 			Driver(driverB),
 			Driver(driverA),
@@ -826,7 +826,7 @@ func TestMultiDriverRemoveTemplate(t *testing.T) {
 		driverC := fake.New("driverC")
 
 		client, err := NewClient(
-			Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+			Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
@@ -907,7 +907,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "One Driver",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
@@ -921,7 +921,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "One Driver, Mismatch",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
@@ -935,7 +935,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "Multi Driver",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 				Driver(fake.New("driverB")),
 			},
@@ -950,7 +950,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "Multi Driver, Second",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
 				Driver(fake.New("driverA")),
 			},
@@ -965,7 +965,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "One Driver, Multi-Template",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 			},
 			template: cts.New(cts.OptTargets(
@@ -980,7 +980,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "One Driver, Multi-Template Second",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
 			},
 			template: cts.New(cts.OptTargets(
@@ -995,7 +995,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "Two Driver, Multi-Template",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 				Driver(fake.New("driverB")),
 			},
@@ -1011,7 +1011,7 @@ func TestDriverForTemplate(t *testing.T) {
 		{
 			name: "Two Driver, Multi-Template, Second",
 			options: []Opt{
-				Targets(&handlertest.Handler{Name: pointer.String("h1")}),
+				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
 				Driver(fake.New("driverA")),
 			},

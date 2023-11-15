@@ -7,11 +7,11 @@ import (
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestAddingDrivers(t *testing.T) {
-	c, err := NewClient(Targets(&handlertest.Handler{Name: pointer.String("foo")}), Driver(fake.New("driver1")), Driver(fake.New("driver2")))
+	c, err := NewClient(Targets(&handlertest.Handler{Name: ptr.To[string]("foo")}), Driver(fake.New("driver1")), Driver(fake.New("driver2")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestAddingDrivers(t *testing.T) {
 }
 
 func TestNoDuplicates(t *testing.T) {
-	_, err := NewClient(Targets(&handlertest.Handler{Name: pointer.String("foo")}), Driver(fake.New("driver1")), Driver(fake.New("driver1")))
+	_, err := NewClient(Targets(&handlertest.Handler{Name: ptr.To[string]("foo")}), Driver(fake.New("driver1")), Driver(fake.New("driver1")))
 	if err == nil {
 		t.Fatal("expected error, got none")
 	}

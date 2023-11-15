@@ -23,7 +23,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
@@ -34,22 +34,22 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 	}{
 		{
 			name:      "Acceptable name",
-			handler:   &handlertest.Handler{Name: pointer.String("test")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("test")},
 			wantError: nil,
 		},
 		{
 			name:      "No name",
-			handler:   &handlertest.Handler{Name: pointer.String("")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("")},
 			wantError: client.ErrCreatingClient,
 		},
 		{
 			name:      "Spaces not allowed",
-			handler:   &handlertest.Handler{Name: pointer.String("asdf asdf")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("asdf asdf")},
 			wantError: client.ErrCreatingClient,
 		},
 		{
 			name:      "Must start with a letter",
-			handler:   &handlertest.Handler{Name: pointer.String("8asdf")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("8asdf")},
 			wantError: client.ErrCreatingClient,
 		},
 	}
@@ -80,18 +80,18 @@ func TestClient_AddData(t *testing.T) {
 	}{
 		{
 			name:        "Handled By Both",
-			handler1:    &handlertest.Handler{Name: pointer.String("h1")},
-			handler2:    &handlertest.Handler{Name: pointer.String("h2")},
+			handler1:    &handlertest.Handler{Name: ptr.To[string]("h1")},
+			handler2:    &handlertest.Handler{Name: ptr.To[string]("h2")},
 			wantHandled: map[string]bool{"h1": true, "h2": true},
 			wantError:   nil,
 		},
 		{
 			name: "Handled By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -100,10 +100,10 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Errored By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -112,11 +112,11 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Errored By Both",
 			handler1: &handlertest.Handler{
-				Name:             pointer.String("h1"),
+				Name:             ptr.To[string]("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
@@ -124,11 +124,11 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Handled By None",
 			handler1: &handlertest.Handler{
-				Name:         pointer.String("h1"),
+				Name:         ptr.To[string]("h1"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: nil,
@@ -185,18 +185,18 @@ func TestClient_RemoveData(t *testing.T) {
 	}{
 		{
 			name:        "Handled By Both",
-			handler1:    &handlertest.Handler{Name: pointer.String("h1")},
-			handler2:    &handlertest.Handler{Name: pointer.String("h2")},
+			handler1:    &handlertest.Handler{Name: ptr.To[string]("h1")},
+			handler2:    &handlertest.Handler{Name: ptr.To[string]("h2")},
 			wantHandled: map[string]bool{"h1": true, "h2": true},
 			wantError:   nil,
 		},
 		{
 			name: "Handled By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -205,10 +205,10 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Errored By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -217,11 +217,11 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Errored By Both",
 			handler1: &handlertest.Handler{
-				Name:             pointer.String("h1"),
+				Name:             ptr.To[string]("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
@@ -229,11 +229,11 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Handled By None",
 			handler1: &handlertest.Handler{
-				Name:         pointer.String("h1"),
+				Name:         ptr.To[string]("h1"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: nil,
@@ -319,8 +319,8 @@ func TestClient_AddTemplate(t *testing.T) {
 		{
 			name: "Change targets",
 			targets: []handler.TargetHandler{
-				&handlertest.Handler{Name: pointer.String("foo")},
-				&handlertest.Handler{Name: pointer.String("bar")},
+				&handlertest.Handler{Name: ptr.To[string]("foo")},
+				&handlertest.Handler{Name: ptr.To[string]("bar")},
 			},
 			before: cts.New(cts.OptTargets(
 				cts.Target("foo", cts.ModuleDeny),
@@ -933,7 +933,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name: "deny all invalid Constraint",
 			target: &handlertest.Handler{
-				ForbiddenEnforcement: pointer.String("forbidden"),
+				ForbiddenEnforcement: ptr.To[string]("forbidden"),
 			},
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
@@ -1557,7 +1557,7 @@ func TestClient_CreateCRD(t *testing.T) {
 			name: "multiple targets",
 			targets: []handler.TargetHandler{
 				&handlertest.Handler{},
-				&handlertest.Handler{Name: pointer.String("handler2")},
+				&handlertest.Handler{Name: ptr.To[string]("handler2")},
 			},
 			template: &templates.ConstraintTemplate{
 				ObjectMeta: v1.ObjectMeta{Name: "foo"},
@@ -1709,7 +1709,7 @@ func TestClient_CreateCRD(t *testing.T) {
 					Conversion: &apiextensions.CustomResourceConversion{
 						Strategy: apiextensions.NoneConverter,
 					},
-					PreserveUnknownFields: pointer.Bool(false),
+					PreserveUnknownFields: ptr.To[bool](false),
 				},
 				Status: apiextensions.CustomResourceDefinitionStatus{
 					StoredVersions: []string{"v1beta1"},
