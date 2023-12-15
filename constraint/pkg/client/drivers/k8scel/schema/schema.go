@@ -16,9 +16,12 @@ import (
 
 const (
 	// Name is the name of the driver.
-	Name           = "K8sNativeValidation"
-	ReservedPrefix = "g8r_"
-	ParamsName     = "params"
+	Name = "K8sNativeValidation"
+	// ReservedPrefix signifies a prefix that no user-defined value (variable, matcher, etc.) is allowed to have.
+	// This gives us the ability to add new variables in the future without worrying about breaking pre-existing templates.
+	ReservedPrefix = "g8r_internal_"
+	// ParamsName is the VAP variable constraint parameters will be bound to.
+	ParamsName = "params"
 )
 
 var (
@@ -27,7 +30,7 @@ var (
 )
 
 type Validation struct {
-	// A CEL expression. Maps to ValidationAdmissionPolicy's spec.validations
+	// A CEL expression. Maps to ValidationAdmissionPolicy's `spec.validations`.
 	Expression        string `json:"expression,omitempty"`
 	Message           string `json:"message,omitempty"`
 	MessageExpression string `json:"messageExpression,omitempty"`
@@ -39,22 +42,22 @@ type MatchCondition struct {
 }
 
 type Variable struct {
-	// A CEL variable definition. Maps to ValidationAdmissionPolicy's spec.variables
+	// A CEL variable definition. Maps to ValidationAdmissionPolicy's `spec.variables`.
 	Name       string `json:"name,omitempty"`
 	Expression string `json:"expression,omitempty"`
 }
 
 type Source struct {
-	// Validations maps to ValidatingAdmissionPolicy's spec.validations.
+	// Validations maps to ValidatingAdmissionPolicy's `spec.validations`.
 	Validations []Validation `json:"validations,omitempty"`
 
-	// FailurePolicy maps to ValidatingAdmissionPolicy's spec.failurePolicy
+	// FailurePolicy maps to ValidatingAdmissionPolicy's `spec.failurePolicy`.
 	FailurePolicy *string `json:"failurePolicy,omitempty"`
 
-	// MatchConditions maps to ValidatingAdmissionPolicy's spec.matchConditions
+	// MatchConditions maps to ValidatingAdmissionPolicy's `spec.matchConditions`.
 	MatchConditions []MatchCondition `json:"matchCondition,omitempty"`
 
-	// Variables maps to ValidatingAdmissionPolicy's spec.variables
+	// Variables maps to ValidatingAdmissionPolicy's `spec.variables`.
 	Variables []Variable `json:"variables,omitempty"`
 }
 
