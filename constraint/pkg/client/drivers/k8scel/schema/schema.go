@@ -100,6 +100,10 @@ func (in *Source) GetMatchConditions() ([]cel.ExpressionAccessor, error) {
 }
 
 func (in *Source) GetV1Alpha1MatchConditions() ([]admissionv1alpha1.MatchCondition, error) {
+	if err := in.validateMatchConditions(); err != nil {
+		return nil, err
+	}
+
 	var matchConditions []admissionv1alpha1.MatchCondition
 	for _, mc := range in.MatchConditions {
 		matchConditions = append(matchConditions, admissionv1alpha1.MatchCondition{
@@ -139,6 +143,10 @@ func (in *Source) GetVariables() ([]cel.NamedExpressionAccessor, error) {
 }
 
 func (in *Source) GetV1Alpha1Variables() ([]admissionv1alpha1.Variable, error) {
+	if err := in.validateVariables(); err != nil {
+		return nil, err
+	}
+
 	var variables []admissionv1alpha1.Variable
 	for _, v := range in.Variables {
 		variables = append(variables, admissionv1alpha1.Variable{
