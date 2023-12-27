@@ -72,3 +72,10 @@ func IgnoreNoReferentialDriverWarning(ignore bool) Opt {
 		return nil
 	}
 }
+
+func MatcherStats(enabled bool) Opt {
+	return func(client *Client) error {
+		client.stats = enabled
+		return nil
+	}
+}

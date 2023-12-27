@@ -45,6 +45,9 @@ type Client struct {
 	// they call AddData()
 	ignoreNoReferentialDriverWarning bool
 
+	// stats toggles whether we collect stats for the matchers.
+	stats bool
+
 	// drivers contains the drivers for policy engines understood
 	// by the constraint framework client.
 	// Does not require mutex locking as Driver is threadsafe
@@ -658,10 +661,12 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 	}
 
 	for target, review := range reviews {
+		targetLabel := &instrumentation.Label{Name: "target", Value: target}
 		var targetConstraints []*unstructured.Unstructured
 
 		for _, template := range templateList {
-			matchingConstraints := template.Matches(target, review)
+			matchesResults := template.Matches(target, review)
+			matchingConstraints := matchesResults.results
 			for _, matchResult := range matchingConstraints {
 				if matchResult.error == nil {
 					targetConstraints = append(targetConstraints, matchResult.constraint)
@@ -669,11 +674,20 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 					autorejections[target] = append(autorejections[target], matchResult)
 				}
 			}
+
+			// add the matcher stats
+			if c.stats {
+				for _, stats := range matchesResults.stats {
+					stats.AddLabels(targetLabel)
+					responses.StatsEntries = append(responses.StatsEntries, stats)
+				}
+			}
 		}
 		constraintsByTarget[target] = targetConstraints
 	}
 
 	for target, review := range reviews {
+		targetLabel := &instrumentation.Label{Name: "target", Value: target}
 		constraints := constraintsByTarget[target]
 
 		resp, stats, err := c.review(ctx, target, constraints, review, opts...)
@@ -691,15 +705,11 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...drivers.Qu
 
 		responses.ByTarget[target] = resp
 		if stats != nil {
-			// add the target label to these stats for future collation.
-			targetLabel := &instrumentation.Label{Name: "target", Value: target}
-			for _, stat := range stats {
-				if stat.Labels == nil || len(stat.Labels) == 0 {
-					stat.Labels = []*instrumentation.Label{targetLabel}
-				} else {
-					stat.Labels = append(stat.Labels, targetLabel)
-				}
+			for _, s := range stats {
+				// add the target label to these stats for future collation.
+				s.AddLabels(targetLabel)
 			}
+
 			responses.StatsEntries = append(responses.StatsEntries, stats...)
 		}
 	}
@@ -790,23 +800,46 @@ func (c *Client) Dump(ctx context.Context) (string, error) {
 	return dumpBuilder.String(), nil
 }
 
+// GetDescriptionForStat returns the description for a stat name. It delegates
+// the retrieval to the subsystems in the constraint framework that support stats gathering,
+// each correspoding to a given Source type. The supported source types for now are
+// "engine" and "matcher". If a stat is not found in the subsystems, or the subsystems don't exist,
+// the function returns an UnknownDescription for the given stat name.
 func (c *Client) GetDescriptionForStat(source instrumentation.Source, statName string) string {
-	if source.Type != instrumentation.EngineSourceType {
-		// only handle engine source for now
-		return instrumentation.UnknownDescription
+	if source.Type == instrumentation.EngineSourceType {
+		driver, ok := c.drivers[source.Value]
+		if !ok {
+			return instrumentation.UnknownDescription
+		}
+
+		desc, err := driver.GetDescriptionForStat(statName)
+		if err != nil {
+			return instrumentation.UnknownDescription
+		}
+		return desc
 	}
 
-	driver, ok := c.drivers[source.Value]
-	if !ok {
-		return instrumentation.UnknownDescription
+	if source.Type == instrumentation.MatcherSourceType {
+		decoded := strings.Split(source.Value, "/")
+		if len(decoded) != 2 {
+			return instrumentation.UnknownDescription
+		}
+		templateName := decoded[0]
+		constraintName := decoded[1]
+
+		templateClient, ok := c.templates[templateName]
+		if !ok {
+			return instrumentation.UnknownDescription
+		}
+
+		desc, err := templateClient.GetDescriptionForStat(constraintName, statName)
+		if err != nil {
+			return instrumentation.UnknownDescription
+		}
+		return desc
 	}
 
-	desc, err := driver.GetDescriptionForStat(statName)
-	if err != nil {
-		return instrumentation.UnknownDescription
-	}
-
-	return desc
+	return instrumentation.UnknownDescription
 }
 
 // knownTargets returns a sorted list of known target names.

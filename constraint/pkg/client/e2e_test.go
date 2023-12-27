@@ -833,19 +833,28 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 	}
 }
 
-// TestE2E_DriverStats tests that we can turn on and off the Stats() QueryOpt.
-func TestE2E_DriverStats(t *testing.T) {
+// TestE2E_Stats tests that we can turn on and off stats collection.
+func TestE2E_Stats(t *testing.T) {
 	tests := []struct {
-		name         string
-		statsEnabled bool
+		name          string
+		statsOnReview bool
+		stats         bool
 	}{
 		{
-			name:         "disabled",
-			statsEnabled: false,
+			name: "no stats",
 		},
 		{
-			name:         "enabled",
-			statsEnabled: true,
+			name:          "on review driver enabled",
+			statsOnReview: true,
+		},
+		{
+			name:  "client stats enabled",
+			stats: true,
+		},
+		{
+			name:          "client stats and driver stats enabled",
+			stats:         true,
+			statsOnReview: true,
 		},
 	}
 
@@ -866,15 +875,15 @@ func TestE2E_DriverStats(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, drivers.Stats(tt.statsEnabled))
+			rsps, err := c.Review(ctx, obj, drivers.Stats(tt.statsOnReview))
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			stats := rsps.StatsEntries
-			if stats == nil && tt.statsEnabled {
+			if stats == nil && (tt.statsOnReview || tt.stats) {
 				t.Fatal("got nil stats but stats enabled for Review")
-			} else if len(stats) != 0 && !tt.statsEnabled {
+			} else if len(stats) != 0 && !(tt.statsOnReview || tt.stats) {
 				t.Fatal("got stats but stats disabled")
 			}
 		})
@@ -882,6 +891,8 @@ func TestE2E_DriverStats(t *testing.T) {
 }
 
 func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
+	ctx := context.Background()
+
 	unknownDriverSource := instrumentation.Source{
 		Type:  instrumentation.EngineSourceType,
 		Value: "unknown_driver",
@@ -890,9 +901,29 @@ func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
 		Type:  "unknown_source",
 		Value: "unknown_value",
 	}
-	validSource := instrumentation.RegoSource
+	unknownMatchSource := instrumentation.Source{
+		Type:  instrumentation.MatcherSourceType,
+		Value: "does_not_exist/foo",
+	}
+	matcherSource := instrumentation.Source{
+		Type:  instrumentation.MatcherSourceType,
+		Value: "deny/foo",
+	}
+	malformedMatcherSource := instrumentation.Source{
+		Type:  instrumentation.MatcherSourceType,
+		Value: "not_properly_formtted",
+	}
 
 	c := clienttest.New(t)
+	_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
 		name            string
 		source          instrumentation.Source
@@ -913,15 +944,37 @@ func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
 		},
 		{
 			name:            "valid source type with unknown stat",
-			source:          validSource,
+			source:          instrumentation.RegoSource,
 			statName:        "this_stat_does_not_exist",
 			expectedUnknown: true,
 		},
 		{
-			name:            "valid source type with known stat",
-			source:          validSource,
-			statName:        "templateRunTimeNS",
-			expectedUnknown: false,
+			name:     "valid source type with known stat",
+			source:   instrumentation.RegoSource,
+			statName: "templateRunTimeNS",
+		},
+		{
+			name:     "valid matcher source with known stat",
+			source:   matcherSource,
+			statName: "matcherNS",
+		},
+		{
+			name:            "matcher source with unknown stat",
+			source:          matcherSource,
+			statName:        "unknownStat",
+			expectedUnknown: true,
+		},
+		{
+			name:            "matcher source with unknown template",
+			source:          unknownMatchSource,
+			statName:        "matcherNS",
+			expectedUnknown: true,
+		},
+		{
+			name:            "matcher source with malformed value",
+			source:          malformedMatcherSource,
+			statName:        "matcherNS",
+			expectedUnknown: true,
 		},
 	}
 

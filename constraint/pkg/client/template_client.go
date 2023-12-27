@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"time"
 
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/crds"
@@ -9,10 +10,16 @@ import (
 	constraintlib "github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
+
+const (
+	matcherNS            = "matcherNS"
+	matcherNSDescription = "the number of nanoseconds it took to run the matcher for the constraint %s"
 )
 
 // templateClient handles per-ConstraintTemplate operations.
@@ -144,17 +151,40 @@ func (e *templateClient) RemoveConstraint(name string) {
 // against the passed review.
 //
 // ignoredTargets specifies the targets whose matchers to not run.
-func (e *templateClient) Matches(target string, review interface{}) map[string]constraintMatchResult {
+func (e *templateClient) Matches(target string, review interface{}) *MatchesResult {
 	result := make(map[string]constraintMatchResult)
+	stats := make(map[string]*instrumentation.StatsEntry)
 
 	for name, constraint := range e.constraints {
+		evalStartTime := time.Now()
 		cResult := constraint.matches(target, review)
+		evalEndTime := time.Since(evalStartTime)
 		if cResult != nil {
 			result[name] = *cResult
 		}
+
+		stats[name] = &instrumentation.StatsEntry{
+			Scope:    instrumentation.ConstraintScope,
+			StatsFor: fmt.Sprintf("%s/%s", constraint.constraint.GetKind(), constraint.constraint.GetName()),
+			Stats: []*instrumentation.Stat{
+				{
+					Name:  matcherNS,
+					Value: uint64(evalEndTime.Nanoseconds()),
+					Source: instrumentation.Source{
+						Type:  instrumentation.MatcherSourceType,
+						Value: fmt.Sprintf("%s/%s", e.template.Name, constraint.constraint.GetName()),
+					},
+				},
+			},
+		}
 	}
 
-	return result
+	return &MatchesResult{results: result, stats: stats}
+}
+
+type MatchesResult struct {
+	results map[string]constraintMatchResult
+	stats   map[string]*instrumentation.StatsEntry
 }
 
 func makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unstructured) (map[string]constraintlib.Matcher, error) {
@@ -176,4 +206,13 @@ func makeMatchers(targets []handler.TargetHandler, constraint *unstructured.Unst
 	}
 
 	return result, nil
+}
+
+func (e *templateClient) GetDescriptionForStat(constraintName, statName string) (string, error) {
+	switch statName {
+	case matcherNS:
+		return fmt.Sprintf(matcherNSDescription, constraintName), nil
+	default:
+		return "", fmt.Errorf("unknown stat name")
+	}
 }

@@ -9,14 +9,15 @@ const (
 
 	// TemplateScope means the stat is associated with a template.
 	TemplateScope = "template"
-	// ConstraintScope means the state is associated with a constraint.
+	// ConstraintScope means the stat is associated with a constraint.
 	ConstraintScope = "constraint"
 
 	// description constants.
 	UnknownDescription = "unknown description"
 
 	// source constants.
-	EngineSourceType = "engine"
+	EngineSourceType  = "engine"
+	MatcherSourceType = "matcher"
 )
 
 var RegoSource = Source{
@@ -38,7 +39,7 @@ type Source struct {
 	Value string `json:"value"`
 }
 
-// Stat is a Name, Value, Description tuple that may contain
+// Stat is a Name, Value, Source tuple that may contain
 // metrics or aggregations of metrics.
 type Stat struct {
 	Name   string      `json:"name"`
@@ -51,9 +52,22 @@ type StatsEntry struct {
 	// Scope is the level of granularity that the Stats
 	// were created at.
 	Scope string `json:"scope"`
-	// StatsFor is the specific kind of Scope type that Stats
-	// were created for.
+	// StatsFor is the name of the object that the stats are
+	// gathered for.
 	StatsFor string   `json:"statsFor"`
 	Stats    []*Stat  `json:"stats"`
 	Labels   []*Label `json:"labels,omitempty"`
+}
+
+// Adds labels to the StatsEntry s.
+func (s *StatsEntry) AddLabels(labels ...*Label) {
+	if s != nil {
+		for _, l := range labels {
+			if s.Labels == nil || len(s.Labels) == 0 {
+				s.Labels = []*Label{}
+			}
+
+			s.Labels = append(s.Labels, l)
+		}
+	}
 }
