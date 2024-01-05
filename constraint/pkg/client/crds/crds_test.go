@@ -15,7 +15,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8schema "k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // Minimal implementation of a target handler needed for CRD helpers
@@ -38,7 +38,7 @@ func createTestTargetHandler(args ...targetHandlerArg) crds.MatchSchemaProvider 
 	h := &testTargetHandler{}
 
 	// The default matchSchema is empty, and thus lacks type information
-	h.matchSchema.XPreserveUnknownFields = pointer.Bool(true)
+	h.matchSchema.XPreserveUnknownFields = ptr.To[bool](true)
 
 	for _, arg := range args {
 		arg(h)

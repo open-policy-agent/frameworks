@@ -2,7 +2,6 @@ package k8scel
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,21 +11,17 @@ import (
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	pSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/transform"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/plugin/cel"
 	"k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/matchconditions"
-	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	celAPI "k8s.io/apiserver/pkg/apis/cel"
-	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/cel/environment"
 )
 
@@ -65,41 +60,24 @@ func (d *Driver) Name() string {
 }
 
 func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate) error {
-	if len(ct.Spec.Targets) != 1 {
-		return errors.New("wrong number of targets defined, only 1 target allowed")
-	}
-
-	var source *pSchema.Source
-	for _, code := range ct.Spec.Targets[0].Code {
-		if code.Engine != pSchema.Name {
-			continue
-		}
-		var err error
-		source, err = pSchema.GetSource(code)
-		if err != nil {
-			return err
-		}
-		break
-	}
-	if source == nil {
-		return errors.New("K8sNativeValidation code not defined")
+	source, err := pSchema.GetSourceFromTemplate(ct)
+	if err != nil {
+		return err
 	}
 
 	// FRICTION: Note that compilation errors are possible, but we cannot introspect to see whether any
 	// occurred
 	celVars := cel.OptionalVariableDeclarations{}
 
-	// We don't want to have access to parameters for anything other than driver-defined variables, so we
+	// We don't want to have access to parameters for anything other than driver-defined logic, so we
 	// can keep the user from accessing the full constraint schema.
 	celVarsWithParameters := cel.OptionalVariableDeclarations{HasParams: true}
 
-	// TODO add support for user-defined variables
-	vapVars := []cel.NamedExpressionAccessor{
-		&validatingadmissionpolicy.Variable{
-			Name:       "params",
-			Expression: "params.spec.parameters",
-		},
+	vapVars, err := source.GetVariables()
+	if err != nil {
+		return err
 	}
+	vapVars = append(vapVars, transform.AllVariablesCEL()...)
 	filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
 	if err != nil {
 		return err
@@ -180,7 +158,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		return nil, errors.New("cannot convert review to ARGetter")
 	}
 	aRequest := arGetter.GetAdmissionRequest()
-	request, err := NewWrapper(aRequest)
+	versionedAttr, err := transform.RequestToVersionedAttributes(aRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -189,26 +167,14 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 
 	for _, constraint := range constraints {
 		evalStartTime := time.Now()
-		// FRICTION/design question: should parameters be created as a "mock" object so that users don't have to type `params.spec.parameters`? How do we prevent visibility into other,
-		// non-parameter fields, such as `spec.match`? Does it matter? Note that creating a special "parameters" object means that we'd need to copy the constraint contents to
-		// a special "parameters" object for on-server enforcement with a clean value for "params", which is non-ideal. Could we provide the field of the parameters object and limit scoping to that?
-		// Then how would we implement custom matchers? Maybe adding variable assignments to the Policy Definition is a better idea? That would at least allow for a convenience handle, even if
-		// it doesn't scope visibility.
-
 		// template name is the lowercase of its kind
 		validator := d.validators[strings.ToLower(constraint.GetKind())]
 		if validator == nil {
 			return nil, fmt.Errorf("unknown constraint template validator: %s", constraint.GetKind())
 		}
-		versionedAttr := &admission.VersionedAttributes{
-			Attributes:         request,
-			VersionedKind:      request.GetKind(),
-			VersionedOldObject: request.GetOldObject(),
-			VersionedObject:    request.GetObject(),
-		}
 
 		// TODO: should namespace be made available, if possible? Generally that context should be present
-		response := validator.Validate(ctx, request.GetResource(), versionedAttr, constraint, nil, celAPI.PerCallLimit, nil)
+		response := validator.Validate(ctx, versionedAttr.GetResource(), versionedAttr, constraint, nil, celAPI.PerCallLimit, nil)
 
 		enforcementAction, found, err := unstructured.NestedString(constraint.Object, "spec", "enforcementAction")
 		if err != nil {
@@ -264,133 +230,4 @@ func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 
 type ARGetter interface {
 	GetAdmissionRequest() *admissionv1.AdmissionRequest
-}
-
-// FRICTION this wrapper class is excessive. Validator code should define an interface that only requires the methods it needs.
-type RequestWrapper struct {
-	ar               *admissionv1.AdmissionRequest
-	object           runtime.Object
-	oldObject        runtime.Object
-	operationOptions runtime.Object
-}
-
-func NewWrapper(req *admissionv1.AdmissionRequest) (*RequestWrapper, error) {
-	var object runtime.Object
-	if len(req.Object.Raw) != 0 {
-		object = &unstructured.Unstructured{}
-		if err := json.Unmarshal(req.Object.Raw, object); err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal object", err)
-		}
-	}
-
-	var oldObject runtime.Object
-	if len(req.OldObject.Raw) != 0 {
-		oldObject = &unstructured.Unstructured{}
-		if err := json.Unmarshal(req.OldObject.Raw, oldObject); err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal old object", err)
-		}
-	}
-
-	// this may be unnecessary, since GetOptions() may not be used by downstream
-	// code, but is better than doing this lazily and needing to panic if GetOptions()
-	// fails.
-	var options runtime.Object
-	if len(req.Options.Raw) != 0 {
-		options = &unstructured.Unstructured{}
-		if err := json.Unmarshal(req.Options.Raw, options); err != nil {
-			return nil, fmt.Errorf("%w: could not unmarshal options", err)
-		}
-	}
-	return &RequestWrapper{
-		ar:               req,
-		object:           object,
-		oldObject:        oldObject,
-		operationOptions: options,
-	}, nil
-}
-
-func (w *RequestWrapper) GetName() string {
-	return w.ar.Name
-}
-
-func (w *RequestWrapper) GetNamespace() string {
-	return w.ar.Namespace
-}
-
-func (w *RequestWrapper) GetResource() schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    w.ar.Resource.Group,
-		Version:  w.ar.Resource.Version,
-		Resource: w.ar.Resource.Resource,
-	}
-}
-
-func (w *RequestWrapper) GetSubresource() string {
-	return w.ar.SubResource
-}
-
-var opMap = map[admissionv1.Operation]admission.Operation{
-	admissionv1.Create:  admission.Create,
-	admissionv1.Update:  admission.Update,
-	admissionv1.Delete:  admission.Delete,
-	admissionv1.Connect: admission.Connect,
-}
-
-func (w *RequestWrapper) GetOperation() admission.Operation {
-	return opMap[w.ar.Operation]
-}
-
-func (w *RequestWrapper) GetOperationOptions() runtime.Object {
-	return w.operationOptions
-}
-
-func (w *RequestWrapper) IsDryRun() bool {
-	if w.ar.DryRun == nil {
-		return false
-	}
-	return *w.ar.DryRun
-}
-
-func (w *RequestWrapper) GetObject() runtime.Object {
-	return w.object
-}
-
-func (w *RequestWrapper) GetOldObject() runtime.Object {
-	return w.oldObject
-}
-
-func (w *RequestWrapper) GetKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{
-		Group:   w.ar.Kind.Group,
-		Version: w.ar.Kind.Version,
-		Kind:    w.ar.Kind.Kind,
-	}
-}
-
-func (w *RequestWrapper) GetUserInfo() user.Info {
-	extra := map[string][]string{}
-	for k := range w.ar.UserInfo.Extra {
-		vals := make([]string, len(w.ar.UserInfo.Extra[k]))
-		copy(vals, w.ar.UserInfo.Extra[k])
-		extra[k] = vals
-	}
-
-	return &user.DefaultInfo{
-		Name:   w.ar.UserInfo.Username,
-		UID:    w.ar.UserInfo.UID,
-		Groups: w.ar.UserInfo.Groups,
-		Extra:  extra,
-	}
-}
-
-func (w *RequestWrapper) AddAnnotation(_, _ string) error {
-	return errors.New("AddAnnotation not implemented")
-}
-
-func (w *RequestWrapper) AddAnnotationWithLevel(_, _ string, _ auditinternal.Level) error {
-	return errors.New("AddAnnotationWithLevel not implemented")
-}
-
-func (w *RequestWrapper) GetReinvocationContext() admission.ReinvocationContext {
-	return nil
 }
