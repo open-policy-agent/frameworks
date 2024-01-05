@@ -61,19 +61,19 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 							Expression: "true == true",
 						},
 						{
-							Name:       "g8r_internal_match_excluded_namespaces",
+							Name:       "gatekeeper_internal_match_excluded_namespaces",
 							Expression: matchExcludedNamespacesGlob,
 						},
 						{
-							Name:       "g8r_internal_match_namespaces",
+							Name:       "gatekeeper_internal_match_namespaces",
 							Expression: matchNamespacesGlob,
 						},
 						{
-							Name:       "g8r_internal_match_name",
+							Name:       "gatekeeper_internal_match_name",
 							Expression: matchNameGlob,
 						},
 						{
-							Name:       "g8r_internal_match_kinds",
+							Name:       "gatekeeper_internal_match_kinds",
 							Expression: matchKinds,
 						},
 					},
@@ -105,7 +105,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 				FailurePolicy: ptr.To[string]("Fail"),
 				MatchConditions: []schema.MatchCondition{
 					{
-						Name:       "g8r_internal_match_something",
+						Name:       "gatekeeper_internal_match_something",
 						Expression: "true == true",
 					},
 				},
@@ -138,7 +138,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 				},
 				Variables: []schema.Variable{
 					{
-						Name:       "g8r_internal_my_variable",
+						Name:       "gatekeeper_internal_my_variable",
 						Expression: "true",
 					},
 				},

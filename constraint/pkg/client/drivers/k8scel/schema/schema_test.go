@@ -58,7 +58,7 @@ func TestValidationErrors(t *testing.T) {
 				FailurePolicy: ptr.To[string]("Fail"),
 				MatchConditions: []MatchCondition{
 					{
-						Name:       "g8r_internal_must_match_something",
+						Name:       "gatekeeper_internal_must_match_something",
 						Expression: "true == true",
 					},
 				},
@@ -83,7 +83,7 @@ func TestValidationErrors(t *testing.T) {
 				},
 				Variables: []Variable{
 					{
-						Name:       "g8r_internal_my_variable",
+						Name:       "gatekeeper_internal_my_variable",
 						Expression: "true",
 					},
 				},

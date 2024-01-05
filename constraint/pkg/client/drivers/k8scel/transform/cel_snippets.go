@@ -72,7 +72,7 @@ const (
 
 func MatchExcludedNamespacesGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
 	return admissionregistrationv1alpha1.MatchCondition{
-		Name:       "g8r_internal_match_excluded_namespaces",
+		Name:       "gatekeeper_internal_match_excluded_namespaces",
 		Expression: matchExcludedNamespacesGlob,
 	}
 }
@@ -89,7 +89,7 @@ func MatchExcludedNamespacesGlobCEL() []cel.ExpressionAccessor {
 
 func MatchNamespacesGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
 	return admissionregistrationv1alpha1.MatchCondition{
-		Name:       "g8r_internal_match_namespaces",
+		Name:       "gatekeeper_internal_match_namespaces",
 		Expression: matchNamespacesGlob,
 	}
 }
@@ -106,7 +106,7 @@ func MatchNamespacesGlobCEL() []cel.ExpressionAccessor {
 
 func MatchNameGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
 	return admissionregistrationv1alpha1.MatchCondition{
-		Name:       "g8r_internal_match_name",
+		Name:       "gatekeeper_internal_match_name",
 		Expression: matchNameGlob,
 	}
 }
@@ -123,7 +123,7 @@ func MatchNameGlobCEL() []cel.ExpressionAccessor {
 
 func MatchKindsV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
 	return admissionregistrationv1alpha1.MatchCondition{
-		Name:       "g8r_internal_match_kinds",
+		Name:       "gatekeeper_internal_match_kinds",
 		Expression: matchKinds,
 	}
 }

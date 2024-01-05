@@ -19,7 +19,7 @@ const (
 	Name = "K8sNativeValidation"
 	// ReservedPrefix signifies a prefix that no user-defined value (variable, matcher, etc.) is allowed to have.
 	// This gives us the ability to add new variables in the future without worrying about breaking pre-existing templates.
-	ReservedPrefix = "g8r_internal_"
+	ReservedPrefix = "gatekeeper_internal_"
 	// ParamsName is the VAP variable constraint parameters will be bound to.
 	ParamsName = "params"
 )
