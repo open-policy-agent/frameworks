@@ -22,7 +22,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestClient_Review(t *testing.T) {
@@ -305,10 +305,10 @@ func TestClient_Review(t *testing.T) {
 			namespaces: nil,
 			targets: []handler.TargetHandler{
 				&handlertest.Handler{
-					Name: pointer.String("foo1"),
+					Name: ptr.To[string]("foo1"),
 				},
 				&handlertest.Handler{
-					Name: pointer.String("foo2"),
+					Name: ptr.To[string]("foo2"),
 				},
 			},
 			templates: []*templates.ConstraintTemplate{

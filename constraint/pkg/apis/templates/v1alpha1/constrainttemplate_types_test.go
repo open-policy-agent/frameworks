@@ -30,7 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestStorageConstraintTemplate(t *testing.T) {
@@ -637,22 +637,22 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Two deep properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    ptr.To[bool](true),
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    ptr.To[bool](true),
 				OpenAPIV3Schema: schema.VersionlessSchemaWithXPreserve(),
 			},
 		},
 		{
 			name: "Two deep properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    ptr.To[bool](false),
 				OpenAPIV3Schema: schema.VersionedIncompleteSchema(),
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    ptr.To[bool](false),
 				OpenAPIV3Schema: schema.VersionlessSchema(),
 			},
 		},
@@ -668,24 +668,24 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 		{
 			name: "Nil properties, LegacySchema=true",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(true),
+				LegacySchema:    ptr.To[bool](true),
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema: pointer.Bool(true),
+				LegacySchema: ptr.To[bool](true),
 				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-					XPreserveUnknownFields: pointer.Bool(true),
+					XPreserveUnknownFields: ptr.To[bool](true),
 				},
 			},
 		},
 		{
 			name: "Nil properties, LegacySchema=false",
 			v: &Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    ptr.To[bool](false),
 				OpenAPIV3Schema: nil,
 			},
 			exp: &templates.Validation{
-				LegacySchema:    pointer.Bool(false),
+				LegacySchema:    ptr.To[bool](false),
 				OpenAPIV3Schema: nil,
 			},
 		},

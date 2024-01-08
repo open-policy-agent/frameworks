@@ -2,7 +2,7 @@ package cts
 
 import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 type PropMap map[string]apiextensions.JSONSchemaProps
@@ -14,11 +14,11 @@ func ExpectedSchema(pm PropMap) *apiextensions.JSONSchemaProps {
 			"metadata": Prop(PropMap{
 				"name": apiextensions.JSONSchemaProps{
 					Type:      "string",
-					MaxLength: pointer.Int64(63),
+					MaxLength: ptr.To[int64](63),
 				},
 			}),
 			"spec":   Prop(pm),
-			"status": {XPreserveUnknownFields: pointer.Bool(true)},
+			"status": {XPreserveUnknownFields: ptr.To[bool](true)},
 		},
 	)
 	return &p
@@ -31,7 +31,7 @@ func Prop(properties map[string]apiextensions.JSONSchemaProps) apiextensions.JSO
 
 // PropUnstructured constructs a schema node with no specified underlying structure.
 func PropUnstructured() apiextensions.JSONSchemaProps {
-	return apiextensions.JSONSchemaProps{XPreserveUnknownFields: pointer.Bool(true)}
+	return apiextensions.JSONSchemaProps{XPreserveUnknownFields: ptr.To[bool](true)}
 }
 
 // PropTyped creates a typed property with no subfields.
