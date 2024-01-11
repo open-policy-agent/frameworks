@@ -53,11 +53,11 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 			},
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicy{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-somepolicy",
+					Name: "gatekeeper-somepolicy",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicySpec{
 					ParamKind: &admissionregistrationv1alpha1.ParamKind{
-						APIVersion: "v1beta1",
+						APIVersion: "constraints.gatekeeper.sh/v1beta1",
 						Kind:       "SomePolicy",
 					},
 					MatchConditions: []admissionregistrationv1alpha1.MatchCondition{
@@ -97,7 +97,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 						},
 						{
 							Name:       schema.ParamsName,
-							Expression: "params.spec.parameters",
+							Expression: "!has(params.spec) ? null : !has(params.spec.parameters) ? null: params.spec.parameters",
 						},
 					},
 				},
@@ -269,12 +269,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("", nil, nil),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
 					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
@@ -286,12 +287,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources: &admissionregistrationv1alpha1.MatchResources{
 						ObjectSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
@@ -305,12 +307,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources: &admissionregistrationv1alpha1.MatchResources{
 						NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
@@ -324,12 +327,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources: &admissionregistrationv1alpha1.MatchResources{
 						ObjectSelector:    &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
@@ -344,12 +348,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("deny", nil, nil),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
 					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
@@ -361,12 +366,13 @@ func TestConstraintToBinding(t *testing.T) {
 			constraint: newTestConstraint("warn", nil, nil),
 			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "g8r-foo-name",
+					Name: "gatekeeper-foo-name",
 				},
 				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-					PolicyName: "g8r-footemplate",
+					PolicyName: "gatekeeper-footemplate",
 					ParamRef: &admissionregistrationv1alpha1.ParamRef{
-						Name: "foo-name",
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 					},
 					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
 					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Warn},

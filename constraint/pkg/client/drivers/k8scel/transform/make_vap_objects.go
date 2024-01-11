@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 )
 
 func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1alpha1.ValidatingAdmissionPolicy, error) {
@@ -44,11 +45,11 @@ func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admiss
 
 	policy := &admissionregistrationv1alpha1.ValidatingAdmissionPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("g8r-%s", template.GetName()),
+			Name: fmt.Sprintf("gatekeeper-%s", template.GetName()),
 		},
 		Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicySpec{
 			ParamKind: &admissionregistrationv1alpha1.ParamKind{
-				APIVersion: templatesv1beta1.SchemeGroupVersion.Version,
+				APIVersion: fmt.Sprintf("%s/%s", apiconstraints.Group, templatesv1beta1.SchemeGroupVersion.Version),
 				Kind:       template.Spec.CRD.Spec.Names.Kind,
 			},
 			MatchConstraints: nil, // We cannot support match constraints since `resource` is not available shift-left
@@ -80,12 +81,13 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 
 	binding := &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("g8r-%s", constraint.GetName()),
+			Name: fmt.Sprintf("gatekeeper-%s", constraint.GetName()),
 		},
 		Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
-			PolicyName: fmt.Sprintf("g8r-%s", strings.ToLower(constraint.GetKind())),
+			PolicyName: fmt.Sprintf("gatekeeper-%s", strings.ToLower(constraint.GetKind())),
 			ParamRef: &admissionregistrationv1alpha1.ParamRef{
-				Name: constraint.GetName(),
+				Name:                    constraint.GetName(),
+				ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
 			},
 			MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
 			ValidationActions: []admissionregistrationv1alpha1.ValidationAction{enforcementAction},
