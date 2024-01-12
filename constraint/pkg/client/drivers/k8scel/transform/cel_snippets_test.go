@@ -731,3 +731,84 @@ func TestMatchExcludedNamespacesGlob(t *testing.T) {
 		})
 	}
 }
+
+func UnstructuredWithValue(val interface{}, fields ...string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
+	if err := unstructured.SetNestedField(obj.Object, val, fields...); err != nil {
+		panic(fmt.Errorf("%w: while setting unstructured value", err))
+	}
+	return obj
+}
+
+func TestVariableBinding(t *testing.T) {
+	tests := []struct {
+		name         string
+		constraint   *unstructured.Unstructured
+		assertionCEL string
+	}{
+		{
+			name:         "Params are defined",
+			constraint:   UnstructuredWithValue(true, "spec", "parameters", "paramExists"),
+			assertionCEL: "variables.params.paramExists == true",
+		},
+		{
+			name:         "Params not defined, spec is defined",
+			constraint:   UnstructuredWithValue(true, "spec"),
+			assertionCEL: "variables.params == null",
+		},
+		{
+			name:         "No spec",
+			constraint:   UnstructuredWithValue(map[string]interface{}{}, "status"),
+			assertionCEL: "variables.params == null",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			celOpts := cel.OptionalVariableDeclarations{HasParams: true}
+			filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
+			matcher := matchconditions.NewMatcher(
+				filterCompiler.Compile(
+					[]cel.ExpressionAccessor{
+						&matchconditions.MatchCondition{
+							Name:       "TestParams",
+							Expression: test.assertionCEL,
+						},
+					},
+					celOpts,
+					environment.StoredExpressions,
+				),
+				ptr.To[v1.FailurePolicyType](v1.Fail),
+				"matchTest",
+				"name",
+				test.name,
+			)
+
+			obj := &unstructured.Unstructured{}
+			objName := "test-obj"
+			obj.SetName(objName)
+			obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
+			objBytes, err := json.Marshal(obj.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := &admissionv1.AdmissionRequest{
+				Kind:   metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
+				Object: runtime.RawExtension{Raw: objBytes},
+			}
+			request.Name = objName
+
+			versionedAttributes, err := RequestToVersionedAttributes(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := shouldMatch(true, false, matcher.Match(context.Background(), versionedAttributes, test.constraint, nil)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}

@@ -141,7 +141,7 @@ func MatchKindsCEL() []cel.ExpressionAccessor {
 func BindParamsV1Alpha1() admissionregistrationv1alpha1.Variable {
 	return admissionregistrationv1alpha1.Variable{
 		Name:       schema.ParamsName,
-		Expression: "params.spec.parameters",
+		Expression: "!has(params.spec) ? null : !has(params.spec.parameters) ? null: params.spec.parameters",
 	}
 }
 
