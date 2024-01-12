@@ -8,17 +8,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.21"
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: go/src/github.com/open-policy-agent/frameworks
 
       - name: Check out Gatekeeper default branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: open-policy-agent/gatekeeper
           path: go/src/github.com/open-policy-agent/gatekeeper
