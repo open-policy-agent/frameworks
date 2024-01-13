@@ -60,6 +60,16 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 						APIVersion: "constraints.gatekeeper.sh/v1beta1",
 						Kind:       "SomePolicy",
 					},
+					MatchConstraints: &admissionregistrationv1alpha1.MatchResources{
+						ResourceRules: []admissionregistrationv1alpha1.NamedRuleWithOperations{
+							{
+								RuleWithOperations: admissionregistrationv1alpha1.RuleWithOperations{
+									Operations: []admissionregistrationv1alpha1.OperationType{admissionregistrationv1alpha1.OperationAll},
+									Rule:       admissionregistrationv1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
+								},
+							},
+						},
+					},
 					MatchConditions: []admissionregistrationv1alpha1.MatchCondition{
 						{
 							Name:       "must_match_something",

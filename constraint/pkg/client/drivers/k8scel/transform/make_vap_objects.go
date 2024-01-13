@@ -52,7 +52,16 @@ func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admiss
 				APIVersion: fmt.Sprintf("%s/%s", apiconstraints.Group, templatesv1beta1.SchemeGroupVersion.Version),
 				Kind:       template.Spec.CRD.Spec.Names.Kind,
 			},
-			MatchConstraints: nil, // We cannot support match constraints since `resource` is not available shift-left
+			MatchConstraints: &admissionregistrationv1alpha1.MatchResources{
+				ResourceRules: []admissionregistrationv1alpha1.NamedRuleWithOperations{
+					{
+						RuleWithOperations: admissionregistrationv1alpha1.RuleWithOperations{
+							Operations: []admissionregistrationv1alpha1.OperationType{admissionregistrationv1alpha1.OperationAll},
+							Rule:       admissionregistrationv1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
+						},
+					},
+				},
+			},
 			MatchConditions:  matchConditions,
 			Validations:      validations,
 			FailurePolicy:    failurePolicy,
