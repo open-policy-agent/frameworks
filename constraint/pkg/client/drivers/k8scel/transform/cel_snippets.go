@@ -28,23 +28,10 @@ const (
 	!has(params.spec) ? true: (
 		!has(params.spec.match) ? true: (
 			!has(params.spec.match.name) ? true : (
-				(has(object.metadata.generateName) && object.metadata.generateName != "" && params.spec.match.name.endsWith("*") && string(object.metadata.generateName).matches("^" + string(params.spec.match.name).replace("*", ".*") + "$")) ||
-				(has(object.metadata.name) && string(object.metadata.name).matches("^" + string(params.spec.match.name).replace("*", ".*") + "$"))
-			)
-		)
-	)
-	`
-
-	// Note that switching the glob to a regex is valid because of how Gatekeeper validates the wildcard matcher
-	// (with this regex: "+kubebuilder:validation:Pattern=`^(\*|\*-)?[a-z0-9]([-:a-z0-9]*[a-z0-9])?(\*|-\*)?$`").
-	matchNamespacesGlob = `
-	!has(params.spec) ? true: (
-		!has(params.spec.match) ? true: (
-			!has(params.spec.match.namespaces) ? true : (
-				// cluster-scoped objects always match
-				!has(object.metadata.namespace) || object.metadata.namespace == "" ? true : (
-					params.spec.match.namespaces.exists(nsMatcher,
-						(string(object.metadata.namespace).matches("^" + string(nsMatcher).replace("*", ".*") + "$"))
+				[object, oldObject].exists(obj,
+					obj != null && (
+						(has(obj.metadata.generateName) && obj.metadata.generateName != "" && params.spec.match.name.endsWith("*") && string(obj.metadata.generateName).matches("^" + string(params.spec.match.name).replace("*", ".*") + "$")) ||
+						(has(obj.metadata.name) && string(obj.metadata.name).matches("^" + string(params.spec.match.name).replace("*", ".*") + "$"))
 					)
 				)
 			)
@@ -54,16 +41,43 @@ const (
 
 	// Note that switching the glob to a regex is valid because of how Gatekeeper validates the wildcard matcher
 	// (with this regex: "+kubebuilder:validation:Pattern=`^(\*|\*-)?[a-z0-9]([-:a-z0-9]*[a-z0-9])?(\*|-\*)?$`").
+	// TODO: consider using the `namespaceObject` field provided by ValidatingAdmissionPolicy.
+	matchNamespacesGlob = `
+	!has(params.spec) ? true: (
+		!has(params.spec.match) ? true: (
+			!has(params.spec.match.namespaces) ? true : (
+				[object, oldObject].exists(obj,
+					obj != null && (
+						// cluster-scoped objects always match
+						!has(obj.metadata.namespace) || obj.metadata.namespace == "" ? true : (
+							params.spec.match.namespaces.exists(nsMatcher,
+								(string(obj.metadata.namespace).matches("^" + string(nsMatcher).replace("*", ".*") + "$"))
+							)
+						)
+					)
+				)
+			)
+		)
+	)
+	`
+
+	// Note that switching the glob to a regex is valid because of how Gatekeeper validates the wildcard matcher
+	// (with this regex: "+kubebuilder:validation:Pattern=`^(\*|\*-)?[a-z0-9]([-:a-z0-9]*[a-z0-9])?(\*|-\*)?$`").
+	// TODO: consider using the `namespaceObject` field provided by ValidatingAdmissionPolicy.
 	matchExcludedNamespacesGlob = `
 	!has(params.spec) ? true: (
 		!has(params.spec.match) ? true: (
 			!has(params.spec.match.excludedNamespaces) ? true : (
-					// cluster-scoped objects always match
-					!has(object.metadata.namespace) || object.metadata.namespace == "" ? true : (
-						!params.spec.match.excludedNamespaces.exists(nsMatcher,
-							(string(object.metadata.namespace).matches("^" + string(nsMatcher).replace("*", ".*") + "$"))
+				[object, oldObject].exists(obj,
+					obj != null && (
+						// cluster-scoped objects always match
+						!has(obj.metadata.namespace) || obj.metadata.namespace == "" ? true : (
+							!params.spec.match.excludedNamespaces.exists(nsMatcher,
+								(string(obj.metadata.namespace).matches("^" + string(nsMatcher).replace("*", ".*") + "$"))
+							)
 						)
 					)
+				)
 			)
 		)
 	)
