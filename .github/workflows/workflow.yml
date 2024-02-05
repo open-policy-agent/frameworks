@@ -44,7 +44,7 @@ jobs:
           GOBIN: ${{ github.workspace }}/go/bin
 
       - name: Codecov Upload
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           flags: unittests
           file: go/src/github.com/open-policy-agent/frameworks/constraint/cover.out
