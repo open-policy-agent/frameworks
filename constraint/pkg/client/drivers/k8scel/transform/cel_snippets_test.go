@@ -405,50 +405,84 @@ func TestMatchNameGlob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			celOpts := cel.OptionalVariableDeclarations{HasParams: true}
-			filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
-			matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchNameGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
+		obj := &unstructured.Unstructured{}
+		if test.objName != nil {
+			obj.SetName(*test.objName)
+		}
+		if test.generateName != nil {
+			obj.SetGenerateName(*test.generateName)
+		}
+		obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
 
-			obj := &unstructured.Unstructured{}
+		objBytes, err := json.Marshal(obj.Object)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := &runtime.RawExtension{Raw: objBytes}
+
+		makeRequest := func(obj, oldObject *runtime.RawExtension) *admissionv1.AdmissionRequest {
+			req := &admissionv1.AdmissionRequest{}
+
 			if test.objName != nil {
-				obj.SetName(*test.objName)
-			}
-			if test.generateName != nil {
-				obj.SetGenerateName(*test.generateName)
-			}
-			obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
-			objBytes, err := json.Marshal(obj.Object)
-			if err != nil {
-				t.Fatal(err)
-			}
-			request := &admissionv1.AdmissionRequest{
-				Kind:   metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
-				Object: runtime.RawExtension{Raw: objBytes},
-			}
-			if test.objName != nil {
-				request.Name = *test.objName
-			}
-			versionedAttributes, err := RequestToVersionedAttributes(request)
-			if err != nil {
-				t.Fatal(err)
+				req.Name = *test.objName
 			}
 
-			constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
-			if test.matcher != nil {
-				if err := unstructured.SetNestedField(constraint.Object, *test.matcher, "spec", "match", "name"); err != nil {
+			if obj != nil {
+				req.Object = *obj
+			}
+
+			if oldObject != nil {
+				req.OldObject = *oldObject
+			}
+
+			return req
+		}
+
+		expandedTests := []struct {
+			name    string
+			request *admissionv1.AdmissionRequest
+		}{
+			{
+				name:    fmt.Sprintf("%s_obj", test.name),
+				request: makeRequest(raw.DeepCopy(), nil),
+			},
+			{
+				name:    fmt.Sprintf("%s_oldObj", test.name),
+				request: makeRequest(nil, raw.DeepCopy()),
+			},
+			{
+				name:    fmt.Sprintf("%s_obj_oldObj", test.name),
+				request: makeRequest(raw.DeepCopy(), raw.DeepCopy()),
+			},
+		}
+
+		for _, subTest := range expandedTests {
+			t.Run(subTest.name, func(t *testing.T) {
+				filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
+				if err != nil {
 					t.Fatal(err)
 				}
-			}
+				celOpts := cel.OptionalVariableDeclarations{HasParams: true}
+				filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
+				matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchNameGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
 
-			if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
-				t.Error(err)
-			}
-		})
+				constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
+				if test.matcher != nil {
+					if err := unstructured.SetNestedField(constraint.Object, *test.matcher, "spec", "match", "name"); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				versionedAttributes, err := RequestToVersionedAttributes(subTest.request)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
+					t.Error(err)
+				}
+			})
+		}
 	}
 }
 
@@ -538,57 +572,91 @@ func TestMatchNamespacesGlob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			celOpts := cel.OptionalVariableDeclarations{HasParams: true}
-			filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
-			matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchNamespacesGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
+		obj := &unstructured.Unstructured{}
+		if !test.noMetadata {
+			obj.SetName("RandomName")
+		}
 
-			obj := &unstructured.Unstructured{}
-			if !test.noMetadata {
-				obj.SetName("RandomName")
-			}
+		if test.namespace != nil {
+			obj.SetNamespace(*test.namespace)
+		}
 
-			if test.namespace != nil {
-				obj.SetNamespace(*test.namespace)
-			}
+		obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
+		objBytes, err := json.Marshal(obj.Object)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := &runtime.RawExtension{Raw: objBytes}
 
-			obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
-			objBytes, err := json.Marshal(obj.Object)
-			if err != nil {
-				t.Fatal(err)
-			}
-			request := &admissionv1.AdmissionRequest{
-				Kind:   metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
-				Name:   "RandomName",
-				Object: runtime.RawExtension{Raw: objBytes},
+		makeRequest := func(obj, oldObject *runtime.RawExtension) *admissionv1.AdmissionRequest {
+			req := &admissionv1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
+				Name: "RandomName",
 			}
 			if test.namespace != nil {
-				request.Namespace = *test.namespace
-			}
-			versionedAttributes, err := RequestToVersionedAttributes(request)
-			if err != nil {
-				t.Fatal(err)
+				req.Namespace = *test.namespace
 			}
 
-			constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
-			if test.matcher != nil {
-				val, err := test.matcher.ToUnstructured()
+			if obj != nil {
+				req.Object = *obj
+			}
+
+			if oldObject != nil {
+				req.OldObject = *oldObject
+			}
+
+			return req
+		}
+
+		expandedTests := []struct {
+			name    string
+			request *admissionv1.AdmissionRequest
+		}{
+			{
+				name:    fmt.Sprintf("%s_obj", test.name),
+				request: makeRequest(raw.DeepCopy(), nil),
+			},
+			{
+				name:    fmt.Sprintf("%s_oldObj", test.name),
+				request: makeRequest(nil, raw.DeepCopy()),
+			},
+			{
+				name:    fmt.Sprintf("%s_obj_oldObj", test.name),
+				request: makeRequest(raw.DeepCopy(), raw.DeepCopy()),
+			},
+		}
+
+		for _, subTest := range expandedTests {
+			t.Run(subTest.name, func(t *testing.T) {
+				filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := unstructured.SetNestedField(constraint.Object, val, "spec", "match", "namespaces"); err != nil {
+				celOpts := cel.OptionalVariableDeclarations{HasParams: true}
+				filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
+				matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchNamespacesGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
+
+				versionedAttributes, err := RequestToVersionedAttributes(subTest.request)
+				if err != nil {
 					t.Fatal(err)
 				}
-			}
 
-			if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
-				t.Error(err)
-			}
-		})
+				constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
+				if test.matcher != nil {
+					val, err := test.matcher.ToUnstructured()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := unstructured.SetNestedField(constraint.Object, val, "spec", "match", "namespaces"); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
+					t.Error(err)
+				}
+			})
+		}
 	}
 }
 
@@ -678,57 +746,91 @@ func TestMatchExcludedNamespacesGlob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
-			if err != nil {
-				t.Fatal(err)
-			}
-			celOpts := cel.OptionalVariableDeclarations{HasParams: true}
-			filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
-			matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchExcludedNamespacesGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
+		obj := &unstructured.Unstructured{}
+		if !test.noMetadata {
+			obj.SetName("RandomName")
+		}
 
-			obj := &unstructured.Unstructured{}
-			if !test.noMetadata {
-				obj.SetName("RandomName")
-			}
+		if test.namespace != nil {
+			obj.SetNamespace(*test.namespace)
+		}
 
-			if test.namespace != nil {
-				obj.SetNamespace(*test.namespace)
-			}
+		obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
+		objBytes, err := json.Marshal(obj.Object)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := &runtime.RawExtension{Raw: objBytes}
 
-			obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
-			objBytes, err := json.Marshal(obj.Object)
-			if err != nil {
-				t.Fatal(err)
-			}
-			request := &admissionv1.AdmissionRequest{
-				Kind:   metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
-				Name:   "RandomName",
-				Object: runtime.RawExtension{Raw: objBytes},
+		makeRequest := func(obj, oldObject *runtime.RawExtension) *admissionv1.AdmissionRequest {
+			req := &admissionv1.AdmissionRequest{
+				Kind: metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
+				Name: "RandomName",
 			}
 			if test.namespace != nil {
-				request.Namespace = *test.namespace
-			}
-			versionedAttributes, err := RequestToVersionedAttributes(request)
-			if err != nil {
-				t.Fatal(err)
+				req.Namespace = *test.namespace
 			}
 
-			constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
-			if test.matcher != nil {
-				val, err := test.matcher.ToUnstructured()
+			if obj != nil {
+				req.Object = *obj
+			}
+
+			if oldObject != nil {
+				req.OldObject = *oldObject
+			}
+
+			return req
+		}
+
+		expandedTests := []struct {
+			name    string
+			request *admissionv1.AdmissionRequest
+		}{
+			{
+				name:    fmt.Sprintf("%s_obj", test.name),
+				request: makeRequest(raw.DeepCopy(), nil),
+			},
+			{
+				name:    fmt.Sprintf("%s_oldObj", test.name),
+				request: makeRequest(nil, raw.DeepCopy()),
+			},
+			{
+				name:    fmt.Sprintf("%s_obj_oldObj", test.name),
+				request: makeRequest(raw.DeepCopy(), raw.DeepCopy()),
+			},
+		}
+
+		for _, subTest := range expandedTests {
+			t.Run(subTest.name, func(t *testing.T) {
+				filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := unstructured.SetNestedField(constraint.Object, val, "spec", "match", "excludedNamespaces"); err != nil {
+				celOpts := cel.OptionalVariableDeclarations{HasParams: true}
+				filterCompiler.CompileAndStoreVariables(BindParamsCEL(), celOpts, environment.StoredExpressions)
+				matcher := matchconditions.NewMatcher(filterCompiler.Compile(MatchExcludedNamespacesGlobCEL(), celOpts, environment.StoredExpressions), ptr.To[v1.FailurePolicyType](v1.Fail), "matchTest", "name", test.name)
+
+				versionedAttributes, err := RequestToVersionedAttributes(subTest.request)
+				if err != nil {
 					t.Fatal(err)
 				}
-			}
 
-			if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
-				t.Error(err)
-			}
-		})
+				constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
+				if test.matcher != nil {
+					val, err := test.matcher.ToUnstructured()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := unstructured.SetNestedField(constraint.Object, val, "spec", "match", "excludedNamespaces"); err != nil {
+						t.Fatal(err)
+					}
+				}
+
+				if err := shouldMatch(test.shouldMatch, test.shouldErr, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
+					t.Error(err)
+				}
+			})
+		}
 	}
 }
 
