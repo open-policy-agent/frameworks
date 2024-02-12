@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/davecgh/go-spew v1.1.1
-	github.com/golang/glog v1.1.2
+	github.com/golang/glog v1.2.0
 	github.com/google/go-cmp v0.6.0
 	github.com/onsi/gomega v1.31.1
 	github.com/open-policy-agent/opa v0.60.0
