@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // A Driver implements Rego query execution of Templates and Constraints.
 type Driver interface {
+	// Name returns the name of the driver, used to uniquely identify a driver
+	// and in errors returned to the user.
+	Name() string
+
 	// AddTemplate compiles a Template's code to be specified by
 	// Constraints and referenced in Query. Replaces the existing Template if it
 	// already exists.
@@ -29,22 +32,26 @@ type Driver interface {
 	RemoveConstraint(ctx context.Context, constraint *unstructured.Unstructured) error
 
 	// AddData caches data to be used for referential Constraints. Replaces data
-	// if it already exists at the specified path.
+	// if it already exists at the specified path. This is a deprecated method that
+	// will only be called for the "Rego" driver.
 	AddData(ctx context.Context, target string, path storage.Path, data interface{}) error
 	// RemoveData removes cached data, so the data at the specified path can no
-	// longer be used in referential Constraints.
+	// longer be used in referential Constraints. This is a deprecated method that
+	// will only be called for the "Rego" driver.
 	RemoveData(ctx context.Context, target string, path storage.Path) error
 
 	// Query runs the passed target's Constraints against review.
-	//
-	// Returns results for each violated Constraint.
-	// Returns a trace if specified in query options or enabled at Driver creation.
+	// Returns a QueryResponse type.
 	// Returns an error if there was a problem executing the Query.
-	Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...QueryOpt) ([]*types.Result, *string, error)
+	Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...QueryOpt) (*QueryResponse, error)
 
 	// Dump outputs the entire state of compiled Templates, added Constraints, and
 	// cached data used for referential Constraints.
 	Dump(ctx context.Context) (string, error)
+
+	// GetDescriptionForStat returns the description for a given stat name
+	// or errors out for an unknown stat.
+	GetDescriptionForStat(statName string) (string, error)
 }
 
 // ConstraintKey uniquely identifies a Constraint.

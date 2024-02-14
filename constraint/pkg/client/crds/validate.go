@@ -12,6 +12,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	structuralpruning "k8s.io/apiextensions-apiserver/pkg/apiserver/schema/pruning"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apivalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -74,7 +76,11 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 			constraints.ErrInvalidConstraint, cr.GroupVersionKind().Version, cr.GetName(), supportedVersions)
 	}
 
-	validator, _, err := validation.NewSchemaValidator(crd.Spec.Validation)
+	var crdSchema *apiextensions.JSONSchemaProps
+	if crd.Spec.Validation != nil {
+		crdSchema = crd.Spec.Validation.OpenAPIV3Schema
+	}
+	validator, _, err := validation.NewSchemaValidator(crdSchema)
 	if err != nil {
 		return err
 	}
@@ -82,6 +88,17 @@ func ValidateCR(cr *unstructured.Unstructured, crd *apiextensions.CustomResource
 	// Validate the schema last as this is the most expensive operation.
 	if err := validation.ValidateCustomResource(field.NewPath(""), cr, validator); err != nil {
 		return fmt.Errorf("%w: %v", constraints.ErrSchema, err.ToAggregate())
+	}
+
+	// validate that there are no unknown fields in the CR
+	// NewStructural assumes the schema is valid
+	structural, err := schema.NewStructural(crd.Spec.Validation.OpenAPIV3Schema)
+	if err != nil {
+		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, err)
+	}
+	unknownFields := structuralpruning.PruneWithOptions(cr.DeepCopy().Object, structural, true, schema.UnknownFieldPathOptions{TrackUnknownFieldPaths: true})
+	if len(unknownFields) > 0 {
+		return fmt.Errorf("%w: %v", constraints.ErrInvalidConstraint, fmt.Sprintf("unknown fields: %v", unknownFields))
 	}
 
 	return nil

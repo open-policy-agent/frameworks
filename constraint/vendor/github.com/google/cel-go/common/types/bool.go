@@ -62,7 +62,7 @@ func (b Bool) Compare(other ref.Val) ref.Val {
 }
 
 // ConvertToNative implements the ref.Val interface method.
-func (b Bool) ConvertToNative(typeDesc reflect.Type) (interface{}, error) {
+func (b Bool) ConvertToNative(typeDesc reflect.Type) (any, error) {
 	switch typeDesc.Kind() {
 	case reflect.Bool:
 		return reflect.ValueOf(b).Convert(typeDesc).Interface(), nil
@@ -114,6 +114,11 @@ func (b Bool) Equal(other ref.Val) ref.Val {
 	return Bool(ok && b == otherBool)
 }
 
+// IsZeroValue returns true if the boolean value is false.
+func (b Bool) IsZeroValue() bool {
+	return b == False
+}
+
 // Negate implements the traits.Negater interface method.
 func (b Bool) Negate() ref.Val {
 	return !b
@@ -125,17 +130,18 @@ func (b Bool) Type() ref.Type {
 }
 
 // Value implements the ref.Val interface method.
-func (b Bool) Value() interface{} {
+func (b Bool) Value() any {
 	return bool(b)
 }
 
 // IsBool returns whether the input ref.Val or ref.Type is equal to BoolType.
-func IsBool(elem interface{}) bool {
-	switch elem := elem.(type) {
-	case ref.Type:
-		return elem == BoolType
+func IsBool(elem ref.Val) bool {
+	switch v := elem.(type) {
+	case Bool:
+		return true
 	case ref.Val:
-		return IsBool(elem.Type())
+		return v.Type() == BoolType
+	default:
+		return false
 	}
-	return false
 }

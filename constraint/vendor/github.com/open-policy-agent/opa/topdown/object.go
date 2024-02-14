@@ -138,6 +138,17 @@ func builtinObjectGet(_ BuiltinContext, operands []*ast.Term, iter func(*ast.Ter
 	return iter(ast.NewTerm(value))
 }
 
+func builtinObjectKeys(_ BuiltinContext, operands []*ast.Term, iter func(*ast.Term) error) error {
+	object, err := builtins.ObjectOperand(operands[0].Value, 1)
+	if err != nil {
+		return err
+	}
+
+	keys := ast.SetTerm(object.Keys()...)
+
+	return iter(keys)
+}
+
 // getObjectKeysParam returns a set of key values
 // from a supplied ast array, object, set value
 func getObjectKeysParam(arrayOrSet ast.Value) (ast.Set, error) {
@@ -189,7 +200,16 @@ func mergewithOverwriteInPlace(obj, other ast.Object, frozenKeys map[*ast.Term]s
 		v2 := obj.Get(k)
 		// The key didn't exist in other, keep the original value.
 		if v2 == nil {
-			obj.Insert(k, v)
+			nestedObj, ok := v.Value.(ast.Object)
+			if !ok {
+				// v is not an object
+				obj.Insert(k, v)
+			} else {
+				// Copy the nested object so the original object would not be modified
+				nestedObjCopy := nestedObj.Copy()
+				obj.Insert(k, ast.NewTerm(nestedObjCopy))
+			}
+
 			return
 		}
 		// The key exists in both. Merge or reject change.
@@ -214,4 +234,5 @@ func init() {
 	RegisterBuiltinFunc(ast.ObjectRemove.Name, builtinObjectRemove)
 	RegisterBuiltinFunc(ast.ObjectFilter.Name, builtinObjectFilter)
 	RegisterBuiltinFunc(ast.ObjectGet.Name, builtinObjectGet)
+	RegisterBuiltinFunc(ast.ObjectKeys.Name, builtinObjectKeys)
 }

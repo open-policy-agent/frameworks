@@ -1,8 +1,10 @@
 package cts
 
 import (
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
 const (
@@ -27,6 +29,11 @@ var defaults = []Opt{
 
 func New(opts ...Opt) *templates.ConstraintTemplate {
 	tmpl := &templates.ConstraintTemplate{}
+
+	tmpl.Spec.CRD.Spec.Validation = &templates.Validation{}
+	tmpl.Spec.CRD.Spec.Validation.OpenAPIV3Schema = &apiextensions.JSONSchemaProps{
+		Type: "object",
+	}
 
 	opts = append(defaults, opts...)
 	for _, opt := range opts {
@@ -66,7 +73,34 @@ func OptCRDSchema(pm PropMap) Opt {
 }
 
 func Target(name string, rego string, libs ...string) templates.Target {
-	return templates.Target{Target: name, Rego: rego, Libs: libs}
+	return templates.Target{
+		Target: name,
+		Code: []templates.Code{
+			Code(schema.Name, (&schema.Source{Rego: rego, Libs: libs}).ToUnstructured()),
+		},
+	}
+}
+
+func Code(engine string, source interface{}) templates.Code {
+	return templates.Code{
+		Engine: engine,
+		Source: &templates.Anything{
+			Value: source,
+		},
+	}
+}
+
+func TargetCustomEngines(name string, codes ...templates.Code) templates.Target {
+	target := templates.Target{Target: name}
+	target.Code = append(target.Code, codes...)
+	return target
+}
+
+func TargetNoEngine(name string) templates.Target {
+	return templates.Target{
+		Target: name,
+		Code:   []templates.Code{},
+	}
 }
 
 func OptTargets(targets ...templates.Target) Opt {

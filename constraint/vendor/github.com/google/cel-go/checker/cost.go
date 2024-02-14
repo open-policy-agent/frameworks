@@ -88,11 +88,14 @@ func (e astNode) ComputedSize() *SizeEstimate {
 		return e.derivedSize
 	}
 	var v uint64
-	switch ek := e.expr.ExprKind.(type) {
+	switch ek := e.expr.GetExprKind().(type) {
 	case *exprpb.Expr_ConstExpr:
-		switch ck := ek.ConstExpr.ConstantKind.(type) {
+		switch ck := ek.ConstExpr.GetConstantKind().(type) {
 		case *exprpb.Constant_StringValue:
-			v = uint64(len(ck.StringValue))
+			// converting to runes here is an O(n) operation, but
+			// this is consistent with how size is computed at runtime,
+			// and how the language definition defines string size
+			v = uint64(len([]rune(ck.StringValue)))
 		case *exprpb.Constant_BytesValue:
 			v = uint64(len(ck.BytesValue))
 		case *exprpb.Constant_BoolValue, *exprpb.Constant_DoubleValue, *exprpb.Constant_DurationValue,
@@ -103,10 +106,10 @@ func (e astNode) ComputedSize() *SizeEstimate {
 			return nil
 		}
 	case *exprpb.Expr_ListExpr:
-		v = uint64(len(ek.ListExpr.Elements))
+		v = uint64(len(ek.ListExpr.GetElements()))
 	case *exprpb.Expr_StructExpr:
-		if ek.StructExpr.MessageName == "" {
-			v = uint64(len(ek.StructExpr.Entries))
+		if ek.StructExpr.GetMessageName() == "" {
+			v = uint64(len(ek.StructExpr.GetEntries()))
 		}
 	default:
 		return nil
@@ -121,7 +124,7 @@ type SizeEstimate struct {
 }
 
 // Add adds to another SizeEstimate and returns the sum.
-// If add would result in an uint64 overflow, the result is Maxuint64.
+// If add would result in an uint64 overflow, the result is math.MaxUint64.
 func (se SizeEstimate) Add(sizeEstimate SizeEstimate) SizeEstimate {
 	return SizeEstimate{
 		addUint64NoOverflow(se.Min, sizeEstimate.Min),
@@ -130,7 +133,7 @@ func (se SizeEstimate) Add(sizeEstimate SizeEstimate) SizeEstimate {
 }
 
 // Multiply multiplies by another SizeEstimate and returns the product.
-// If multiply would result in an uint64 overflow, the result is Maxuint64.
+// If multiply would result in an uint64 overflow, the result is math.MaxUint64.
 func (se SizeEstimate) Multiply(sizeEstimate SizeEstimate) SizeEstimate {
 	return SizeEstimate{
 		multiplyUint64NoOverflow(se.Min, sizeEstimate.Min),
@@ -148,7 +151,7 @@ func (se SizeEstimate) MultiplyByCostFactor(costPerUnit float64) CostEstimate {
 }
 
 // MultiplyByCost multiplies by the cost and returns the product.
-// If multiply would result in an uint64 overflow, the result is Maxuint64.
+// If multiply would result in an uint64 overflow, the result is math.MaxUint64.
 func (se SizeEstimate) MultiplyByCost(cost CostEstimate) CostEstimate {
 	return CostEstimate{
 		multiplyUint64NoOverflow(se.Min, cost.Min),
@@ -175,7 +178,7 @@ type CostEstimate struct {
 }
 
 // Add adds the costs and returns the sum.
-// If add would result in an uint64 overflow for the min or max, the value is set to Maxuint64.
+// If add would result in an uint64 overflow for the min or max, the value is set to math.MaxUint64.
 func (ce CostEstimate) Add(cost CostEstimate) CostEstimate {
 	return CostEstimate{
 		addUint64NoOverflow(ce.Min, cost.Min),
@@ -184,7 +187,7 @@ func (ce CostEstimate) Add(cost CostEstimate) CostEstimate {
 }
 
 // Multiply multiplies by the cost and returns the product.
-// If multiply would result in an uint64 overflow, the result is Maxuint64.
+// If multiply would result in an uint64 overflow, the result is math.MaxUint64.
 func (ce CostEstimate) Multiply(cost CostEstimate) CostEstimate {
 	return CostEstimate{
 		multiplyUint64NoOverflow(ce.Min, cost.Min),
@@ -258,6 +261,8 @@ type coster struct {
 	computedSizes map[int64]SizeEstimate
 	checkedExpr   *exprpb.CheckedExpr
 	estimator     CostEstimator
+	// presenceTestCost will either be a zero or one based on whether has() macros count against cost computations.
+	presenceTestCost CostEstimate
 }
 
 // Use a stack of iterVar -> iterRange Expr Ids to handle shadowed variable names.
@@ -280,16 +285,39 @@ func (vs iterRangeScopes) peek(varName string) (int64, bool) {
 	return 0, false
 }
 
-// Cost estimates the cost of the parsed and type checked CEL expression.
-func Cost(checker *exprpb.CheckedExpr, estimator CostEstimator) CostEstimate {
-	c := coster{
-		checkedExpr:   checker,
-		estimator:     estimator,
-		exprPath:      map[int64][]string{},
-		iterRanges:    map[string][]int64{},
-		computedSizes: map[int64]SizeEstimate{},
+// CostOption configures flags which affect cost computations.
+type CostOption func(*coster) error
+
+// PresenceTestHasCost determines whether presence testing has a cost of one or zero.
+// Defaults to presence test has a cost of one.
+func PresenceTestHasCost(hasCost bool) CostOption {
+	return func(c *coster) error {
+		if hasCost {
+			c.presenceTestCost = selectAndIdentCost
+			return nil
+		}
+		c.presenceTestCost = CostEstimate{Min: 0, Max: 0}
+		return nil
 	}
-	return c.cost(checker.GetExpr())
+}
+
+// Cost estimates the cost of the parsed and type checked CEL expression.
+func Cost(checker *exprpb.CheckedExpr, estimator CostEstimator, opts ...CostOption) (CostEstimate, error) {
+	c := &coster{
+		checkedExpr:      checker,
+		estimator:        estimator,
+		exprPath:         map[int64][]string{},
+		iterRanges:       map[string][]int64{},
+		computedSizes:    map[int64]SizeEstimate{},
+		presenceTestCost: CostEstimate{Min: 1, Max: 1},
+	}
+	for _, opt := range opts {
+		err := opt(c)
+		if err != nil {
+			return CostEstimate{}, err
+		}
+	}
+	return c.cost(checker.GetExpr()), nil
 }
 
 func (c *coster) cost(e *exprpb.Expr) CostEstimate {
@@ -297,7 +325,7 @@ func (c *coster) cost(e *exprpb.Expr) CostEstimate {
 		return CostEstimate{}
 	}
 	var cost CostEstimate
-	switch e.ExprKind.(type) {
+	switch e.GetExprKind().(type) {
 	case *exprpb.Expr_ConstExpr:
 		cost = constCost
 	case *exprpb.Expr_IdentExpr:
@@ -323,7 +351,7 @@ func (c *coster) costIdent(e *exprpb.Expr) CostEstimate {
 
 	// build and track the field path
 	if iterRange, ok := c.iterRanges.peek(identExpr.GetName()); ok {
-		switch c.checkedExpr.TypeMap[iterRange].TypeKind.(type) {
+		switch c.checkedExpr.TypeMap[iterRange].GetTypeKind().(type) {
 		case *exprpb.Type_ListType_:
 			c.addPath(e, append(c.exprPath[iterRange], "@items"))
 		case *exprpb.Type_MapType_:
@@ -340,6 +368,12 @@ func (c *coster) costSelect(e *exprpb.Expr) CostEstimate {
 	sel := e.GetSelectExpr()
 	var sum CostEstimate
 	if sel.GetTestOnly() {
+		// recurse, but do not add any cost
+		// this is equivalent to how evalTestOnly increments the runtime cost counter
+		// but does not add any additional cost for the qualifier, except here we do
+		// the reverse (ident adds cost)
+		sum = sum.Add(c.presenceTestCost)
+		sum = sum.Add(c.cost(sel.GetOperand()))
 		return sum
 	}
 	sum = sum.Add(c.cost(sel.GetOperand()))
@@ -350,7 +384,7 @@ func (c *coster) costSelect(e *exprpb.Expr) CostEstimate {
 	}
 
 	// build and track the field path
-	c.addPath(e, append(c.getPath(sel.GetOperand()), sel.Field))
+	c.addPath(e, append(c.getPath(sel.GetOperand()), sel.GetField()))
 
 	return sum
 }
@@ -499,11 +533,34 @@ func (c *coster) functionCost(function, overloadID string, target *AstNode, args
 
 	if est := c.estimator.EstimateCallCost(function, overloadID, target, args); est != nil {
 		callEst := *est
-		return CallEstimate{CostEstimate: callEst.Add(argCostSum())}
+		return CallEstimate{CostEstimate: callEst.Add(argCostSum()), ResultSize: est.ResultSize}
 	}
 	switch overloadID {
 	// O(n) functions
-	case overloads.StartsWithString, overloads.EndsWithString, overloads.StringToBytes, overloads.BytesToString:
+	case overloads.ExtFormatString:
+		if target != nil {
+			// ResultSize not calculated because we can't bound the max size.
+			return CallEstimate{CostEstimate: c.sizeEstimate(*target).MultiplyByCostFactor(common.StringTraversalCostFactor).Add(argCostSum())}
+		}
+	case overloads.StringToBytes:
+		if len(args) == 1 {
+			sz := c.sizeEstimate(args[0])
+			// ResultSize max is when each char converts to 4 bytes.
+			return CallEstimate{CostEstimate: sz.MultiplyByCostFactor(common.StringTraversalCostFactor).Add(argCostSum()), ResultSize: &SizeEstimate{Min: sz.Min, Max: sz.Max * 4}}
+		}
+	case overloads.BytesToString:
+		if len(args) == 1 {
+			sz := c.sizeEstimate(args[0])
+			// ResultSize min is when 4 bytes convert to 1 char.
+			return CallEstimate{CostEstimate: sz.MultiplyByCostFactor(common.StringTraversalCostFactor).Add(argCostSum()), ResultSize: &SizeEstimate{Min: sz.Min / 4, Max: sz.Max}}
+		}
+	case overloads.ExtQuoteString:
+		if len(args) == 1 {
+			sz := c.sizeEstimate(args[0])
+			// ResultSize max is when each char is escaped. 2 quote chars always added.
+			return CallEstimate{CostEstimate: sz.MultiplyByCostFactor(common.StringTraversalCostFactor).Add(argCostSum()), ResultSize: &SizeEstimate{Min: sz.Min + 2, Max: sz.Max*2 + 2}}
+		}
+	case overloads.StartsWithString, overloads.EndsWithString:
 		if len(args) == 1 {
 			return CallEstimate{CostEstimate: c.sizeEstimate(args[0]).MultiplyByCostFactor(common.StringTraversalCostFactor).Add(argCostSum())}
 		}

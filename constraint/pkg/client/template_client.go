@@ -10,6 +10,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/defaulting"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -30,6 +32,23 @@ type templateClient struct {
 	// this Template. This is used to validate incoming Constraints before adding
 	// them.
 	crd *apiextensions.CustomResourceDefinition
+
+	// if, for some reason, there was an error adding a pre-cached constraint after
+	// a driver switch, AddTemplate returns an error. We should preserve that state
+	// so that we know a constraint replay should be attempted the next time AddTemplate
+	// is called.
+	needsConstraintReplay bool
+
+	// activeDrivers keeps track of drivers that are in an ambiguous state due to a failed
+	// cross-driver update. This allows us to clean up stale state on old drivers.
+	activeDrivers map[string]bool
+}
+
+func newTemplateClient() *templateClient {
+	return &templateClient{
+		constraints:   make(map[string]*constraintClient),
+		activeDrivers: make(map[string]bool),
+	}
 }
 
 func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructured) error {
@@ -41,6 +60,19 @@ func (e *templateClient) ValidateConstraint(constraint *unstructured.Unstructure
 	}
 
 	return crds.ValidateCR(constraint, e.crd)
+}
+
+// ApplyDefaultParams will apply any default parameters defined in the CRD of the constraint's
+// corresponding template.
+// Assumes ValidateConstraint() is called so the constraint is a valid CRD.
+func (e *templateClient) ApplyDefaultParams(constraint *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+	structural, err := schema.NewStructural(e.crd.Spec.Validation.OpenAPIV3Schema)
+	if err != nil {
+		return nil, err
+	}
+
+	defaulting.Default(constraint.Object, structural)
+	return constraint, nil
 }
 
 func (e *templateClient) getTemplate() *templates.ConstraintTemplate {

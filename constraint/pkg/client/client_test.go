@@ -12,7 +12,10 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
+	fakeschema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -20,7 +23,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
@@ -31,29 +34,29 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 	}{
 		{
 			name:      "Acceptable name",
-			handler:   &handlertest.Handler{Name: pointer.String("test")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("test")},
 			wantError: nil,
 		},
 		{
 			name:      "No name",
-			handler:   &handlertest.Handler{Name: pointer.String("")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("")},
 			wantError: client.ErrCreatingClient,
 		},
 		{
 			name:      "Spaces not allowed",
-			handler:   &handlertest.Handler{Name: pointer.String("asdf asdf")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("asdf asdf")},
 			wantError: client.ErrCreatingClient,
 		},
 		{
 			name:      "Must start with a letter",
-			handler:   &handlertest.Handler{Name: pointer.String("8asdf")},
+			handler:   &handlertest.Handler{Name: ptr.To[string]("8asdf")},
 			wantError: client.ErrCreatingClient,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,18 +80,18 @@ func TestClient_AddData(t *testing.T) {
 	}{
 		{
 			name:        "Handled By Both",
-			handler1:    &handlertest.Handler{Name: pointer.String("h1")},
-			handler2:    &handlertest.Handler{Name: pointer.String("h2")},
+			handler1:    &handlertest.Handler{Name: ptr.To[string]("h1")},
+			handler2:    &handlertest.Handler{Name: ptr.To[string]("h2")},
 			wantHandled: map[string]bool{"h1": true, "h2": true},
 			wantError:   nil,
 		},
 		{
 			name: "Handled By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -97,10 +100,10 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Errored By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -109,11 +112,11 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Errored By Both",
 			handler1: &handlertest.Handler{
-				Name:             pointer.String("h1"),
+				Name:             ptr.To[string]("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
@@ -121,11 +124,11 @@ func TestClient_AddData(t *testing.T) {
 		{
 			name: "Handled By None",
 			handler1: &handlertest.Handler{
-				Name:         pointer.String("h1"),
+				Name:         ptr.To[string]("h1"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: nil,
@@ -135,7 +138,7 @@ func TestClient_AddData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -182,18 +185,18 @@ func TestClient_RemoveData(t *testing.T) {
 	}{
 		{
 			name:        "Handled By Both",
-			handler1:    &handlertest.Handler{Name: pointer.String("h1")},
-			handler2:    &handlertest.Handler{Name: pointer.String("h2")},
+			handler1:    &handlertest.Handler{Name: ptr.To[string]("h1")},
+			handler2:    &handlertest.Handler{Name: ptr.To[string]("h2")},
 			wantHandled: map[string]bool{"h1": true, "h2": true},
 			wantError:   nil,
 		},
 		{
 			name: "Handled By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -202,10 +205,10 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Errored By One",
 			handler1: &handlertest.Handler{
-				Name: pointer.String("h1"),
+				Name: ptr.To[string]("h1"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some error"),
 			},
 			wantHandled: map[string]bool{"h1": true},
@@ -214,11 +217,11 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Errored By Both",
 			handler1: &handlertest.Handler{
-				Name:             pointer.String("h1"),
+				Name:             ptr.To[string]("h1"),
 				ProcessDataError: errors.New("some error"),
 			},
 			handler2: &handlertest.Handler{
-				Name:             pointer.String("h2"),
+				Name:             ptr.To[string]("h2"),
 				ProcessDataError: errors.New("some other error"),
 			},
 			wantError: map[string]bool{"h1": true, "h2": true},
@@ -226,11 +229,11 @@ func TestClient_RemoveData(t *testing.T) {
 		{
 			name: "Handled By None",
 			handler1: &handlertest.Handler{
-				Name:         pointer.String("h1"),
+				Name:         ptr.To[string]("h1"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			handler2: &handlertest.Handler{
-				Name:         pointer.String("h2"),
+				Name:         ptr.To[string]("h2"),
 				ShouldHandle: func(*handlertest.Object) bool { return false },
 			},
 			wantHandled: nil,
@@ -240,7 +243,7 @@ func TestClient_RemoveData(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -316,8 +319,8 @@ func TestClient_AddTemplate(t *testing.T) {
 		{
 			name: "Change targets",
 			targets: []handler.TargetHandler{
-				&handlertest.Handler{Name: pointer.StringPtr("foo")},
-				&handlertest.Handler{Name: pointer.StringPtr("bar")},
+				&handlertest.Handler{Name: ptr.To[string]("foo")},
+				&handlertest.Handler{Name: ptr.To[string]("bar")},
 			},
 			before: cts.New(cts.OptTargets(
 				cts.Target("foo", cts.ModuleDeny),
@@ -367,6 +370,13 @@ func TestClient_AddTemplate(t *testing.T) {
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},
 		{
+			name:        "No Engine",
+			targets:     []handler.TargetHandler{&handlertest.Handler{}},
+			template:    cts.New(cts.OptTargets(cts.TargetNoEngine(handlertest.TargetName))),
+			wantHandled: nil,
+			wantError:   clienterrors.ErrNoDriver,
+		},
+		{
 			name:    "Missing Rule",
 			targets: []handler.TargetHandler{&handlertest.Handler{}},
 			template: cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, `
@@ -390,7 +400,7 @@ r = 5
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -500,7 +510,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -562,7 +572,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -627,7 +637,7 @@ func TestClient_GetTemplate(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -694,7 +704,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -734,7 +744,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	h := &handlertest.Handler{}
 
-	d, err := local.New()
+	d, err := rego.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -858,6 +868,14 @@ func TestClient_AddConstraint(t *testing.T) {
 			wantGetConstraintError: nil,
 		},
 		{
+			name:                   "unknown fields",
+			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
+			constraint:             cts.MakeConstraint(t, "Foos", "foo", cts.Set(int64(3), "spec", "someRandomField")),
+			wantHandled:            nil,
+			wantAddConstraintError: constraints.ErrInvalidConstraint,
+			wantGetConstraintError: client.ErrMissingConstraint,
+		},
+		{
 			name:                   "No Name",
 			template:               cts.New(cts.OptName("foos"), cts.OptCRDNames("Foos")),
 			constraint:             cts.MakeConstraint(t, "Foos", ""),
@@ -915,7 +933,7 @@ func TestClient_AddConstraint(t *testing.T) {
 		{
 			name: "deny all invalid Constraint",
 			target: &handlertest.Handler{
-				ForbiddenEnforcement: pointer.StringPtr("forbidden"),
+				ForbiddenEnforcement: ptr.To[string]("forbidden"),
 			},
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
@@ -935,10 +953,8 @@ func TestClient_AddConstraint(t *testing.T) {
 			name:     "invalid matcher",
 			template: clienttest.TemplateDeny(),
 			constraint: cts.MakeConstraint(t, clienttest.KindDeny, "constraint",
-				cts.Set(int64(3), "spec", "matchNamespace")),
-			wantAddConstraintError: &clienterrors.ErrorMap{
-				handlertest.TargetName: constraints.ErrInvalidConstraint,
-			},
+				cts.Set(int64(3), "spec", "match", "matchNamespace")),
+			wantAddConstraintError: constraints.ErrSchema,
 			wantGetConstraintError: client.ErrMissingConstraint,
 		},
 		{
@@ -956,7 +972,7 @@ func TestClient_AddConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1031,6 +1047,237 @@ func TestClient_AddConstraint(t *testing.T) {
 	}
 }
 
+// TestClient_AddConstraint_withDefaultParams makes sure that we can inject
+// OpenAPIV3 Default parameters into a constraint that does not define its parameters
+// but its template defines defaults for the parameters in the spec's schema.
+func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
+	defaults := []interface{}{"foo", "bar", "baz"}
+	defaults2 := []interface{}{"a", "b", "c"}
+	defaultsJSON := apiextensions.JSON(defaults)
+	defaults2JSON := apiextensions.JSON(defaults2)
+	defaultBuzzJSON := apiextensions.JSON("NOTbuzz")
+
+	target := &handlertest.Handler{}
+	template := cts.New(cts.OptTargets(
+		cts.TargetCustomEngines(
+			handlertest.TargetName,
+			cts.Code("fake", (&fakeschema.Source{RejectWith: "rejected"}).ToUnstructured()),
+		),
+	))
+	constraint := cts.MakeConstraint(t, "Fakes", "fakes")
+
+	defaultHandled := map[string]bool{handlertest.TargetName: true}
+	tcs := []struct {
+		name string
+		// validationSpec will be used to mutate the CRD Spec to show different cases.
+		validationSpec *templates.Validation
+		// constraintSpec will be used to simulate the spec for a constraint
+		// like for a constraint that actually defines a parameter.
+		constraintSpec map[string]interface{}
+
+		wantSpec               map[string]interface{}
+		wantHandled            map[string]bool
+		wantAddConstraintError error
+		wantGetConstraintError error
+	}{
+		{
+			name: "defaults for one",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+				},
+			},
+		},
+		{
+			name: "defaults for two",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"bar": {
+							Type:    "array",
+							Default: &defaults2JSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+					"bar": defaults2,
+				},
+			},
+		},
+		{
+			name: "defaults for two, one mixed",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"bar": {
+							Type:    "array",
+							Default: &defaults2JSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+						"fuzz": {
+							Type:    "string",
+							Default: &defaultBuzzJSON,
+						},
+					},
+				},
+			},
+			constraintSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"fuzz": "buzz",
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo":  defaults,
+					"bar":  defaults2,
+					"fuzz": "buzz",
+				},
+			},
+		},
+		{
+			name: "defaults; rego driver",
+			validationSpec: &templates.Validation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Type: "object",
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"foo": {
+							Type:    "array",
+							Default: &defaultsJSON,
+							Items: &apiextensions.JSONSchemaPropsOrArray{
+								Schema: &apiextensions.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantSpec: map[string]interface{}{
+				"parameters": map[string]interface{}{
+					"foo": defaults,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			// given a baseTemplate and constraint for it
+			baseTemplate := template.DeepCopy()
+			baseConstraint := constraint.DeepCopy()
+
+			// handle tc defaults
+			if tc.wantHandled == nil {
+				tc.wantHandled = defaultHandled
+			}
+			if tc.validationSpec != nil {
+				baseTemplate.Spec.CRD.Spec.Validation = tc.validationSpec
+			}
+			if tc.constraintSpec != nil {
+				baseConstraint.Object["spec"] = tc.constraintSpec
+			}
+
+			c, err := client.NewClient(client.Targets(target), client.Driver(fake.New("fake")))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			if baseTemplate != nil {
+				_, err = c.AddTemplate(ctx, baseTemplate)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// when we add the constraint
+			r, err := c.AddConstraint(ctx, baseConstraint)
+			if !errors.Is(err, tc.wantAddConstraintError) {
+				t.Fatalf("got AddConstraint() error = %v, want %v",
+					err, tc.wantAddConstraintError)
+			}
+
+			if r == nil {
+				t.Fatal("got AddConstraint() == nil, want non-nil")
+			}
+
+			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+
+			cached, err := c.GetConstraint(baseConstraint)
+			if !errors.Is(err, tc.wantGetConstraintError) {
+				t.Fatalf("got GetConstraint() error = %v, want %v",
+					err, tc.wantGetConstraintError)
+			}
+			if tc.wantGetConstraintError != nil {
+				return
+			}
+
+			// we expect the constraints to be parametrized as per the open api v3 defaults
+			if tc.wantSpec != nil {
+				if diff := cmp.Diff(tc.wantSpec, cached.Object["spec"]); diff != "" {
+					t.Error("cached Constraint does not equal wantConstraint constraint", diff)
+				}
+			} else {
+				_, _, err := unstructured.NestedFieldNoCopy(cached.Object, "spec", "parameters")
+				if err != nil {
+					t.Error(err)
+				}
+			}
+		})
+	}
+}
+
 func TestClient_RemoveConstraint(t *testing.T) {
 	tcs := []struct {
 		name        string
@@ -1081,7 +1328,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1173,7 +1420,7 @@ violation[{"msg": "msg"}] {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := local.New(local.Externs(tc.allowedFields...))
+			d, err := rego.New(rego.Externs(tc.allowedFields...))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1245,12 +1492,23 @@ func TestClient_CreateCRD(t *testing.T) {
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1299,7 +1557,7 @@ violation[msg] {msg := "always"}`,
 			name: "multiple targets",
 			targets: []handler.TargetHandler{
 				&handlertest.Handler{},
-				&handlertest.Handler{Name: pointer.String("handler2")},
+				&handlertest.Handler{Name: ptr.To[string]("handler2")},
 			},
 			template: &templates.ConstraintTemplate{
 				ObjectMeta: v1.ObjectMeta{Name: "foo"},
@@ -1311,17 +1569,38 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}, {
-						Target: "handler.2",
-						Rego: `package foo
+										violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+						{
+							Target: "handler.2",
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1340,12 +1619,23 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: "",
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: "",
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want:    nil,
@@ -1364,12 +1654,23 @@ violation[msg] {msg := "always"}`,
 							},
 						},
 					},
-					Targets: []templates.Target{{
-						Target: handlertest.TargetName,
-						Rego: `package foo
+					Targets: []templates.Target{
+						{
+							Target: handlertest.TargetName,
+							Code: []templates.Code{
+								{
+									Engine: schema.Name,
+									Source: &templates.Anything{
+										Value: (&schema.Source{
+											Rego: `package foo
 
-violation[msg] {msg := "always"}`,
-					}},
+											violation[msg] {msg := "always"}`,
+										}).ToUnstructured(),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			want: &apiextensions.CustomResourceDefinition{
@@ -1408,7 +1709,7 @@ violation[msg] {msg := "always"}`,
 					Conversion: &apiextensions.CustomResourceConversion{
 						Strategy: apiextensions.NoneConverter,
 					},
-					PreserveUnknownFields: pointer.BoolPtr(false),
+					PreserveUnknownFields: ptr.To[bool](false),
 				},
 				Status: apiextensions.CustomResourceDefinitionStatus{
 					StoredVersions: []string{"v1beta1"},
@@ -1421,7 +1722,7 @@ violation[msg] {msg := "always"}`,
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			d, err := local.New()
+			d, err := rego.New()
 			if err != nil {
 				t.Fatal(err)
 			}

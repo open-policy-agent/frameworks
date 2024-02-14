@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,15 +13,16 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/local"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/topdown/print"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestClient_Review(t *testing.T) {
@@ -303,10 +305,10 @@ func TestClient_Review(t *testing.T) {
 			namespaces: nil,
 			targets: []handler.TargetHandler{
 				&handlertest.Handler{
-					Name: pointer.StringPtr("foo1"),
+					Name: ptr.To[string]("foo1"),
 				},
 				&handlertest.Handler{
-					Name: pointer.StringPtr("foo2"),
+					Name: ptr.To[string]("foo2"),
 				},
 			},
 			templates: []*templates.ConstraintTemplate{
@@ -540,7 +542,7 @@ func TestClient_Review_Print(t *testing.T) {
 			var printed []string
 			printHook := appendingPrintHook{printed: &printed}
 
-			d, err := local.New(local.PrintEnabled(tc.printEnabled), local.PrintHook(printHook))
+			d, err := rego.New(rego.PrintEnabled(tc.printEnabled), rego.PrintHook(printHook))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -676,7 +678,113 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 	}
 }
 
+// TestE2E_Tracing checks that a Tracing(enabled/disabled) works as expected
+// and that TraceDump reflects API consumer expectations.
 func TestE2E_Tracing(t *testing.T) {
+	tests := []struct {
+		name           string
+		tracingEnabled bool
+		deny           bool
+	}{
+		{
+			name:           "tracing disabled without violations",
+			tracingEnabled: false,
+			deny:           false,
+		},
+		{
+			name:           "tracing enabled with violations",
+			tracingEnabled: true,
+			deny:           true,
+		},
+		{
+			name:           "tracing disabled with violations",
+			tracingEnabled: false,
+			deny:           true,
+		},
+		{
+			name:           "tracing enabled without violations",
+			tracingEnabled: true,
+			deny:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := clienttest.New(t)
+
+			if tt.deny {
+				_, err := c.AddTemplate(ctx, clienttest.TemplateDeny())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo"))
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				_, err := c.AddTemplate(ctx, clienttest.TemplateAllow())
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindAllow, "foo"))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
+
+			rsps, err := c.Review(ctx, obj, drivers.Tracing(tt.tracingEnabled))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			trace := rsps.ByTarget[handlertest.TargetName].Trace
+			if trace == nil && tt.tracingEnabled {
+				t.Fatal("got nil trace but tracing enabled for Review")
+			} else if trace != nil && !tt.tracingEnabled {
+				t.Fatalf("got trace but tracing disabled: <<%v>>", *trace)
+			}
+
+			_, err = c.AddData(ctx, &obj.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			td := rsps.TraceDump()
+			if tt.tracingEnabled {
+				if tt.deny {
+					if !strings.Contains(td, "Trace:") || strings.Contains(td, types.TracingDisabledHeader) {
+						t.Fatalf("did not find a trace when we were expecting to see one: %s", td)
+					}
+				} else {
+					if strings.Contains(td, types.TracingDisabledHeader) {
+						t.Fatalf("tracing is not disabled, we just didn't see a violation: %s", td)
+					}
+				}
+			} else {
+				if tt.deny {
+					if !strings.Contains(td, types.TracingDisabledHeader) {
+						t.Fatalf("tracing is disabled, there shouldn't be a trace: %s", td)
+					}
+				} else {
+					if strings.Contains(td, types.TracingDisabledHeader) {
+						t.Fatalf("tracing is disabled, but there were no violations so \"%s\" shouldn't be present: %s", types.TracingDisabledHeader, td)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestE2E_Tracing_Unmatched tests that non evaluations don't have a misleading
+// message: \"Trace: TRACING DISABLED\" trace on a TraceDump().
+// A non evaluation can occur when a review doesn't match the constraint's match
+// criteria.
+func TestE2E_Tracing_Unmatched(t *testing.T) {
 	tests := []struct {
 		name           string
 		tracingEnabled bool
@@ -688,6 +796,56 @@ func TestE2E_Tracing(t *testing.T) {
 		{
 			name:           "enabled",
 			tracingEnabled: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			c := clienttest.New(t, client.Targets([]handler.TargetHandler{&handlertest.Handler{Cache: &handlertest.Cache{}}}...))
+
+			_, err := c.AddData(ctx, &handlertest.Object{Namespace: "ns"})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddTemplate(ctx, clienttest.TemplateDeny())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddConstraint(ctx, cts.MakeConstraint(t, clienttest.KindDeny, "foo", cts.MatchNamespace("aaa")))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			obj := handlertest.Review{Object: handlertest.Object{Name: "bar", Namespace: "ns"}}
+
+			rsps, err := c.Review(ctx, obj, drivers.Tracing(tt.tracingEnabled))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			td := rsps.TraceDump()
+			if strings.Contains(td, types.TracingDisabledHeader) {
+				t.Fatalf("\"%s\" shouldn't be present: %s", types.TracingDisabledHeader, td)
+			}
+		})
+	}
+}
+
+// TestE2E_DriverStats tests that we can turn on and off the Stats() QueryOpt.
+func TestE2E_DriverStats(t *testing.T) {
+	tests := []struct {
+		name         string
+		statsEnabled bool
+	}{
+		{
+			name:         "disabled",
+			statsEnabled: false,
+		},
+		{
+			name:         "enabled",
+			statsEnabled: true,
 		},
 	}
 
@@ -708,22 +866,71 @@ func TestE2E_Tracing(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, drivers.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, drivers.Stats(tt.statsEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			trace := rsps.ByTarget[handlertest.TargetName].Trace
-			if trace == nil && tt.tracingEnabled {
-				t.Fatal("got nil trace but tracing enabled for Review")
-			} else if trace != nil && !tt.tracingEnabled {
-				t.Fatalf("got trace but tracing disabled: %v", *trace)
-			}
-
-			_, err = c.AddData(ctx, &obj.Object)
-			if err != nil {
-				t.Fatal(err)
+			stats := rsps.StatsEntries
+			if stats == nil && tt.statsEnabled {
+				t.Fatal("got nil stats but stats enabled for Review")
+			} else if len(stats) != 0 && !tt.statsEnabled {
+				t.Fatal("got stats but stats disabled")
 			}
 		})
+	}
+}
+
+func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
+	unknownDriverSource := instrumentation.Source{
+		Type:  instrumentation.EngineSourceType,
+		Value: "unknown_driver",
+	}
+	unknownSourceType := instrumentation.Source{
+		Type:  "unknown_source",
+		Value: "unknown_value",
+	}
+	validSource := instrumentation.RegoSource
+
+	c := clienttest.New(t)
+	tests := []struct {
+		name            string
+		source          instrumentation.Source
+		statName        string
+		expectedUnknown bool
+	}{
+		{
+			name:            "unknown driver source",
+			source:          unknownDriverSource,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "unknown source type",
+			source:          unknownSourceType,
+			statName:        "some_stat_name",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with unknown stat",
+			source:          validSource,
+			statName:        "this_stat_does_not_exist",
+			expectedUnknown: true,
+		},
+		{
+			name:            "valid source type with known stat",
+			source:          validSource,
+			statName:        "templateRunTimeNS",
+			expectedUnknown: false,
+		},
+	}
+
+	for _, tc := range tests {
+		desc := c.GetDescriptionForStat(tc.source, tc.statName)
+		if tc.expectedUnknown && desc != instrumentation.UnknownDescription {
+			t.Errorf("expected unknown description for stat %q, got: %q", tc.statName, desc)
+		} else if !tc.expectedUnknown && desc == instrumentation.UnknownDescription {
+			t.Errorf("expected actual description for stat %q, got: %q", tc.statName, desc)
+		}
 	}
 }

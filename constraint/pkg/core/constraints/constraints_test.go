@@ -125,6 +125,38 @@ func TestSemanticEqual(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "equal labels",
+			c1: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{"labels": map[string]interface{}{"select": "yes"}},
+					"spec":     map[string]interface{}{"a": "b"},
+				},
+			},
+			c2: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{"labels": map[string]interface{}{"select": "yes"}},
+					"spec":     map[string]interface{}{"a": "b"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "different labels",
+			c1: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{"labels": map[string]interface{}{"select": "yes"}},
+					"spec":     map[string]interface{}{"a": "b"},
+				},
+			},
+			c2: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{"labels": map[string]interface{}{"select": "no"}},
+					"spec":     map[string]interface{}{"a": "b"},
+				},
+			},
+			want: false,
+		},
 	}
 
 	for _, tc := range testCases {

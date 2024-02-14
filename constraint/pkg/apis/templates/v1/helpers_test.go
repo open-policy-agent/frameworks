@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestToVersionless(t *testing.T) {
@@ -80,7 +81,7 @@ func TestToVersionless(t *testing.T) {
 							},
 							Validation: &templates.Validation{
 								// A default was applied
-								LegacySchema:    pointer.BoolPtr(false),
+								LegacySchema:    ptr.To[bool](false),
 								OpenAPIV3Schema: schema.VersionlessSchema(),
 							},
 						},
@@ -89,6 +90,16 @@ func TestToVersionless(t *testing.T) {
 						{
 							Target: "sometarget",
 							Rego:   `package hello ; violation[{"msg": "msg"}] { true }`,
+							Code: []templates.Code{
+								{
+									Engine: regoSchema.Name,
+									Source: &templates.Anything{
+										Value: (&regoSchema.Source{
+											Rego: `package hello ; violation[{"msg": "msg"}] { true }`,
+										}).ToUnstructured(),
+									},
+								},
+							},
 						},
 					},
 				},

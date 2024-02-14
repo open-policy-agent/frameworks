@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"reflect"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
 	"github.com/google/cel-go/parser"
-
-	"google.golang.org/protobuf/proto"
 
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -44,7 +44,7 @@ func CheckedExprToAst(checkedExpr *exprpb.CheckedExpr) *Ast {
 // through future calls.
 //
 // Prefer CheckedExprToAst if loading expressions from storage.
-func CheckedExprToAstWithSource(checkedExpr *exprpb.CheckedExpr, src common.Source) *Ast {
+func CheckedExprToAstWithSource(checkedExpr *exprpb.CheckedExpr, src Source) *Ast {
 	refMap := checkedExpr.GetReferenceMap()
 	if refMap == nil {
 		refMap = map[int64]*exprpb.Reference{}
@@ -96,7 +96,7 @@ func ParsedExprToAst(parsedExpr *exprpb.ParsedExpr) *Ast {
 // expression, or if you need to separately check a subset of an expression.
 //
 // Prefer ParsedExprToAst if loading expressions from storage.
-func ParsedExprToAstWithSource(parsedExpr *exprpb.ParsedExpr, src common.Source) *Ast {
+func ParsedExprToAstWithSource(parsedExpr *exprpb.ParsedExpr, src Source) *Ast {
 	si := parsedExpr.GetSourceInfo()
 	if si == nil {
 		si = &exprpb.SourceInfo{}
@@ -241,7 +241,7 @@ func ValueToRefValue(adapter ref.TypeAdapter, v *exprpb.Value) (ref.Val, error) 
 		if err != nil {
 			return nil, err
 		}
-		return adapter.NativeToValue(msg.(proto.Message)), nil
+		return adapter.NativeToValue(msg), nil
 	case *exprpb.Value_MapValue:
 		m := v.GetMapValue()
 		entries := make(map[ref.Val]ref.Val)
