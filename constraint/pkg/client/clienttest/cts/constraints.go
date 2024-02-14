@@ -26,6 +26,11 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 		t.Fatal(err)
 	}
 
+	err = unstructured.SetNestedField(u.Object, "deny", "spec", "enforcementAction")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	for _, arg := range args {
 		err = arg(u)
 		if err != nil {

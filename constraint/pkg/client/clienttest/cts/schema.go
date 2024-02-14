@@ -8,7 +8,8 @@ import (
 type PropMap map[string]apiextensions.JSONSchemaProps
 
 func ExpectedSchema(pm PropMap) *apiextensions.JSONSchemaProps {
-	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string"}
+	defaultEnforcementAction := apiextensions.JSON("deny")
+	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string", Default: &defaultEnforcementAction}
 	p := Prop(
 		PropMap{
 			"metadata": Prop(PropMap{

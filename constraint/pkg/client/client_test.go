@@ -1102,6 +1102,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				"parameters": map[string]interface{}{
 					"foo": defaults,
 				},
+				"enforcementAction": "deny",
 			},
 		},
 		{
@@ -1136,6 +1137,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"foo": defaults,
 					"bar": defaults2,
 				},
+				"enforcementAction": "deny",
 			},
 		},
 		{
@@ -1180,6 +1182,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 					"bar":  defaults2,
 					"fuzz": "buzz",
 				},
+				"enforcementAction": "deny",
 			},
 		},
 		{
@@ -1204,6 +1207,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				"parameters": map[string]interface{}{
 					"foo": defaults,
 				},
+				"enforcementAction": "deny",
 			},
 		},
 	}
