@@ -8,56 +8,57 @@ import (
 	templatesv1beta1 "github.com/open-policy-agent/frameworks/constraint/pkg/apis/templates/v1beta1"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	admissionregistrationv1alpha1 "k8s.io/api/admissionregistration/v1alpha1"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/ptr"
 )
 
-func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1alpha1.ValidatingAdmissionPolicy, error) {
+func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1beta1.ValidatingAdmissionPolicy, error) {
 	source, err := schema.GetSourceFromTemplate(template)
 	if err != nil {
 		return nil, err
 	}
 
-	matchConditions, err := source.GetV1Alpha1MatchConditions()
+	matchConditions, err := source.GetV1Beta1MatchConditions()
 	if err != nil {
 		return nil, err
 	}
-	matchConditions = append(matchConditions, AllMatchersV1Alpha1()...)
+	matchConditions = append(matchConditions, AllMatchersV1Beta1()...)
 
-	validations, err := source.GetV1Alpha1Validatons()
-	if err != nil {
-		return nil, err
-	}
-
-	variables, err := source.GetV1Alpha1Variables()
-	if err != nil {
-		return nil, err
-	}
-	variables = append(variables, AllVariablesV1Alpha1()...)
-
-	failurePolicy, err := source.GetV1alpha1FailurePolicy()
+	validations, err := source.GetV1Beta1Validatons()
 	if err != nil {
 		return nil, err
 	}
 
-	policy := &admissionregistrationv1alpha1.ValidatingAdmissionPolicy{
+	variables, err := source.GetV1Beta1Variables()
+	if err != nil {
+		return nil, err
+	}
+	variables = append(variables, AllVariablesV1Beta1()...)
+
+	failurePolicy, err := source.GetV1Beta1FailurePolicy()
+	if err != nil {
+		return nil, err
+	}
+
+	policy := &admissionregistrationv1beta1.ValidatingAdmissionPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("gatekeeper-%s", template.GetName()),
 		},
-		Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicySpec{
-			ParamKind: &admissionregistrationv1alpha1.ParamKind{
+		Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicySpec{
+			ParamKind: &admissionregistrationv1beta1.ParamKind{
 				APIVersion: fmt.Sprintf("%s/%s", apiconstraints.Group, templatesv1beta1.SchemeGroupVersion.Version),
 				Kind:       template.Spec.CRD.Spec.Names.Kind,
 			},
-			MatchConstraints: &admissionregistrationv1alpha1.MatchResources{
-				ResourceRules: []admissionregistrationv1alpha1.NamedRuleWithOperations{
+			MatchConstraints: &admissionregistrationv1beta1.MatchResources{
+				ResourceRules: []admissionregistrationv1beta1.NamedRuleWithOperations{
 					{
-						RuleWithOperations: admissionregistrationv1alpha1.RuleWithOperations{
-							Operations: []admissionregistrationv1alpha1.OperationType{admissionregistrationv1alpha1.OperationAll},
-							Rule:       admissionregistrationv1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
+						RuleWithOperations: admissionregistrationv1beta1.RuleWithOperations{
+							/// TODO(ritazh): default for now until we can safely expose these to users
+							Operations: []admissionregistrationv1beta1.OperationType{admissionregistrationv1beta1.Create, admissionregistrationv1beta1.Update},
+							Rule:       admissionregistrationv1beta1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
 						},
 					},
 				},
@@ -72,34 +73,34 @@ func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admiss
 	return policy, nil
 }
 
-func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding, error) {
+func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding, error) {
 	enforcementActionStr, err := apiconstraints.GetEnforcementAction(constraint)
 	if err != nil {
 		return nil, err
 	}
 
-	var enforcementAction admissionregistrationv1alpha1.ValidationAction
+	var enforcementAction admissionregistrationv1beta1.ValidationAction
 	switch enforcementActionStr {
 	case apiconstraints.EnforcementActionDeny:
-		enforcementAction = admissionregistrationv1alpha1.Deny
+		enforcementAction = admissionregistrationv1beta1.Deny
 	case "warn":
-		enforcementAction = admissionregistrationv1alpha1.Warn
+		enforcementAction = admissionregistrationv1beta1.Warn
 	default:
 		return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, enforcementActionStr)
 	}
 
-	binding := &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+	binding := &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("gatekeeper-%s", constraint.GetName()),
 		},
-		Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+		Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 			PolicyName: fmt.Sprintf("gatekeeper-%s", strings.ToLower(constraint.GetKind())),
-			ParamRef: &admissionregistrationv1alpha1.ParamRef{
+			ParamRef: &admissionregistrationv1beta1.ParamRef{
 				Name:                    constraint.GetName(),
-				ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+				ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 			},
-			MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
-			ValidationActions: []admissionregistrationv1alpha1.ValidationAction{enforcementAction},
+			MatchResources:    &admissionregistrationv1beta1.MatchResources{},
+			ValidationActions: []admissionregistrationv1beta1.ValidationAction{enforcementAction},
 		},
 	}
 	objectSelectorMap, found, err := unstructured.NestedMap(constraint.Object, "spec", "match", "labelSelector")
