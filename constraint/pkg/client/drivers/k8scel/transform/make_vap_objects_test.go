@@ -10,7 +10,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
-	admissionregistrationv1alpha1 "k8s.io/api/admissionregistration/v1alpha1"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,7 +24,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 		kind        string
 		source      *schema.Source
 		expectedErr error
-		expected    *admissionregistrationv1alpha1.ValidatingAdmissionPolicy
+		expected    *admissionregistrationv1beta1.ValidatingAdmissionPolicy
 	}{
 		{
 			name: "Valid Template",
@@ -51,26 +51,26 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 					},
 				},
 			},
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicy{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-somepolicy",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicySpec{
-					ParamKind: &admissionregistrationv1alpha1.ParamKind{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicySpec{
+					ParamKind: &admissionregistrationv1beta1.ParamKind{
 						APIVersion: "constraints.gatekeeper.sh/v1beta1",
 						Kind:       "SomePolicy",
 					},
-					MatchConstraints: &admissionregistrationv1alpha1.MatchResources{
-						ResourceRules: []admissionregistrationv1alpha1.NamedRuleWithOperations{
+					MatchConstraints: &admissionregistrationv1beta1.MatchResources{
+						ResourceRules: []admissionregistrationv1beta1.NamedRuleWithOperations{
 							{
-								RuleWithOperations: admissionregistrationv1alpha1.RuleWithOperations{
-									Operations: []admissionregistrationv1alpha1.OperationType{admissionregistrationv1alpha1.OperationAll},
-									Rule:       admissionregistrationv1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
+								RuleWithOperations: admissionregistrationv1beta1.RuleWithOperations{
+									Operations: []admissionregistrationv1beta1.OperationType{admissionregistrationv1beta1.Create, admissionregistrationv1beta1.Update},
+									Rule:       admissionregistrationv1beta1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"*"}},
 								},
 							},
 						},
 					},
-					MatchConditions: []admissionregistrationv1alpha1.MatchCondition{
+					MatchConditions: []admissionregistrationv1beta1.MatchCondition{
 						{
 							Name:       "must_match_something",
 							Expression: "true == true",
@@ -92,15 +92,15 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 							Expression: matchKinds,
 						},
 					},
-					Validations: []admissionregistrationv1alpha1.Validation{
+					Validations: []admissionregistrationv1beta1.Validation{
 						{
 							Expression:        "1 == 1",
 							Message:           "some fallback message",
 							MessageExpression: `"some CEL string"`,
 						},
 					},
-					FailurePolicy: ptr.To[admissionregistrationv1alpha1.FailurePolicyType](admissionregistrationv1alpha1.Fail),
-					Variables: []admissionregistrationv1alpha1.Variable{
+					FailurePolicy: ptr.To[admissionregistrationv1beta1.FailurePolicyType](admissionregistrationv1beta1.Fail),
+					Variables: []admissionregistrationv1beta1.Variable{
 						{
 							Name:       "my_variable",
 							Expression: "true",
@@ -272,120 +272,120 @@ func TestConstraintToBinding(t *testing.T) {
 		name        string
 		constraint  *unstructured.Unstructured
 		expectedErr error
-		expected    *admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding
+		expected    *admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding
 	}{
 		{
 			name:       "empty constraint",
 			constraint: newTestConstraint("", nil, nil),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
+					MatchResources:    &admissionregistrationv1beta1.MatchResources{},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Deny},
 				},
 			},
 		},
 		{
 			name:       "with object selector",
 			constraint: newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources: &admissionregistrationv1alpha1.MatchResources{
+					MatchResources: &admissionregistrationv1beta1.MatchResources{
 						ObjectSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
 					},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Deny},
 				},
 			},
 		},
 		{
 			name:       "with namespace selector",
 			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources: &admissionregistrationv1alpha1.MatchResources{
+					MatchResources: &admissionregistrationv1beta1.MatchResources{
 						NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
 					},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Deny},
 				},
 			},
 		},
 		{
 			name:       "with both selectors",
 			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources: &admissionregistrationv1alpha1.MatchResources{
+					MatchResources: &admissionregistrationv1beta1.MatchResources{
 						ObjectSelector:    &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}},
 						NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}},
 					},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Deny},
 				},
 			},
 		},
 		{
 			name:       "with explicit deny",
 			constraint: newTestConstraint("deny", nil, nil),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Deny},
+					MatchResources:    &admissionregistrationv1beta1.MatchResources{},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Deny},
 				},
 			},
 		},
 		{
 			name:       "with warn",
 			constraint: newTestConstraint("warn", nil, nil),
-			expected: &admissionregistrationv1alpha1.ValidatingAdmissionPolicyBinding{
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
 				},
-				Spec: admissionregistrationv1alpha1.ValidatingAdmissionPolicyBindingSpec{
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
 					PolicyName: "gatekeeper-footemplate",
-					ParamRef: &admissionregistrationv1alpha1.ParamRef{
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
 						Name:                    "foo-name",
-						ParameterNotFoundAction: ptr.To[admissionregistrationv1alpha1.ParameterNotFoundActionType](admissionregistrationv1alpha1.AllowAction),
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 					},
-					MatchResources:    &admissionregistrationv1alpha1.MatchResources{},
-					ValidationActions: []admissionregistrationv1alpha1.ValidationAction{admissionregistrationv1alpha1.Warn},
+					MatchResources:    &admissionregistrationv1beta1.MatchResources{},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Warn},
 				},
 			},
 		},

@@ -2,7 +2,7 @@ package transform
 
 import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
-	admissionregistrationv1alpha1 "k8s.io/api/admissionregistration/v1alpha1"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apiserver/pkg/admission/plugin/cel"
 	"k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/matchconditions"
@@ -84,15 +84,15 @@ const (
 	`
 )
 
-func MatchExcludedNamespacesGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
-	return admissionregistrationv1alpha1.MatchCondition{
+func MatchExcludedNamespacesGlobV1Beta1() admissionregistrationv1beta1.MatchCondition {
+	return admissionregistrationv1beta1.MatchCondition{
 		Name:       "gatekeeper_internal_match_excluded_namespaces",
 		Expression: matchExcludedNamespacesGlob,
 	}
 }
 
 func MatchExcludedNamespacesGlobCEL() []cel.ExpressionAccessor {
-	mc := MatchExcludedNamespacesGlobV1Alpha1()
+	mc := MatchExcludedNamespacesGlobV1Beta1()
 	return []cel.ExpressionAccessor{
 		&matchconditions.MatchCondition{
 			Name:       mc.Name,
@@ -101,15 +101,15 @@ func MatchExcludedNamespacesGlobCEL() []cel.ExpressionAccessor {
 	}
 }
 
-func MatchNamespacesGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
-	return admissionregistrationv1alpha1.MatchCondition{
+func MatchNamespacesGlobV1Beta1() admissionregistrationv1beta1.MatchCondition {
+	return admissionregistrationv1beta1.MatchCondition{
 		Name:       "gatekeeper_internal_match_namespaces",
 		Expression: matchNamespacesGlob,
 	}
 }
 
 func MatchNamespacesGlobCEL() []cel.ExpressionAccessor {
-	mc := MatchNamespacesGlobV1Alpha1()
+	mc := MatchNamespacesGlobV1Beta1()
 	return []cel.ExpressionAccessor{
 		&matchconditions.MatchCondition{
 			Name:       mc.Name,
@@ -118,15 +118,15 @@ func MatchNamespacesGlobCEL() []cel.ExpressionAccessor {
 	}
 }
 
-func MatchNameGlobV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
-	return admissionregistrationv1alpha1.MatchCondition{
+func MatchNameGlobV1Beta1() admissionregistrationv1beta1.MatchCondition {
+	return admissionregistrationv1beta1.MatchCondition{
 		Name:       "gatekeeper_internal_match_name",
 		Expression: matchNameGlob,
 	}
 }
 
 func MatchNameGlobCEL() []cel.ExpressionAccessor {
-	mc := MatchNameGlobV1Alpha1()
+	mc := MatchNameGlobV1Beta1()
 	return []cel.ExpressionAccessor{
 		&matchconditions.MatchCondition{
 			Name:       mc.Name,
@@ -135,15 +135,15 @@ func MatchNameGlobCEL() []cel.ExpressionAccessor {
 	}
 }
 
-func MatchKindsV1Alpha1() admissionregistrationv1alpha1.MatchCondition {
-	return admissionregistrationv1alpha1.MatchCondition{
+func MatchKindsV1Beta1() admissionregistrationv1beta1.MatchCondition {
+	return admissionregistrationv1beta1.MatchCondition{
 		Name:       "gatekeeper_internal_match_kinds",
 		Expression: matchKinds,
 	}
 }
 
 func MatchKindsCEL() []cel.ExpressionAccessor {
-	mc := MatchKindsV1Alpha1()
+	mc := MatchKindsV1Beta1()
 	return []cel.ExpressionAccessor{
 		&matchconditions.MatchCondition{
 			Name:       mc.Name,
@@ -152,15 +152,15 @@ func MatchKindsCEL() []cel.ExpressionAccessor {
 	}
 }
 
-func BindParamsV1Alpha1() admissionregistrationv1alpha1.Variable {
-	return admissionregistrationv1alpha1.Variable{
+func BindParamsV1Beta1() admissionregistrationv1beta1.Variable {
+	return admissionregistrationv1beta1.Variable{
 		Name:       schema.ParamsName,
 		Expression: "!has(params.spec) ? null : !has(params.spec.parameters) ? null: params.spec.parameters",
 	}
 }
 
 func BindParamsCEL() []cel.NamedExpressionAccessor {
-	v := BindParamsV1Alpha1()
+	v := BindParamsV1Beta1()
 	return []cel.NamedExpressionAccessor{
 		&validatingadmissionpolicy.Variable{
 			Name:       v.Name,
@@ -169,12 +169,12 @@ func BindParamsCEL() []cel.NamedExpressionAccessor {
 	}
 }
 
-func AllMatchersV1Alpha1() []admissionregistrationv1alpha1.MatchCondition {
-	return []admissionregistrationv1alpha1.MatchCondition{
-		MatchExcludedNamespacesGlobV1Alpha1(),
-		MatchNamespacesGlobV1Alpha1(),
-		MatchNameGlobV1Alpha1(),
-		MatchKindsV1Alpha1(),
+func AllMatchersV1Beta1() []admissionregistrationv1beta1.MatchCondition {
+	return []admissionregistrationv1beta1.MatchCondition{
+		MatchExcludedNamespacesGlobV1Beta1(),
+		MatchNamespacesGlobV1Beta1(),
+		MatchNameGlobV1Beta1(),
+		MatchKindsV1Beta1(),
 	}
 }
 
@@ -182,8 +182,8 @@ func AllVariablesCEL() []cel.NamedExpressionAccessor {
 	return BindParamsCEL()
 }
 
-func AllVariablesV1Alpha1() []admissionregistrationv1alpha1.Variable {
-	return []admissionregistrationv1alpha1.Variable{
-		BindParamsV1Alpha1(),
+func AllVariablesV1Beta1() []admissionregistrationv1beta1.Variable {
+	return []admissionregistrationv1beta1.Variable{
+		BindParamsV1Beta1(),
 	}
 }
