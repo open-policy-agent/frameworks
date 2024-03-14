@@ -337,7 +337,7 @@ func TestValidation(t *testing.T) {
 			expectedViolations: true,
 		},
 		{
-			name: "Unsatisfied constraint, VAP disabled, all override",
+			name: "Unsatisfied constraint, VAP disabled (default == nil), all override",
 			template: makeTemplateWithSource(&schema.Source{
 				Validations: []schema.Validation{
 					{
@@ -377,79 +377,68 @@ func TestValidation(t *testing.T) {
 
 func TestAssumeVAPEnforcement(t *testing.T) {
 	tests := []struct {
-		name        string
-		template    *templates.ConstraintTemplate
-		vapDefault  *vapDefault
-		expected    bool
-		expectedErr bool
+		name       string
+		template   *templates.ConstraintTemplate
+		vapDefault *vapDefault
+		expected   bool
 	}{
 		{
-			name:        "Enabled, default not set => no consideration of VAP enforcement",
-			template:    makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			expected:    false,
-			expectedErr: false,
+			name:     "Enabled, default not set => no consideration of VAP enforcement",
+			template: makeTemplate(ptr.To[string](string(VAPDefaultYes))),
+			expected: false,
 		},
 		{
-			name:        "No stance, default enabled",
-			template:    makeTemplate(nil),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultYes),
-			expected:    true,
-			expectedErr: false,
+			name:       "No stance, default enabled",
+			template:   makeTemplate(nil),
+			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			expected:   true,
 		},
 		{
-			name:        "No stance, default disabled",
-			template:    makeTemplate(nil),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultNo),
-			expected:    false,
-			expectedErr: false,
+			name:       "No stance, default disabled",
+			template:   makeTemplate(nil),
+			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			expected:   false,
 		},
 		{
-			name:        "Enabled, default 'no'",
-			template:    makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultNo),
-			expected:    true,
-			expectedErr: false,
+			name:       "Enabled, default 'no'",
+			template:   makeTemplate(ptr.To[string](string(VAPDefaultYes))),
+			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			expected:   true,
 		},
 		{
-			name:        "Enabled, default 'yes'",
-			template:    makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultYes),
-			expected:    true,
-			expectedErr: false,
+			name:       "Enabled, default 'yes'",
+			template:   makeTemplate(ptr.To[string](string(VAPDefaultYes))),
+			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			expected:   true,
 		},
 		{
-			name:        "Disabled, default 'yes'",
-			template:    makeTemplate(ptr.To[string](string(VAPDefaultNo))),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultYes),
-			expected:    false,
-			expectedErr: false,
+			name:       "Disabled, default 'yes'",
+			template:   makeTemplate(ptr.To[string](string(VAPDefaultNo))),
+			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			expected:   false,
 		},
 		{
-			name:        "Disabled, default 'no'",
-			template:    makeTemplate(ptr.To[string](string(VAPDefaultNo))),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultNo),
-			expected:    false,
-			expectedErr: false,
+			name:       "Disabled, default 'no'",
+			template:   makeTemplate(ptr.To[string](string(VAPDefaultNo))),
+			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			expected:   false,
 		},
 		{
-			name:        "Nonsense value, default not set => nonsense ignored",
-			template:    makeTemplate(ptr.To[string]("catshaveclaws")),
-			expected:    false,
-			expectedErr: false,
+			name:     "Nonsense value, default not set => nonsense ignored",
+			template: makeTemplate(ptr.To[string]("catshaveclaws")),
+			expected: false,
 		},
 		{
-			name:        "Nonsense value, default set",
-			template:    makeTemplate(ptr.To[string]("catshaveclaws")),
-			vapDefault:  ptr.To[vapDefault](VAPDefaultNo),
-			expected:    false,
-			expectedErr: true,
+			name:       "Nonsense value, default set",
+			template:   makeTemplate(ptr.To[string]("catshaveclaws")),
+			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			expected:   false,
 		},
 		{
-			name:        "No stance, nonsense default (should not be possible w/type system)",
-			template:    makeTemplate(nil),
-			vapDefault:  ptr.To[vapDefault](vapDefault("catshaveclaws")),
-			expected:    false,
-			expectedErr: true,
+			name:       "Nonsense value, default set to yes",
+			template:   makeTemplate(ptr.To[string]("catshaveclaws")),
+			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			expected:   true,
 		},
 	}
 	for _, test := range tests {
@@ -462,10 +451,7 @@ func TestAssumeVAPEnforcement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assumeVAP, err := driver.assumeVAPEnforcement(test.template)
-			if (err != nil) != test.expectedErr {
-				t.Errorf("wanted error state to be %v; got %v", test.expectedErr, err != nil)
-			}
+			assumeVAP := driver.assumeVAPEnforcement(test.template)
 			if assumeVAP != test.expected {
 				t.Errorf("wanted assumeVAP to be %v; got %v", test.expected, assumeVAP)
 			}

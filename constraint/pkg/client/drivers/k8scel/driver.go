@@ -121,10 +121,7 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 		failurePolicy,
 	)
 
-	assumeVAPEnforcement, err := d.assumeVAPEnforcement(ct)
-	if err != nil {
-		return err
-	}
+	assumeVAPEnforcement := d.assumeVAPEnforcement(ct)
 
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -195,10 +192,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 			return nil, fmt.Errorf("unknown constraint template validator: %s", constraint.GetKind())
 		}
 
-		assumeVAPEnforcementNotDisabled, err := assumeVAPEnforcementWithDefault(constraint, VAPDefaultYes)
-		if err != nil {
-			return nil, err
-		}
+		assumeVAPEnforcementNotDisabled := assumeVAPEnforcementWithDefault(constraint, VAPDefaultYes)
 
 		// if we assume VAP enforcement for a given constraint/template combo, Gatekeeper
 		// should not be evaluating that constraint/template in an admission context.
@@ -268,18 +262,18 @@ func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 	}
 }
 
-func (d *Driver) assumeVAPEnforcement(obj runtime.Object) (bool, error) {
+func (d *Driver) assumeVAPEnforcement(obj runtime.Object) bool {
 	if d.generateVAPDefault == nil {
-		return false, nil
+		return false
 	}
 
 	return assumeVAPEnforcementWithDefault(obj, *d.generateVAPDefault)
 }
 
-func assumeVAPEnforcementWithDefault(obj runtime.Object, vapDef vapDefault) (bool, error) {
+func assumeVAPEnforcementWithDefault(obj runtime.Object, vapDef vapDefault) bool {
 	meta, err := apimeta.Accessor(obj)
 	if err != nil {
-		return false, err
+		return false
 	}
 	labels := meta.GetLabels()
 	if labels == nil {
@@ -291,11 +285,12 @@ func assumeVAPEnforcementWithDefault(obj runtime.Object, vapDef vapDefault) (boo
 	}
 	switch vapDefault(shouldGen) {
 	case VAPDefaultYes:
-		return true, nil
+		return true
 	case VAPDefaultNo:
-		return false, nil
+		return false
+	// on unrecognized value, use the default
 	default:
-		return false, fmt.Errorf("unknown VAP generation label value, %q, should be \"yes\" or \"no\"", shouldGen)
+		return vapDef == VAPDefaultYes
 	}
 }
 
