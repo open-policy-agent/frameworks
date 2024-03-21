@@ -197,7 +197,7 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ string, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
