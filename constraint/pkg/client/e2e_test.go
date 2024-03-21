@@ -45,7 +45,7 @@ func TestClient_Review(t *testing.T) {
 			targets:     []handler.TargetHandler{&handlertest.Handler{}},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:       "deny missing Constraint",
@@ -56,7 +56,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:    "deny all",
@@ -74,7 +74,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:    "wrong review type",
@@ -88,7 +88,7 @@ func TestClient_Review(t *testing.T) {
 			toReview:    handlertest.Object{Name: "foo"},
 			wantErr:     &clienterrors.ErrorMap{handlertest.TargetName: client.ErrReview},
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:    "ignored review",
@@ -102,7 +102,7 @@ func TestClient_Review(t *testing.T) {
 			toReview:    handlertest.Review{Ignored: true, Object: handlertest.Object{Name: "foo"}},
 			wantErr:     nil,
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:    "deny all duplicate Constraint",
@@ -121,7 +121,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "deny all dryrun",
@@ -140,7 +140,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: "dryrun",
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint", cts.EnforcementAction("dryrun")),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "deny all library",
@@ -159,7 +159,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "allow all",
@@ -173,7 +173,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:       "check data allow",
@@ -187,7 +187,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:       "check data deny",
@@ -206,7 +206,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "rego runtime error",
@@ -225,7 +225,7 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeConstraint(t, clienttest.KindRuntimeError, "constraint"),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "autoreject",
@@ -246,7 +246,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("aaa")),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "autoreject and fail",
@@ -275,7 +275,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
 					cts.WantData("qux"), cts.EnforcementAction("warn")),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "namespace matches",
@@ -298,7 +298,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "namespace does not match",
@@ -315,7 +315,7 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("shipping", "foo", "qux"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:       "update Template target",
@@ -342,7 +342,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, cts.MockTemplate, "bar"),
 				EnforcementAction: constraints.EnforcementActionDeny,
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "referential constraint allow",
@@ -360,7 +360,7 @@ func TestClient_Review(t *testing.T) {
 			}},
 			toReview:    handlertest.NewReview("", "foo-2", "qux"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
 		},
 		{
 			name:       "referential constraint deny",
@@ -383,7 +383,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
 				EnforcementAction: constraints.EnforcementActionDeny,
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "deny future",
@@ -403,7 +403,7 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, clienttest.KindFuture, "constraint"),
 				EnforcementAction: constraints.EnforcementActionDeny,
 			}},
-			sourceEP: "audit.gatekeeper.sh",
+			sourceEP: "",
 		},
 		{
 			name:       "allow future",
@@ -418,7 +418,40 @@ func TestClient_Review(t *testing.T) {
 			inventory:   nil,
 			toReview:    handlertest.NewReview("", "foo", "3"),
 			wantResults: nil,
-			sourceEP:    "audit.gatekeeper.sh",
+			sourceEP:    "",
+		},
+		{
+			name:       "deny with scoped audit EP",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, constraints.AuditEnforcementPoint, constraints.WebhookEnforcementPoint),
+			},
+			toReview: handlertest.NewReview("", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "denied",
+				EnforcementAction: constraints.EnforcementActionDeny,
+				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, constraints.AuditEnforcementPoint, constraints.WebhookEnforcementPoint),
+			}},
+			sourceEP: constraints.AuditEnforcementPoint,
+		},
+		{
+			name:       "deny with scoped audit EP and webhook caller",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, constraints.AuditEnforcementPoint),
+			},
+			toReview:    handlertest.NewReview("", "foo", "bar"),
+			wantResults: nil,
+			sourceEP:    constraints.WebhookEnforcementPoint,
 		},
 	}
 
@@ -495,7 +528,7 @@ func TestClient_Review_Details(t *testing.T) {
 		},
 	}
 
-	responses, err := c.Review(ctx, review, "audit.gatekeeper.sh")
+	responses, err := c.Review(ctx, review, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -584,7 +617,7 @@ func TestClient_Review_Print(t *testing.T) {
 				t.Fatalf("got AddConstraint: %v", err)
 			}
 
-			rsps, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "hanna"}}, "audit.gatekeeper.sh")
+			rsps, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "hanna"}}, "")
 			if err != nil {
 				t.Fatalf("got Review: %v", err)
 			}
@@ -616,7 +649,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	responses, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "audit.gatekeeper.sh")
+	responses, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,7 +671,7 @@ func TestE2E_RemoveConstraint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	responses2, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "audit.gatekeeper.sh")
+	responses2, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -665,7 +698,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	responses, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "audit.gatekeeper.sh")
+	responses, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -687,7 +720,7 @@ func TestE2E_RemoveTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	responses2, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "audit.gatekeeper.sh")
+	responses2, err := c.Review(ctx, handlertest.Review{Object: handlertest.Object{Name: "bar"}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -759,7 +792,7 @@ func TestE2E_Tracing(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, "audit.gatekeeper.sh", drivers.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, "", drivers.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -842,7 +875,7 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar", Namespace: "ns"}}
 
-			rsps, err := c.Review(ctx, obj, "audit.gatekeeper.sh", drivers.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, "", drivers.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -888,7 +921,7 @@ func TestE2E_DriverStats(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, "audit.gatekeeper.sh", drivers.Stats(tt.statsEnabled))
+			rsps, err := c.Review(ctx, obj, "", drivers.Stats(tt.statsEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}

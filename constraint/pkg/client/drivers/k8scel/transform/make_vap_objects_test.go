@@ -403,7 +403,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": "admission.k8s.io",
+										"name": constraints.WebhookEnforcementPoint,
 									},
 								},
 								"action": "warn",
@@ -445,7 +445,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]string{
-										"name": "gator.gatekeeper.sh",
+										"name": constraints.GatorEnforcementPoint,
 									},
 								},
 								"action": "warn",
@@ -453,7 +453,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]string{
-										"name": "audit.gatekeeper.sh",
+										"name": constraints.AuditEnforcementPoint,
 									},
 								},
 								"action": "deny",

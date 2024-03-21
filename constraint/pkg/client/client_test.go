@@ -968,6 +968,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				handlertest.TargetName: true,
 			},
 		},
+		{},
 	}
 
 	for _, tc := range tcs {

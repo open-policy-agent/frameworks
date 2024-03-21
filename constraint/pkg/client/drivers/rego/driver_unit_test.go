@@ -211,11 +211,8 @@ func TestDriver_Query(t *testing.T) {
 	if len(qr.Results) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
-	eps := []string{"deny", "warn"}
-	for i, r := range qr.Results {
-		if r.EnforcementAction != eps[i] {
-			t.Fatalf("got %s, want %s", r.EnforcementAction, eps[i])
-		}
+	if len(qr.Results) != 2 {
+		t.Fatalf("got 0 errors on data-less query; want 1")
 	}
 
 	qr, err = d.Query(

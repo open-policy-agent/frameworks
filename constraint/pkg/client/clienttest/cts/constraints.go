@@ -46,15 +46,15 @@ func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, actions []
 
 	scopedEnforcementActions := make([]interface{}, len(actions))
 
-	for _, action := range actions {
+	for i, action := range actions {
 		enfocementPoints := make([]interface{}, len(eps))
-		for _, point := range eps {
-			enfocementPoints = append(enfocementPoints, map[string]interface{}{"name": point})
+		for j, point := range eps {
+			enfocementPoints[j] = map[string]interface{}{"name": point}
 		}
-		scopedEnforcementActions = append(scopedEnforcementActions, map[string]interface{}{
+		scopedEnforcementActions[i] = map[string]interface{}{
 			"enforcementPoints": enfocementPoints,
 			"action":            action,
-		})
+		}
 	}
 
 	u := &unstructured.Unstructured{Object: map[string]interface{}{
