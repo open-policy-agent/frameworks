@@ -41,6 +41,48 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	return u
 }
 
+func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, actions []string, eps ...string) *unstructured.Unstructured {
+	t.Helper()
+
+	scopedEnforcementActions := make([]interface{}, len(actions))
+
+	for _, action := range actions {
+		enfocementPoints := make([]interface{}, len(eps))
+		for _, point := range eps {
+			enfocementPoints = append(enfocementPoints, map[string]interface{}{"name": point})
+		}
+		scopedEnforcementActions = append(scopedEnforcementActions, map[string]interface{}{
+			"enforcementPoints": enfocementPoints,
+			"action":            action,
+		})
+	}
+
+	u := &unstructured.Unstructured{Object: map[string]interface{}{
+		"spec": map[string]interface{}{
+			"scopedEnforcementActions": scopedEnforcementActions,
+		},
+	}}
+
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   constraints.Group,
+		Version: "v1beta1",
+		Kind:    kind,
+	})
+	u.SetName(name)
+
+	err := unstructured.SetNestedField(u.Object, make(map[string]interface{}), "spec", "parameters")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = unstructured.SetNestedField(u.Object, "scoped", "spec", "enforcementAction")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return u
+}
+
 type ConstraintArg func(*unstructured.Unstructured) error
 
 // MatchNamespace modifies the Constraint to only match objects with the passed

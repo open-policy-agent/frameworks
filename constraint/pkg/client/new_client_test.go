@@ -25,6 +25,11 @@ func TestNewClient(t *testing.T) {
 			clientOpts: []client.Opt{client.Targets(&handlertest.Handler{})},
 			wantError:  nil,
 		},
+		{
+			name:       "with enforcement points",
+			clientOpts: []client.Opt{client.Targets(&handlertest.Handler{})},
+			wantError:  nil,
+		},
 	}
 
 	for _, tc := range testCases {

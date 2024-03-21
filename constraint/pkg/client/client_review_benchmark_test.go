@@ -110,7 +110,7 @@ func BenchmarkClient_Review(b *testing.B) {
 					// Run Review queries in parallel.
 					b.RunParallel(func(pb *testing.PB) {
 						for pb.Next() {
-							_, err := c.Review(ctx, tt.review)
+							_, err := c.Review(ctx, tt.review, "audit.gatekeeper.sh")
 							if err != nil {
 								b.Fatal(err)
 							}
