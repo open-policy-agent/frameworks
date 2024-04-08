@@ -1,8 +1,8 @@
 # When updating this, make sure to update the corresponding action in
 # workflow.yaml
-GOLANGCI_LINT_VERSION ?= 1.50.0
+GOLANGCI_LINT_VERSION ?= 1.57.1
 KUSTOMIZE_VERSION ?= 3.8.9
-KUBERNETES_VERSION ?= 1.26.0
+KUBERNETES_VERSION ?= 1.29.0
 
 # Detects the location of the user golangci-lint cache.
 GOLANGCI_LINT_CACHE := $(shell pwd)/.tmp/golangci-lint
@@ -36,9 +36,9 @@ install: manifests
 
 # Install the generation dependencies on the local machine
 gen-dependencies:
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.10.0
-	go install k8s.io/code-generator/cmd/conversion-gen@v0.25.4
-	go install k8s.io/code-generator/cmd/defaulter-gen@v0.25.4
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
+	go install k8s.io/code-generator/cmd/conversion-gen@v0.29.3
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.29.3
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
@@ -56,10 +56,10 @@ manifests:
 # across systems.
 # Source: https://golangci-lint.run/usage/install/#docker
 lint:
-	docker run --rm -v $(shell pwd):/app \
+	docker run -t --rm -v $(shell pwd):/app \
 		-v ${GOLANGCI_LINT_CACHE}:/root/.cache/golangci-lint \
-		-w /app golangci/golangci-lint:v${GOLANGCI_LINT_VERSION}-alpine \
-		golangci-lint run -v
+		-w /app golangci/golangci-lint:v${GOLANGCI_LINT_VERSION} \
+		golangci-lint run -v --fix
 
 # Generate code
 # Not working?  Try running `make gen-dependencies`
