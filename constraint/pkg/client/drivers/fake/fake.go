@@ -197,7 +197,7 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ string, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
@@ -205,7 +205,7 @@ func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.
 			Msg:        fmt.Sprintf("rejected by driver %s: %s", d.name, d.code[strings.ToLower(constraint.GetObjectKind().GroupVersionKind().Kind)]),
 			Constraint: constraint,
 			// TODO: the engine should not determine the enforcement action -- that does not work with CEL KEP
-			EnforcementAction: apiconstraints.EnforcementActionDeny,
+			EnforcementAction: []string{apiconstraints.EnforcementActionDeny},
 		}
 		results = append(results, result)
 	}

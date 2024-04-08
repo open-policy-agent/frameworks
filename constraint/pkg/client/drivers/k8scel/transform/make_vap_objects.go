@@ -81,12 +81,15 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 
 	actions := []string{}
 	if apiconstraints.IsEnforcementActionScoped(enforcementActionStr) {
-		actions, err = apiconstraints.GetEnforcementActionsForEP(constraint, apiconstraints.WebhookEnforcementPoint)
+		actionsForEP, err := apiconstraints.GetEnforcementActionsForEP(constraint, []string{apiconstraints.WebhookEnforcementPoint})
 		if err != nil {
 			return nil, err
 		}
-		if len(actions) == 0 {
+		if len(actionsForEP[apiconstraints.WebhookEnforcementPoint]) == 0 {
 			return nil, fmt.Errorf("%w: unrecognized enforcement action, must be `warn` or `deny` for admission webhook, nil is not allowed", ErrBadEnforcementAction)
+		}
+		for action := range actionsForEP[apiconstraints.WebhookEnforcementPoint] {
+			actions = append(actions, action)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package constraints
 
 import (
+	"reflect"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -10,8 +11,8 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 	tests := []struct {
 		name       string
 		constraint *unstructured.Unstructured
-		ep         string
-		expected   []string
+		eps        []string
+		expected   map[string]map[string]bool
 		err        error
 	}{
 		{
@@ -23,10 +24,10 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": "ep1",
+										"name": AuditEnforcementPoint,
 									},
 									map[string]interface{}{
-										"name": "ep2",
+										"name": WebhookEnforcementPoint,
 									},
 								},
 								"action": "warn",
@@ -43,11 +44,23 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 					},
 				},
 			},
-			ep:       "ep2",
-			expected: []string{"deny", "warn"},
+			expected: map[string]map[string]bool{
+				AuditEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				WebhookEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				GatorEnforcementPoint: {
+					"deny": true,
+				},
+			},
+			eps: []string{AuditEnforcementPoint, WebhookEnforcementPoint, GatorEnforcementPoint},
 		},
 		{
-			name: "enforcement point not found",
+			name: "Actions for selective enforcement point",
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"spec": map[string]interface{}{
@@ -55,7 +68,10 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": "ep1",
+										"name": AuditEnforcementPoint,
+									},
+									map[string]interface{}{
+										"name": WebhookEnforcementPoint,
 									},
 								},
 								"action": "warn",
@@ -63,7 +79,7 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": "ep2",
+										"name": "*",
 									},
 								},
 								"action": "deny",
@@ -72,28 +88,27 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 					},
 				},
 			},
-			ep:       "ep3",
-			expected: []string{},
+			expected: map[string]map[string]bool{
+				WebhookEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				GatorEnforcementPoint: {
+					"deny": true,
+				},
+			},
+			eps: []string{WebhookEnforcementPoint, GatorEnforcementPoint},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actions, err := GetEnforcementActionsForEP(tt.constraint, tt.ep)
+			actions, err := GetEnforcementActionsForEP(tt.constraint, tt.eps)
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
 
-			l := 0
-			for _, action := range actions {
-				for _, expected := range tt.expected {
-					if action == expected {
-						l++
-						break
-					}
-				}
-			}
-			if l != len(tt.expected) {
+			if !reflect.DeepEqual(actions, tt.expected) {
 				t.Errorf("Expected %v, got %v", tt.expected, actions)
 			}
 		})

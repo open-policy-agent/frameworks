@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	constrts "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
@@ -62,6 +63,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
+			EnforcementPoints(constrts.AuditEnforcementPoint),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -102,7 +104,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,7 +139,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +177,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +211,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +248,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +288,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -331,7 +333,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Wanted 1 template in driver C; got %d", len(driverC.GetTemplateCode()))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -368,7 +370,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Wanted 0 templates in driver C; got %d", len(driverC.GetTemplateCode()))
 		}
 
-		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -409,7 +411,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -443,7 +445,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -488,7 +490,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -518,7 +520,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -548,7 +550,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err = client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -589,7 +591,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -623,7 +625,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -672,7 +674,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -719,7 +721,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver C has unexpected state: %v", driverC.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -743,6 +745,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverC),
 			Driver(driverB),
 			Driver(driverA),
+			EnforcementPoints(constrts.AuditEnforcementPoint),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -781,7 +784,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			t.Errorf("Driver A has unexpected state: %v", driverA.GetConstraintsForTemplate(anyTemplate))
 		}
 
-		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"), "")
+		resp, err := client.Review(ctx, handlertest.NewReview("", "foo", "bar"))
 		if err != nil {
 			t.Fatal(err)
 		}

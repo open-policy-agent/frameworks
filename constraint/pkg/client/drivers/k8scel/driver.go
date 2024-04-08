@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	pSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/transform"
@@ -155,7 +154,7 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, sourceEP string, opts ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
 	cfg := &drivers.QueryCfg{}
 	for _, opt := range opts {
 		opt(cfg)
@@ -210,29 +209,13 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		// TODO: should namespace be made available, if possible? Generally that context should be present
 		response := validator.Validate(ctx, versionedAttr.GetResource(), versionedAttr, constraint, nil, celAPI.PerCallLimit, nil)
 
-		enforcementAction, err := apiconstraints.GetEnforcementAction(constraint)
-		if err != nil {
-			return nil, err
-		}
-
-		actions := []string{enforcementAction}
-		if apiconstraints.IsEnforcementActionScoped(enforcementAction) {
-			actions, err = apiconstraints.GetEnforcementActionsForEP(constraint, sourceEP)
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		for _, decision := range response.Decisions {
 			if decision.Action == validatingadmissionpolicy.ActionDeny {
-				for _, action := range actions {
-					results = append(results, &types.Result{
-						Target:            target,
-						Msg:               decision.Message,
-						Constraint:        constraint,
-						EnforcementAction: action,
-					})
-				}
+				results = append(results, &types.Result{
+					Target:     target,
+					Msg:        decision.Message,
+					Constraint: constraint,
+				})
 			}
 		}
 		evalElapsedTime := time.Since(evalStartTime)

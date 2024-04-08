@@ -3,6 +3,7 @@ package clienttest
 import (
 	"testing"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
@@ -17,6 +18,7 @@ func defaults() []client.Opt {
 	return []client.Opt{
 		client.Driver(d),
 		client.Targets(&handlertest.Handler{Cache: &handlertest.Cache{}}),
+		client.EnforcementPoints(constraints.AuditEnforcementPoint),
 	}
 }
 

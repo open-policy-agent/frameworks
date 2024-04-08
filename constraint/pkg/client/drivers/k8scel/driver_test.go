@@ -364,7 +364,7 @@ func TestValidation(t *testing.T) {
 			if err := driver.AddTemplate(context.Background(), test.template); err != nil {
 				t.Fatal(err)
 			}
-			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, fakeRequest(test.isAdmissionRequest), "")
+			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, fakeRequest(test.isAdmissionRequest))
 			if (err != nil) != test.expectedErr {
 				t.Errorf("wanted error state to be %v; got %v", test.expectedErr, err != nil)
 			}

@@ -16,11 +16,12 @@ const (
 	// validation are treated as failing validation.
 	//
 	// This is the default EnforcementAction.
-	EnforcementActionDeny   = "deny"
+	EnforcementActionDeny = "deny"
+
 	EnforcementActionScoped = "scoped"
 
 	// WebhookEnforcementPoint is the enforcement point for admission.
-	WebhookEnforcementPoint = "admission.k8s.io"
+	WebhookEnforcementPoint = "validation.k8s.io"
 
 	// AuditEnforcementPoint is the enforcement point for audit.
 	AuditEnforcementPoint = "audit.gatekeeper.sh"
@@ -60,8 +61,14 @@ func IsEnforcementActionScoped(action string) bool {
 	return action == EnforcementActionScoped
 }
 
-// GetEnforcementActionsForEP returns a map of enforcement actions for each enforcement point.
-func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, ep string) ([]string, error) {
+// GetEnforcementActionsForEP returns a map of enforcement actions for enforcement points.
+func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, eps []string) (map[string]map[string]bool, error) {
+	actionsForEPs := make(map[string]map[string]bool)
+
+	for _, enforcementPoint := range eps {
+		actionsForEPs[enforcementPoint] = make(map[string]bool)
+	}
+
 	// Access the scopedEnforcementAction field
 	scopedActions, found, err := getNestedFieldAsArray(constraint.Object, "spec", "scopedEnforcementActions")
 	if err != nil {
@@ -79,7 +86,6 @@ func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, ep string
 		return nil, fmt.Errorf("%w: spec.scopedEnforcementAction must be an array", ErrInvalidConstraint)
 	}
 
-	actions := make(map[string]bool)
 	for _, scopedEnforcementAction := range scopedEnforcementActions {
 		// Access the enforcementPoints field
 		enforcementPoints, found, err := getNestedFieldAsArray(scopedEnforcementAction, "enforcementPoints")
@@ -96,23 +102,25 @@ func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, ep string
 			}
 
 			if pt, ok := enforcementPointMap["name"].(string); ok {
-				// Check if enforcementPoint matches the current ep or "*"
-				if pt == ep || pt == "*" {
-					// Access the action field
-					action, found, err := getNestedFieldAsString(scopedEnforcementAction, "action")
-					if err != nil || !found {
-						continue
-					}
+				if _, ok := actionsForEPs[pt]; !ok && pt != "*" {
+					continue
+				}
 
-					// Add action to the actionMap
-					actions[action] = true
+				action, found, err := getNestedFieldAsString(scopedEnforcementAction, "action")
+				if err != nil || !found {
+					continue
+				}
+
+				switch pt {
+				case "*":
+					for _, ep := range eps {
+						actionsForEPs[ep][action] = true
+					}
+				default:
+					actionsForEPs[pt][action] = true
 				}
 			}
 		}
-	}
-	actionsForEPs := []string{}
-	for action := range actions {
-		actionsForEPs = append(actionsForEPs, action)
 	}
 
 	return actionsForEPs, nil

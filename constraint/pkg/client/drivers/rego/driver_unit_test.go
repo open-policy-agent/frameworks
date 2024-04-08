@@ -165,7 +165,6 @@ func TestDriver_Query(t *testing.T) {
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
 		map[string]interface{}{"hi": "there"},
-		constraints.AuditEnforcementPoint,
 	)
 	if err != nil {
 		t.Fatalf("got Query() error = %v, want %v", err, nil)
@@ -185,7 +184,6 @@ func TestDriver_Query(t *testing.T) {
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
 		map[string]interface{}{"hi": "there"},
-		constraints.AuditEnforcementPoint,
 	)
 	if err != nil {
 		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
@@ -203,31 +201,12 @@ func TestDriver_Query(t *testing.T) {
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", []string{"deny", "warn"}, constraints.AuditEnforcementPoint, constraints.GatorEnforcementPoint)},
 		map[string]interface{}{"hi": "there"},
-		constraints.AuditEnforcementPoint,
 	)
 	if err != nil {
 		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
 	}
 	if len(qr.Results) == 0 {
 		t.Fatalf("got 0 errors on data-less query; want 1")
-	}
-	if len(qr.Results) != 2 {
-		t.Fatalf("got 0 errors on data-less query; want 1")
-	}
-
-	qr, err = d.Query(
-		ctx,
-		cts.MockTargetHandler,
-		[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", []string{"deny", "warn"}, "ep", constraints.GatorEnforcementPoint)},
-		map[string]interface{}{"hi": "there"},
-		constraints.AuditEnforcementPoint,
-	)
-	if err != nil {
-		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
-	}
-
-	if len(qr.Results) > 0 {
-		t.Fatalf("got 1 errors on data-less query; want 0")
 	}
 }
 
@@ -641,7 +620,7 @@ func TestDriver_Query_Stats(t *testing.T) {
 
 			prepareDriverFunc(d)
 
-			response, err := d.Query(context.Background(), target, tc.constraints, review, constraints.AuditEnforcementPoint, tc.opts...)
+			response, err := d.Query(context.Background(), target, tc.constraints, review, tc.opts...)
 			if err != nil {
 				t.Fatalf("unexpected error in Query: %v", err)
 			}
@@ -823,7 +802,6 @@ func TestDriver_ExternalData(t *testing.T) {
 				cts.MockTargetHandler,
 				[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
 				map[string]interface{}{"hi": "there"},
-				constraints.AuditEnforcementPoint,
 			)
 			if err != nil {
 				t.Fatalf("got Query() error = %v, want %v", err, nil)
