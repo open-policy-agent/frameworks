@@ -26,7 +26,7 @@ import (
 
 const (
 	maxRetries = 10
-	// need minimum of 2023-12-01-preview for JSON mode
+	// need minimum of 2023-12-01-preview for JSON mode.
 	azureOpenAIAPIVersion = "2024-03-01-preview"
 	azureOpenAIURL        = "openai.azure.com"
 	systemPrompt          = "You are a policy engine for Kubernetes designed to output JSON. Input will be a policy definition, Kubernetes AdmissionRequest object, and parameters to apply to the policy if applicable. Output JSON should only have a 'decision' field with a boolean value and a 'reason' field with a string value explaining the decision, only if decision is false. Only output valid JSON."

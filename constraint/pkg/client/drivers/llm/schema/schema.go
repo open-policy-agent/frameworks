@@ -12,9 +12,7 @@ const (
 	Name = "LLM"
 )
 
-var (
-	ErrBadType = errors.New("could not recognize the type")
-)
+var ErrBadType = errors.New("could not recognize the type")
 
 type Source struct {
 	Prompt string `json:"prompt,omitempty"`
