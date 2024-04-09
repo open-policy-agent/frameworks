@@ -104,6 +104,7 @@ cbTV5RDkrlaYwm5yqlTIglvCv7o=
 -----END CERTIFICATE-----
 `
 
+	// nolint:gosec
 	clientKey = `
 -----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAvpnaPKLIKdvx98KW68lz8pGaRRcYersNGqPjpifMVjjE8LuC
