@@ -378,7 +378,7 @@ func TestRegoRewriterAddPathFromFs(t *testing.T) {
 		},
 		{
 			name: "path without test",
-			path: "../../",
+			path: "test/no-test",
 		},
 	}
 	for _, tc := range tests {
