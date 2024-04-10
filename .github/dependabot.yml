@@ -27,3 +27,13 @@ updates:
         patterns:
         - "k8s.io/*"
         - "sigs.k8s.io/*"
+
+  - package-ecosystem: docker
+    directory: /constraint
+    schedule:
+      interval: daily
+
+  - package-ecosystem: pip
+    directory: /constraint/vendor/go.opentelemetry.io/otel
+    schedule:
+      interval: daily
