@@ -1,4 +1,4 @@
-FROM golang:1.21-bullseye as builder
+FROM golang:1.22-bookworm as builder
 
 ARG KUSTOMIZE_VERSION
 
