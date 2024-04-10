@@ -32,8 +32,5 @@ updates:
     directory: /constraint
     schedule:
       interval: daily
-
-  - package-ecosystem: pip
-    directory: /constraint/vendor/go.opentelemetry.io/otel
-    schedule:
-      interval: daily
+    commit-message:
+      prefix: "chore"
