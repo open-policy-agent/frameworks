@@ -14,6 +14,7 @@ import (
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
@@ -625,24 +626,27 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 // Review makes sure the provided object satisfies all stored constraints.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
-func (c *Client) Review(ctx context.Context, obj interface{}, sourceEPs ...string) (*types.Responses, error) {
+func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.ReviewOpt) (*types.Responses, error) {
 	var eps []string
-	for _, sourceEP := range sourceEPs {
+	cfg := &reviews.ReviewCfg{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.SourceEP != "" {
 		for _, ep := range c.enforcementPoints {
-			if sourceEP == ep {
-				eps = append(eps, sourceEP)
+			if cfg.SourceEP == ep {
+				eps = append(eps, ep)
 				break
 			}
 		}
-	}
-
-	if sourceEPs == nil {
-		sourceEPs = c.enforcementPoints
-	} else {
 		if eps == nil {
 			return nil, nil
 		}
-		sourceEPs = eps
+	}
+
+	if eps == nil {
+		eps = c.enforcementPoints
 	}
 
 	responses := types.NewResponses()
@@ -685,7 +689,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, sourceEPs ...strin
 		targetEnforcementActions := make(map[string][]string)
 
 		for _, template := range templateList {
-			matchingConstraints := template.Matches(target, review, sourceEPs)
+			matchingConstraints := template.Matches(target, review, eps)
 			for _, matchResult := range matchingConstraints {
 				if matchResult.error == nil {
 					targetConstraints = append(targetConstraints, matchResult.constraint)
@@ -702,7 +706,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, sourceEPs ...strin
 	for target, review := range reviews {
 		constraints := constraintsByTarget[target]
 
-		resp, stats, err := c.review(ctx, target, constraints, review, GetDriverQueryOpt(sourceEPs)...)
+		resp, stats, err := c.review(ctx, target, constraints, review, opts...)
 		if err != nil {
 			errMap.Add(target, err)
 			continue
@@ -741,7 +745,7 @@ func (c *Client) Review(ctx context.Context, obj interface{}, sourceEPs ...strin
 	return responses, &errMap
 }
 
-func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*types.Response, []*instrumentation.StatsEntry, error) {
+func (c *Client) review(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...reviews.ReviewOpt) (*types.Response, []*instrumentation.StatsEntry, error) {
 	var results []*types.Result
 	var stats []*instrumentation.StatsEntry
 	var tracesBuilder strings.Builder

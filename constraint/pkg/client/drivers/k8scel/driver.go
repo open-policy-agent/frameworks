@@ -11,6 +11,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	pSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/transform"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -155,8 +156,8 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
-	cfg := &drivers.QueryCfg{}
+func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...reviews.ReviewOpt) (*drivers.QueryResponse, error) {
+	cfg := &reviews.ReviewCfg{}
 	for _, opt := range opts {
 		opt(cfg)
 	}

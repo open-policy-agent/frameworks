@@ -13,9 +13,9 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
@@ -35,7 +35,8 @@ func TestClient_Review(t *testing.T) {
 		constraints []*unstructured.Unstructured
 		inventory   []*handlertest.Object
 		toReview    interface{}
-		sourceEP    []string
+		sourceEP    string
+		clientEPs   []string
 
 		wantResults []*types.Result
 		wantErr     error
@@ -46,7 +47,8 @@ func TestClient_Review(t *testing.T) {
 			targets:     []handler.TargetHandler{&handlertest.Handler{}},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny missing Constraint",
@@ -57,7 +59,8 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:    "deny all",
@@ -75,7 +78,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:    "wrong review type",
@@ -89,7 +93,8 @@ func TestClient_Review(t *testing.T) {
 			toReview:    handlertest.Object{Name: "foo"},
 			wantErr:     &clienterrors.ErrorMap{handlertest.TargetName: client.ErrReview},
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:    "ignored review",
@@ -103,7 +108,8 @@ func TestClient_Review(t *testing.T) {
 			toReview:    handlertest.Review{Ignored: true, Object: handlertest.Object{Name: "foo"}},
 			wantErr:     nil,
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:    "deny all duplicate Constraint",
@@ -122,7 +128,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny all dryrun",
@@ -141,7 +148,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{"dryrun"},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint", cts.EnforcementAction("dryrun")),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny all library",
@@ -160,7 +168,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindDenyImport, "constraint"),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "allow all",
@@ -174,7 +183,8 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "check data allow",
@@ -188,7 +198,8 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "check data deny",
@@ -207,7 +218,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindCheckData, "constraint", cts.WantData("bar")),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "rego runtime error",
@@ -226,7 +238,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeConstraint(t, clienttest.KindRuntimeError, "constraint"),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "autoreject",
@@ -247,7 +260,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("aaa")),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "autoreject and fail",
@@ -276,7 +290,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint2",
 					cts.WantData("qux"), cts.EnforcementAction("warn")),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "namespace matches",
@@ -299,7 +314,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint: cts.MakeConstraint(t, clienttest.KindCheckData, "constraint",
 					cts.WantData("bar"), cts.MatchNamespace("billing")),
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "namespace does not match",
@@ -316,7 +332,8 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("shipping", "foo", "qux"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "update Template target",
@@ -343,7 +360,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, cts.MockTemplate, "bar"),
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "referential constraint allow",
@@ -361,7 +379,8 @@ func TestClient_Review(t *testing.T) {
 			}},
 			toReview:    handlertest.NewReview("", "foo-2", "qux"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "referential constraint deny",
@@ -384,7 +403,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, clienttest.KindForbidDuplicates, "constraint"),
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny future",
@@ -404,7 +424,8 @@ func TestClient_Review(t *testing.T) {
 				Constraint:        cts.MakeConstraint(t, clienttest.KindFuture, "constraint"),
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 			}},
-			sourceEP: nil,
+			sourceEP:  "",
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "allow future",
@@ -419,7 +440,8 @@ func TestClient_Review(t *testing.T) {
 			inventory:   nil,
 			toReview:    handlertest.NewReview("", "foo", "3"),
 			wantResults: nil,
-			sourceEP:    nil,
+			sourceEP:    "",
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny with scoped audit EP",
@@ -438,7 +460,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: []string{constraints.EnforcementActionDeny},
 				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, constraints.AuditEnforcementPoint, constraints.WebhookEnforcementPoint),
 			}},
-			sourceEP: []string{constraints.AuditEnforcementPoint},
+			sourceEP:  constraints.AuditEnforcementPoint,
+			clientEPs: []string{constraints.AuditEnforcementPoint},
 		},
 		{
 			name:       "deny with scoped audit EP and webhook caller",
@@ -452,7 +475,28 @@ func TestClient_Review(t *testing.T) {
 			},
 			toReview:    handlertest.NewReview("", "foo", "bar"),
 			wantResults: nil,
-			sourceEP:    []string{constraints.WebhookEnforcementPoint},
+			sourceEP:    constraints.WebhookEnforcementPoint,
+			clientEPs:   []string{constraints.AuditEnforcementPoint},
+		},
+		{
+			name:       "deny with scoped test EP and test caller",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, "test"),
+			},
+			toReview: handlertest.NewReview("", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "denied",
+				EnforcementAction: []string{constraints.EnforcementActionDeny},
+				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", []string{"deny"}, "test"),
+			}},
+			sourceEP:  "test",
+			clientEPs: []string{"test"},
 		},
 	}
 
@@ -460,7 +504,7 @@ func TestClient_Review(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			c := clienttest.New(t, client.Targets(tt.targets...))
+			c := clienttest.New(t, client.Targets(tt.targets...), client.EnforcementPoints(tt.clientEPs...))
 
 			for _, ns := range tt.namespaces {
 				_, err := c.AddData(ctx, &handlertest.Object{Namespace: ns})
@@ -490,7 +534,7 @@ func TestClient_Review(t *testing.T) {
 				}
 			}
 
-			responses, err := c.Review(ctx, tt.toReview, tt.sourceEP...)
+			responses, err := c.Review(ctx, tt.toReview, reviews.SourceEP(tt.sourceEP))
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got error %v, want %v", err, tt.wantErr)
 			}
@@ -795,9 +839,7 @@ func TestE2E_Tracing(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			client.SetDriverQueryOpt(constraints.AuditEnforcementPoint, drivers.Tracing(tt.tracingEnabled))
-
-			rsps, err := c.Review(ctx, obj)
+			rsps, err := c.Review(ctx, obj, reviews.SourceEP(constraints.AuditEnforcementPoint), reviews.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -880,9 +922,7 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar", Namespace: "ns"}}
 
-			client.SetDriverQueryOpt(constraints.AuditEnforcementPoint, drivers.Tracing(tt.tracingEnabled))
-
-			rsps, err := c.Review(ctx, obj)
+			rsps, err := c.Review(ctx, obj, reviews.SourceEP(constraints.AuditEnforcementPoint), reviews.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -928,9 +968,7 @@ func TestE2E_DriverStats(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			client.SetDriverQueryOpt(constraints.AuditEnforcementPoint, drivers.Stats(tt.statsEnabled))
-
-			rsps, err := c.Review(ctx, obj)
+			rsps, err := c.Review(ctx, obj, reviews.SourceEP(constraints.AuditEnforcementPoint), reviews.Stats(tt.statsEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}

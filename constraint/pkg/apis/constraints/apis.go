@@ -5,7 +5,17 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
+
+type ScopedEnforcementAction struct {
+	Action            string             `json:"action"`
+	EnforcementPoints []EnforcementPoint `json:"enforcementPoints"`
+}
+
+type EnforcementPoint struct {
+	Name string `json:"name"`
+}
 
 const (
 	// Group is the API Group of Constraints.
@@ -87,38 +97,23 @@ func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, eps []str
 	}
 
 	for _, scopedEnforcementAction := range scopedEnforcementActions {
-		// Access the enforcementPoints field
-		enforcementPoints, found, err := getNestedFieldAsArray(scopedEnforcementAction, "enforcementPoints")
-		if err != nil || !found {
-			continue
+		scopedEA := &ScopedEnforcementAction{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(scopedEnforcementAction, scopedEA); err != nil {
+			return nil, err
 		}
 
 		// Iterate over enforcementPoints
-		for _, enforcementPoint := range enforcementPoints {
-			// Convert enforcementPoint to map[string]string
-			enforcementPointMap, err := convertToMapInterface(enforcementPoint)
-			if err != nil {
+		for _, enforcementPoint := range scopedEA.EnforcementPoints {
+			if _, ok := actionsForEPs[enforcementPoint.Name]; !ok && enforcementPoint.Name != "*" {
 				continue
 			}
-
-			if pt, ok := enforcementPointMap["name"].(string); ok {
-				if _, ok := actionsForEPs[pt]; !ok && pt != "*" {
-					continue
+			switch enforcementPoint.Name {
+			case "*":
+				for _, ep := range eps {
+					actionsForEPs[ep][scopedEA.Action] = true
 				}
-
-				action, found, err := getNestedFieldAsString(scopedEnforcementAction, "action")
-				if err != nil || !found {
-					continue
-				}
-
-				switch pt {
-				case "*":
-					for _, ep := range eps {
-						actionsForEPs[ep][action] = true
-					}
-				default:
-					actionsForEPs[pt][action] = true
-				}
+			default:
+				actionsForEPs[enforcementPoint.Name][scopedEA.Action] = true
 			}
 		}
 	}
@@ -139,28 +134,6 @@ func getNestedFieldAsArray(obj map[string]interface{}, fields ...string) ([]inte
 		return arr, true, nil
 	}
 	return nil, false, nil
-}
-
-// Helper function to access nested fields as a string.
-func getNestedFieldAsString(obj map[string]interface{}, fields ...string) (string, bool, error) {
-	for _, field := range fields {
-		value, found, err := unstructured.NestedString(obj, field)
-		if err != nil {
-			return "", false, err
-		}
-		if found {
-			return value, true, nil
-		}
-	}
-	return "", false, nil
-}
-
-// Helper function to convert a value to a map[string]interface{}.
-func convertToMapInterface(value interface{}) (map[string]interface{}, error) {
-	if m, ok := value.(map[string]interface{}); ok {
-		return m, nil
-	}
-	return nil, fmt.Errorf("value must be a map[string]interface{}")
 }
 
 // Helper function to convert a value to a []map[string]interface{}.

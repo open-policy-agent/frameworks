@@ -5,18 +5,11 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 )
 
 type Opt func(*Client) error
-
-var (
-	AuditQueryOpt   []drivers.QueryOpt
-	WebhookQueryOpt []drivers.QueryOpt
-	GatorQueryOpts  []drivers.QueryOpt
-)
 
 // targetNameRegex defines allowable target names.
 // Does not match empty string.
@@ -85,30 +78,4 @@ func EnforcementPoints(eps ...string) Opt {
 		client.enforcementPoints = eps
 		return nil
 	}
-}
-
-func SetDriverQueryOpt(sourceEP string, opt ...drivers.QueryOpt) {
-	switch sourceEP {
-	case constraints.AuditEnforcementPoint:
-		AuditQueryOpt = opt
-	case constraints.WebhookEnforcementPoint:
-		WebhookQueryOpt = opt
-	case constraints.GatorEnforcementPoint:
-		GatorQueryOpts = opt
-	}
-}
-
-func GetDriverQueryOpt(sourceEPs []string) []drivers.QueryOpt {
-	var opts []drivers.QueryOpt
-	for _, sourceEP := range sourceEPs {
-		switch sourceEP {
-		case constraints.AuditEnforcementPoint:
-			opts = append(opts, AuditQueryOpt...)
-		case constraints.WebhookEnforcementPoint:
-			opts = append(opts, WebhookQueryOpt...)
-		case constraints.GatorEnforcementPoint:
-			opts = append(opts, GatorQueryOpts...)
-		}
-	}
-	return opts
 }
