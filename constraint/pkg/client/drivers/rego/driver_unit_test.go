@@ -104,6 +104,7 @@ cbTV5RDkrlaYwm5yqlTIglvCv7o=
 -----END CERTIFICATE-----
 `
 
+	// nolint:gosec
 	clientKey = `
 -----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAvpnaPKLIKdvx98KW68lz8pGaRRcYersNGqPjpifMVjjE8LuC
@@ -675,7 +676,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return nil, http.StatusBadRequest, errors.New("error from SendRequestToProvider")
 			},
 			errorExpected: true,
@@ -694,7 +695,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
 				return &externaldata.ProviderResponse{
 					APIVersion: "v1beta1",
 					Kind:       "Provider",
