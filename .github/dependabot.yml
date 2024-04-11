@@ -27,3 +27,10 @@ updates:
         patterns:
         - "k8s.io/*"
         - "sigs.k8s.io/*"
+
+  - package-ecosystem: docker
+    directory: /constraint
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "chore"
