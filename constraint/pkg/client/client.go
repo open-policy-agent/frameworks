@@ -623,7 +623,7 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 	return resp, &errMap
 }
 
-// Review makes sure the provided object satisfies all stored constraints.
+// Review makes sure the provided object satisfies constraints applicable for specific enforcement points.
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.ReviewOpt) (*types.Responses, error) {
