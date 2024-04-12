@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	constrts "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
@@ -63,7 +62,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
-			EnforcementPoints(constrts.AuditEnforcementPoint),
+			EnforcementPoints("test"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -745,7 +744,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverC),
 			Driver(driverB),
 			Driver(driverA),
-			EnforcementPoints(constrts.AuditEnforcementPoint),
+			EnforcementPoints("test"),
 		)
 		if err != nil {
 			t.Fatal(err)

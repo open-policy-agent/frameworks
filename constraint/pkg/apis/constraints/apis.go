@@ -29,15 +29,6 @@ const (
 	EnforcementActionDeny = "deny"
 
 	EnforcementActionScoped = "scoped"
-
-	// WebhookEnforcementPoint is the enforcement point for admission.
-	WebhookEnforcementPoint = "validation.k8s.io"
-
-	// AuditEnforcementPoint is the enforcement point for audit.
-	AuditEnforcementPoint = "audit.gatekeeper.sh"
-
-	// GatorEnforcementPoint is the enforcement point for gator cli.
-	GatorEnforcementPoint = "gator.gatekeeper.sh"
 )
 
 var (

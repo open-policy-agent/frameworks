@@ -403,7 +403,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": constraints.WebhookEnforcementPoint,
+										"name": VAPEnforcementPoint,
 									},
 								},
 								"action": "warn",
@@ -437,7 +437,7 @@ func TestConstraintToBinding(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "scoped enforcement action without webhook",
+			name: "scoped enforcement action without VAP enforcement point",
 			constraint: newTestConstraint("scoped", nil, nil, &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"spec": map[string]interface{}{
@@ -445,7 +445,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]string{
-										"name": constraints.GatorEnforcementPoint,
+										"name": "test",
 									},
 								},
 								"action": "warn",
@@ -453,7 +453,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]string{
-										"name": constraints.AuditEnforcementPoint,
+										"name": "another-test",
 									},
 								},
 								"action": "deny",

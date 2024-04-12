@@ -15,6 +15,8 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const VAPEnforcementPoint = "vap.k8s.io"
+
 func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1beta1.ValidatingAdmissionPolicy, error) {
 	source, err := schema.GetSourceFromTemplate(template)
 	if err != nil {
@@ -81,14 +83,14 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 
 	actions := []string{}
 	if apiconstraints.IsEnforcementActionScoped(enforcementActionStr) {
-		actionsForEP, err := apiconstraints.GetEnforcementActionsForEP(constraint, []string{apiconstraints.WebhookEnforcementPoint})
+		actionsForEP, err := apiconstraints.GetEnforcementActionsForEP(constraint, []string{VAPEnforcementPoint})
 		if err != nil {
 			return nil, err
 		}
-		if len(actionsForEP[apiconstraints.WebhookEnforcementPoint]) == 0 {
+		if len(actionsForEP[VAPEnforcementPoint]) == 0 {
 			return nil, fmt.Errorf("%w: unrecognized enforcement action, must be `warn` or `deny` for admission webhook, nil is not allowed", ErrBadEnforcementAction)
 		}
-		for action := range actionsForEP[apiconstraints.WebhookEnforcementPoint] {
+		for action := range actionsForEP[VAPEnforcementPoint] {
 			actions = append(actions, action)
 		}
 	}

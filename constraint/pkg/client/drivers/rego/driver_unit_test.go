@@ -153,11 +153,11 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 	}
 
-	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", []string{"deny", "warn"}, constraints.AuditEnforcementPoint, constraints.GatorEnforcementPoint)); err != nil {
+	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", []string{"deny", "warn"}, "audit", "gator")); err != nil {
 		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 	}
 
-	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", []string{"deny", "warn"}, "ep", constraints.GatorEnforcementPoint)); err != nil {
+	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", []string{"deny", "warn"}, "ep", "gator")); err != nil {
 		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 	}
 
@@ -200,7 +200,7 @@ func TestDriver_Query(t *testing.T) {
 	qr, err = d.Query(
 		ctx,
 		cts.MockTargetHandler,
-		[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", []string{"deny", "warn"}, constraints.AuditEnforcementPoint, constraints.GatorEnforcementPoint)},
+		[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", []string{"deny", "warn"}, "audit", "gator")},
 		map[string]interface{}{"hi": "there"},
 	)
 	if err != nil {
