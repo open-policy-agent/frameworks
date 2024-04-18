@@ -403,7 +403,7 @@ func TestConstraintToBinding(t *testing.T) {
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
 									map[string]interface{}{
-										"name": VAPEnforcementPoint,
+										"name": WebhookEnforcementPoint,
 									},
 								},
 								"action": "warn",
