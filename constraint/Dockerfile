@@ -1,4 +1,4 @@
-FROM golang:1.21-bullseye as builder
+FROM golang:1.22-bookworm@sha256:8e4358fd54fe1c833af23b9a0b84eb5d41fc3dc67d23fde72cf3de5f6319b445 as builder
 
 ARG KUSTOMIZE_VERSION
 
