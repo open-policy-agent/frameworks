@@ -14,6 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+const (
+	HTTPSScheme = "https"
+)
+
 type ProviderCache struct {
 	cache map[string]unversioned.Provider
 	mux   sync.RWMutex
