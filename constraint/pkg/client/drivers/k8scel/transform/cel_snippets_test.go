@@ -842,7 +842,7 @@ func UnstructuredWithValue(val interface{}, fields ...string) *unstructured.Unst
 	return obj
 }
 
-func TestVariableBinding(t *testing.T) {
+func TestParamsBinding(t *testing.T) {
 	tests := []struct {
 		name         string
 		constraint   *unstructured.Unstructured
@@ -909,6 +909,94 @@ func TestVariableBinding(t *testing.T) {
 			}
 
 			if err := shouldMatch(true, false, matcher.Match(context.Background(), versionedAttributes, test.constraint, nil)); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+}
+
+func TestObjectBinding(t *testing.T) {
+	tests := []struct {
+		name         string
+		operation    *admissionv1.Operation
+		objPopulated bool
+		assertionCEL string
+	}{
+		{
+			name:         "No operation, obj populated",
+			assertionCEL: "variables.anyObject != null",
+			objPopulated: true,
+		},
+		{
+			name:         "No operation, obj not populated",
+			assertionCEL: "variables.anyObject == null",
+			objPopulated: false,
+		},
+		{
+			name:         "DELETE operation, obj populated",
+			assertionCEL: "variables.anyObject != null",
+			operation:    ptr.To[admissionv1.Operation](admissionv1.Delete),
+			objPopulated: false,
+		},
+		{
+			name:         "Non-DELETE operation, obj not populated",
+			assertionCEL: "variables.anyObject == null",
+			operation:    ptr.To[admissionv1.Operation](admissionv1.Create),
+			objPopulated: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			filterCompiler, err := cel.NewCompositedCompiler(environment.MustBaseEnvSet(environment.DefaultCompatibilityVersion()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			celOpts := cel.OptionalVariableDeclarations{HasParams: true}
+			filterCompiler.CompileAndStoreVariables(BindObjectCEL(), celOpts, environment.StoredExpressions)
+			matcher := matchconditions.NewMatcher(
+				filterCompiler.Compile(
+					[]cel.ExpressionAccessor{
+						&matchconditions.MatchCondition{
+							Name:       "TestObject",
+							Expression: test.assertionCEL,
+						},
+					},
+					celOpts,
+					environment.StoredExpressions,
+				),
+				ptr.To[v1.FailurePolicyType](v1.Fail),
+				"matchTest",
+				"name",
+				test.name,
+			)
+
+			obj := &unstructured.Unstructured{}
+			objName := "test-obj"
+			obj.SetName(objName)
+			obj.SetGroupVersionKind(rSchema.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"})
+			objBytes, err := json.Marshal(obj.Object)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := &admissionv1.AdmissionRequest{
+				Kind:      metav1.GroupVersionKind{Group: "FooGroup", Kind: "BarKind"},
+				OldObject: runtime.RawExtension{Raw: objBytes},
+			}
+			if test.objPopulated {
+				request.Object = *request.OldObject.DeepCopy()
+			}
+			if test.operation != nil {
+				request.Operation = *test.operation
+			}
+			request.Name = objName
+
+			versionedAttributes, err := RequestToVersionedAttributes(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			constraint := &unstructured.Unstructured{Object: map[string]interface{}{}}
+			if err := shouldMatch(true, false, matcher.Match(context.Background(), versionedAttributes, constraint, nil)); err != nil {
 				t.Error(err)
 			}
 		})
