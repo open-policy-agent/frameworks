@@ -4,7 +4,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/k8scel/schema"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	"k8s.io/apiserver/pkg/admission/plugin/cel"
-	"k8s.io/apiserver/pkg/admission/plugin/validatingadmissionpolicy"
+	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/matchconditions"
 )
 
@@ -162,7 +162,7 @@ func BindParamsV1Beta1() admissionregistrationv1beta1.Variable {
 func BindParamsCEL() []cel.NamedExpressionAccessor {
 	v := BindParamsV1Beta1()
 	return []cel.NamedExpressionAccessor{
-		&validatingadmissionpolicy.Variable{
+		&validating.Variable{
 			Name:       v.Name,
 			Expression: v.Expression,
 		},
