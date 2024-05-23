@@ -22,7 +22,7 @@ const (
 	ReservedPrefix = "gatekeeper_internal_"
 	// ParamsName is the VAP variable constraint parameters will be bound to.
 	ParamsName = "params"
-	// ObjectName is the VAP variable that describes either an object or (on DELETE requests) oldObject
+	// ObjectName is the VAP variable that describes either an object or (on DELETE requests) oldObject.
 	ObjectName = "anyObject"
 )
 

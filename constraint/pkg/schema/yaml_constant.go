@@ -7,8 +7,7 @@ const constraintTemplateCRDYaml = `apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.11.3
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: constrainttemplates.templates.gatekeeper.sh
 spec:
   group: templates.gatekeeper.sh
@@ -27,14 +26,19 @@ spec:
           API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -71,15 +75,18 @@ spec:
                 items:
                   properties:
                     code:
-                      description: The source code options for the constraint template.
-                        "Rego" can only be specified in one place (either here or
-                        in the "rego" field)
+                      description: |-
+                        The source code options for the constraint template. "Rego" can only
+                        be specified in one place (either here or in the "rego" field)
                       items:
                         properties:
                           engine:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
+                          generateVAP:
+                            description: The flag to use VAP for enforcement.
+                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
@@ -107,8 +114,9 @@ spec:
             properties:
               byPod:
                 items:
-                  description: ByPodStatus defines the observed state of ConstraintTemplate
-                    as seen by an individual controller
+                  description: |-
+                    ByPodStatus defines the observed state of ConstraintTemplate as seen by
+                    an individual controller
                   properties:
                     errors:
                       items:
@@ -151,14 +159,19 @@ spec:
           API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -195,15 +208,18 @@ spec:
                 items:
                   properties:
                     code:
-                      description: The source code options for the constraint template.
-                        "Rego" can only be specified in one place (either here or
-                        in the "rego" field)
+                      description: |-
+                        The source code options for the constraint template. "Rego" can only
+                        be specified in one place (either here or in the "rego" field)
                       items:
                         properties:
                           engine:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
+                          generateVAP:
+                            description: The flag to use VAP for enforcement.
+                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
@@ -231,8 +247,9 @@ spec:
             properties:
               byPod:
                 items:
-                  description: ByPodStatus defines the observed state of ConstraintTemplate
-                    as seen by an individual controller
+                  description: |-
+                    ByPodStatus defines the observed state of ConstraintTemplate as seen by
+                    an individual controller
                   properties:
                     errors:
                       items:
@@ -275,14 +292,19 @@ spec:
           API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -319,15 +341,18 @@ spec:
                 items:
                   properties:
                     code:
-                      description: The source code options for the constraint template.
-                        "Rego" can only be specified in one place (either here or
-                        in the "rego" field)
+                      description: |-
+                        The source code options for the constraint template. "Rego" can only
+                        be specified in one place (either here or in the "rego" field)
                       items:
                         properties:
                           engine:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
+                          generateVAP:
+                            description: The flag to use VAP for enforcement.
+                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
@@ -355,8 +380,9 @@ spec:
             properties:
               byPod:
                 items:
-                  description: ByPodStatus defines the observed state of ConstraintTemplate
-                    as seen by an individual controller
+                  description: |-
+                    ByPodStatus defines the observed state of ConstraintTemplate as seen by
+                    an individual controller
                   properties:
                     errors:
                       items:

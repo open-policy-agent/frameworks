@@ -250,6 +250,7 @@ func Convert_templates_CRDSpec_To_v1alpha1_CRDSpec(in *templates.CRDSpec, out *C
 
 func autoConvert_v1alpha1_Code_To_templates_Code(in *Code, out *templates.Code, s conversion.Scope) error {
 	out.Engine = in.Engine
+	out.GenerateVAP = (*bool)(unsafe.Pointer(in.GenerateVAP))
 	out.Source = (*templates.Anything)(unsafe.Pointer(in.Source))
 	return nil
 }
@@ -261,6 +262,7 @@ func Convert_v1alpha1_Code_To_templates_Code(in *Code, out *templates.Code, s co
 
 func autoConvert_templates_Code_To_v1alpha1_Code(in *templates.Code, out *Code, s conversion.Scope) error {
 	out.Engine = in.Engine
+	out.GenerateVAP = (*bool)(unsafe.Pointer(in.GenerateVAP))
 	out.Source = (*templates.Anything)(unsafe.Pointer(in.Source))
 	return nil
 }

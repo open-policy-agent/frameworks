@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func makeTemplateWithSource(source *schema.Source, vapGenerationVal *string) *templates.ConstraintTemplate {
+func makeTemplateWithSource(source *schema.Source, vapGenerationVal *bool) *templates.ConstraintTemplate {
 	template := &templates.ConstraintTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testkind",
@@ -27,7 +27,8 @@ func makeTemplateWithSource(source *schema.Source, vapGenerationVal *string) *te
 					Target: "admission.k8s.io",
 					Code: []templates.Code{
 						{
-							Engine: schema.Name,
+							Engine:      schema.Name,
+							GenerateVAP: vapGenerationVal,
 							Source: &templates.Anything{
 								Value: source.MustToUnstructured(),
 							},
@@ -37,15 +38,10 @@ func makeTemplateWithSource(source *schema.Source, vapGenerationVal *string) *te
 			},
 		},
 	}
-	if vapGenerationVal != nil {
-		template.SetLabels(map[string]string{
-			VAPGenerationLabel: *vapGenerationVal,
-		})
-	}
 	return template
 }
 
-func makeTemplate(vapGenerationVal *string) *templates.ConstraintTemplate {
+func makeTemplate(vapGenerationVal *bool) *templates.ConstraintTemplate {
 	return makeTemplateWithSource(&schema.Source{
 		Validations: []schema.Validation{
 			{
@@ -56,18 +52,13 @@ func makeTemplate(vapGenerationVal *string) *templates.ConstraintTemplate {
 	}, vapGenerationVal)
 }
 
-func makeConstraint(vapGenerationVal *string) *unstructured.Unstructured {
+func makeConstraint() *unstructured.Unstructured {
 	constraint := &unstructured.Unstructured{
 		Object: map[string]interface{}{},
 	}
 	constraint.SetGroupVersionKind(k8sschema.GroupVersionKind{Group: "constraints.gatekeeper.sh", Version: "v1beta1", Kind: "TestKind"})
 	if err := unstructured.SetNestedField(constraint.Object, "someValue", "spec", "parameters", "testParam"); err != nil {
 		panic(err)
-	}
-	if vapGenerationVal != nil {
-		constraint.SetLabels(map[string]string{
-			VAPGenerationLabel: *vapGenerationVal,
-		})
 	}
 	return constraint
 }
@@ -116,7 +107,7 @@ func TestValidation(t *testing.T) {
 		name               string
 		template           *templates.ConstraintTemplate
 		constraint         *unstructured.Unstructured
-		vapDefault         *vapDefault
+		vapDefault         bool
 		isAdmissionRequest bool
 		expectedViolations bool
 		expectedErr        bool
@@ -131,7 +122,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
 		{
@@ -144,7 +135,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: true,
 		},
 		{
@@ -163,7 +154,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
 		{
@@ -182,7 +173,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: true,
 		},
 		{
@@ -201,7 +192,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
 		{
@@ -214,7 +205,7 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
 		// VAP generation
@@ -228,8 +219,8 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
-			vapDefault:         ptr.To[vapDefault](VAPDefaultNo),
+			constraint:         makeConstraint(),
+			vapDefault:         false,
 			expectedViolations: true,
 		},
 		{
@@ -242,8 +233,8 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
-			vapDefault:         ptr.To[vapDefault](VAPDefaultYes),
+			constraint:         makeConstraint(),
+			vapDefault:         true,
 			expectedViolations: true,
 		},
 		{
@@ -256,9 +247,9 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultYes),
+			vapDefault:         true,
 			expectedViolations: false,
 		},
 		{
@@ -271,9 +262,9 @@ func TestValidation(t *testing.T) {
 					},
 				},
 			}, nil),
-			constraint:         makeConstraint(nil),
+			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultNo),
+			vapDefault:         false,
 			expectedViolations: true,
 		},
 		{
@@ -285,41 +276,11 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, ptr.To[string](string(VAPDefaultYes))),
-			constraint:         makeConstraint(nil),
+			}, ptr.To[bool](true)),
+			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultNo),
+			vapDefault:         false,
 			expectedViolations: false,
-		},
-		{
-			name: "Unsatisfied constraint, default assume no VAP, admission request, constraint override",
-			template: makeTemplateWithSource(&schema.Source{
-				Validations: []schema.Validation{
-					{
-						Expression: `object.metadata.name == "unrecognizable-name"`,
-						Message:    "unexpected name",
-					},
-				},
-			}, nil),
-			constraint:         makeConstraint(ptr.To[string](string(VAPDefaultYes))),
-			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultNo),
-			expectedViolations: true,
-		},
-		{
-			name: "Unsatisfied constraint, default assume VAP, admission request, constraint override",
-			template: makeTemplateWithSource(&schema.Source{
-				Validations: []schema.Validation{
-					{
-						Expression: `object.metadata.name == "unrecognizable-name"`,
-						Message:    "unexpected name",
-					},
-				},
-			}, nil),
-			constraint:         makeConstraint(ptr.To[string](string(VAPDefaultNo))),
-			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultYes),
-			expectedViolations: true,
 		},
 		{
 			name: "Unsatisfied constraint, default assume VAP, admission request, constraint template override",
@@ -330,33 +291,17 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, ptr.To[string](string(VAPDefaultNo))),
-			constraint:         makeConstraint(nil),
+			}, ptr.To[bool](false)),
+			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
-			vapDefault:         ptr.To[vapDefault](VAPDefaultYes),
-			expectedViolations: true,
-		},
-		{
-			name: "Unsatisfied constraint, VAP disabled (default == nil), all override",
-			template: makeTemplateWithSource(&schema.Source{
-				Validations: []schema.Validation{
-					{
-						Expression: `object.metadata.name == "unrecognizable-name"`,
-						Message:    "unexpected name",
-					},
-				},
-			}, ptr.To[string](string(VAPDefaultYes))),
-			constraint:         makeConstraint(ptr.To[string](string(VAPDefaultYes))),
-			isAdmissionRequest: true,
+			vapDefault:         true,
 			expectedViolations: true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			args := []Arg{}
-			if test.vapDefault != nil {
-				args = append(args, VAPGenerationDefault(*test.vapDefault))
-			}
+			args = append(args, VAPGenerationDefault(test.vapDefault))
 			driver, err := New(args...)
 			if err != nil {
 				t.Fatal(err)
@@ -379,74 +324,50 @@ func TestAssumeVAPEnforcement(t *testing.T) {
 	tests := []struct {
 		name       string
 		template   *templates.ConstraintTemplate
-		vapDefault *vapDefault
+		vapDefault bool
 		expected   bool
 	}{
 		{
-			name:     "Enabled, default not set => no consideration of VAP enforcement",
-			template: makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			expected: false,
-		},
-		{
 			name:       "No stance, default enabled",
 			template:   makeTemplate(nil),
-			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			vapDefault: true,
 			expected:   true,
 		},
 		{
 			name:       "No stance, default disabled",
 			template:   makeTemplate(nil),
-			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			vapDefault: false,
 			expected:   false,
 		},
 		{
 			name:       "Enabled, default 'no'",
-			template:   makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			template:   makeTemplate(ptr.To[bool](true)),
+			vapDefault: false,
 			expected:   true,
 		},
 		{
 			name:       "Enabled, default 'yes'",
-			template:   makeTemplate(ptr.To[string](string(VAPDefaultYes))),
-			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			template:   makeTemplate(ptr.To[bool](true)),
+			vapDefault: true,
 			expected:   true,
 		},
 		{
 			name:       "Disabled, default 'yes'",
-			template:   makeTemplate(ptr.To[string](string(VAPDefaultNo))),
-			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
+			template:   makeTemplate(ptr.To[bool](false)),
+			vapDefault: true,
 			expected:   false,
 		},
 		{
 			name:       "Disabled, default 'no'",
-			template:   makeTemplate(ptr.To[string](string(VAPDefaultNo))),
-			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
+			template:   makeTemplate(ptr.To[bool](false)),
+			vapDefault: false,
 			expected:   false,
-		},
-		{
-			name:     "Nonsense value, default not set => nonsense ignored",
-			template: makeTemplate(ptr.To[string]("catshaveclaws")),
-			expected: false,
-		},
-		{
-			name:       "Nonsense value, default set",
-			template:   makeTemplate(ptr.To[string]("catshaveclaws")),
-			vapDefault: ptr.To[vapDefault](VAPDefaultNo),
-			expected:   false,
-		},
-		{
-			name:       "Nonsense value, default set to yes",
-			template:   makeTemplate(ptr.To[string]("catshaveclaws")),
-			vapDefault: ptr.To[vapDefault](VAPDefaultYes),
-			expected:   true,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			args := []Arg{}
-			if test.vapDefault != nil {
-				args = append(args, VAPGenerationDefault(*test.vapDefault))
-			}
+			args = append(args, VAPGenerationDefault(test.vapDefault))
 			driver, err := New(args...)
 			if err != nil {
 				t.Fatal(err)
