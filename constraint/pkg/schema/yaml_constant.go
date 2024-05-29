@@ -84,9 +84,6 @@ spec:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
-                          generateVAP:
-                            description: The flag to use VAP for enforcement.
-                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
@@ -217,9 +214,6 @@ spec:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
-                          generateVAP:
-                            description: The flag to use VAP for enforcement.
-                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true
@@ -350,9 +344,6 @@ spec:
                             description: 'The engine used to evaluate the code. Example:
                               "Rego". Required.'
                             type: string
-                          generateVAP:
-                            description: The flag to use VAP for enforcement.
-                            type: boolean
                           source:
                             description: The source code for the template. Required.
                             x-kubernetes-preserve-unknown-fields: true

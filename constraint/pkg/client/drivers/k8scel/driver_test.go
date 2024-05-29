@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func makeTemplateWithSource(source *schema.Source, vapGenerationVal *bool) *templates.ConstraintTemplate {
+func makeTemplateWithSource(source *schema.Source) *templates.ConstraintTemplate {
 	template := &templates.ConstraintTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "testkind",
@@ -28,7 +28,6 @@ func makeTemplateWithSource(source *schema.Source, vapGenerationVal *bool) *temp
 					Code: []templates.Code{
 						{
 							Engine:      schema.Name,
-							GenerateVAP: vapGenerationVal,
 							Source: &templates.Anything{
 								Value: source.MustToUnstructured(),
 							},
@@ -49,7 +48,8 @@ func makeTemplate(vapGenerationVal *bool) *templates.ConstraintTemplate {
 				Message:    "Always true",
 			},
 		},
-	}, vapGenerationVal)
+		GenerateVAP: vapGenerationVal,
+	})
 }
 
 func makeConstraint() *unstructured.Unstructured {
@@ -121,7 +121,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
@@ -134,7 +134,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: true,
 		},
@@ -153,7 +153,7 @@ func TestValidation(t *testing.T) {
 						Expression: `object.kind == "Namespace"`,
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
@@ -172,7 +172,7 @@ func TestValidation(t *testing.T) {
 						Expression: `object.kind == "Pod"`,
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: true,
 		},
@@ -191,7 +191,7 @@ func TestValidation(t *testing.T) {
 						Expression: `object.metadata.name`,
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
@@ -204,7 +204,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
@@ -218,7 +218,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			vapDefault:         false,
 			expectedViolations: true,
@@ -232,7 +232,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			vapDefault:         true,
 			expectedViolations: true,
@@ -246,7 +246,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
 			vapDefault:         true,
@@ -261,7 +261,7 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, nil),
+			}),
 			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
 			vapDefault:         false,
@@ -276,7 +276,8 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, ptr.To[bool](true)),
+				GenerateVAP: ptr.To[bool](true),
+			}),
 			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
 			vapDefault:         false,
@@ -291,7 +292,8 @@ func TestValidation(t *testing.T) {
 						Message:    "unexpected name",
 					},
 				},
-			}, ptr.To[bool](false)),
+				GenerateVAP: ptr.To[bool](false),
+			}),
 			constraint:         makeConstraint(),
 			isAdmissionRequest: true,
 			vapDefault:         true,
@@ -372,7 +374,7 @@ func TestAssumeVAPEnforcement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assumeVAP := driver.assumeVAPEnforcement(test.template)
+			assumeVAP, _ := driver.assumeVAPEnforcement(test.template)
 			if assumeVAP != test.expected {
 				t.Errorf("wanted assumeVAP to be %v; got %v", test.expected, assumeVAP)
 			}

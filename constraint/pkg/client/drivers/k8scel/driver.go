@@ -120,7 +120,10 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 		failurePolicy,
 	)
 
-	assumeVAPEnforcement := d.assumeVAPEnforcement(ct)
+	assumeVAPEnforcement, err := d.assumeVAPEnforcement(ct)
+	if err != nil {
+		return err
+	}
 
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -259,16 +262,15 @@ func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 	}
 }
 
-func (d *Driver) assumeVAPEnforcement(ct *templates.ConstraintTemplate) bool {
-	for _, v := range ct.Spec.Targets[0].Code {
-		if v.Engine == d.Name() {
-			if v.GenerateVAP == nil {
-				return d.generateVAPDefault
-			}
-			return *v.GenerateVAP
-		}
+func (d *Driver) assumeVAPEnforcement(ct *templates.ConstraintTemplate) (bool, error) {
+	source, err := pSchema.GetSourceFromTemplate(ct)
+	if err != nil {
+		return false, err
 	}
-	return d.generateVAPDefault
+	if source.GenerateVAP == nil {
+		return d.generateVAPDefault, nil
+	}
+	return *source.GenerateVAP, nil
 }
 
 type ARGetter interface {

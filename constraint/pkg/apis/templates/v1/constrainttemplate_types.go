@@ -72,9 +72,6 @@ type Code struct {
 	// +kubebuilder:validation:Required
 	Engine string `json:"engine"`
 
-	// +kubebuilder:validation:Required
-	// The flag to use VAP for enforcement.
-	GenerateVAP *bool `json:"generateVAP,omitempty"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Schemaless
