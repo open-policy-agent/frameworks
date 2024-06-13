@@ -13,7 +13,7 @@ func GatherStats() Arg {
 }
 
 // VAPGenerationDefault sets the expected default
-// value for generateVAP field.
+// value for the generateVAP field.
 // If no value is provided, VAP generation
 // is presumed to be disabled and the engine will
 // validate ALL policies. Otherwise, the engine

@@ -72,7 +72,6 @@ type Code struct {
 	// +kubebuilder:validation:Required
 	Engine string `json:"engine"`
 
-
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:pruning:PreserveUnknownFields
