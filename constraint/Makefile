@@ -42,7 +42,7 @@ gen-dependencies:
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
-	/home/funkydev/go/bin/controller-gen \
+	controller-gen \
 		crd:allowDangerousTypes="true" \
 		paths="./pkg/..." \
 		output:crd:artifacts:config=config/crds
@@ -64,7 +64,7 @@ lint:
 # Generate code
 # Not working?  Try running `make gen-dependencies`
 generate: generate-defaults
-	/home/funkydev/go/bin/controller-gen \
+	controller-gen \
 		object:headerFile=./hack/boilerplate.go.txt \
 		paths="./pkg/..."
 	# This conversion-gen code is broken.  For some reason, it does not include functions
@@ -72,7 +72,7 @@ generate: generate-defaults
 	# those functions exist and can be added manually to the conversion file.
 	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
 	# conversion-gen and get us back to running `make generate` in our CI pipeline
-	/home/funkydev/go/bin/conversion-gen \
+	conversion-gen \
 		--input-dirs "./pkg/apis/templates/v1,./pkg/apis/templates/v1beta1,./pkg/apis/templates/v1alpha1,./pkg/apis/externaldata/v1alpha1,./pkg/apis/externaldata/v1beta1" \
 		--output-base=./ \
 		--go-header-file=./hack/boilerplate.go.txt \
@@ -99,7 +99,7 @@ constraint-template-string-constant: manifests
 	rm -rf .staging
 
 generate-defaults: constraint-template-string-constant
-	/home/funkydev/go/bin/defaulter-gen \
+	defaulter-gen \
 		--input-dirs "./pkg/apis/templates/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
 		--output-file-base=zz_generated.defaults
