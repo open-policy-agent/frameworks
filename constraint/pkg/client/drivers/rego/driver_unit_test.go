@@ -2,7 +2,6 @@ package rego
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -676,7 +675,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *http.Client) (*externaldata.ProviderResponse, int, error) {
 				return nil, http.StatusBadRequest, errors.New("error from SendRequestToProvider")
 			},
 			errorExpected: true,
@@ -695,7 +694,7 @@ func TestDriver_ExternalData(t *testing.T) {
 			},
 			clientCertContent: clientCert,
 			clientKeyContent:  clientKey,
-			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *tls.Certificate) (*externaldata.ProviderResponse, int, error) {
+			sendRequestToProvider: func(_ context.Context, _ *unversioned.Provider, _ []string, _ *http.Client) (*externaldata.ProviderResponse, int, error) {
 				return &externaldata.ProviderResponse{
 					APIVersion: "v1beta1",
 					Kind:       "Provider",
