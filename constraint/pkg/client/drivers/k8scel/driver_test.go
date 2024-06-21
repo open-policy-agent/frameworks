@@ -287,6 +287,37 @@ func TestValidation(t *testing.T) {
 			vapDefault:         true,
 			expectedViolations: true,
 		},
+		// TO-DO: Enable these tests with `scopedEnforcementActions` since with that change constraints should be able to override the VAPB generation
+		// {
+		// 	name: "Unsatisfied constraint, default assume no VAP, admission request, constraint override",
+		// 	template: makeTemplateWithSource(&schema.Source{
+		// 		Validations: []schema.Validation{
+		// 			{
+		// 				Expression: `object.metadata.name == "unrecognizable-name"`,
+		// 				Message:    "unexpected name",
+		// 			},
+		// 		},
+		// 	}),
+		// 	constraint:         makeConstraint(ptr.To[string](string(VAPDefaultYes))),
+		// 	isAdmissionRequest: true,
+		// 	vapDefault:         ptr.To[vapDefault](VAPDefaultNo),
+		// 	expectedViolations: true,
+		// },
+		// {
+		// 	name: "Unsatisfied constraint, default assume VAP, admission request, constraint override",
+		// 	template: makeTemplateWithSource(&schema.Source{
+		// 		Validations: []schema.Validation{
+		// 			{
+		// 				Expression: `object.metadata.name == "unrecognizable-name"`,
+		// 				Message:    "unexpected name",
+		// 			},
+		// 		},
+		// 	}),
+		// 	constraint:         makeConstraint(ptr.To[string](string(VAPDefaultNo))),
+		// 	isAdmissionRequest: true,
+		// 	vapDefault:         ptr.To[vapDefault](VAPDefaultYes),
+		// 	expectedViolations: true,
+		// },
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
