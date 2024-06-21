@@ -120,7 +120,7 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 		failurePolicy,
 	)
 
-	assumeVAPEnforcement, err := d.assumeVAPEnforcement(ct)
+	assumeVAPEnforcement, err := transform.AssumeVAPEnforcement(ct, d.generateVAPDefault)
 	if err != nil {
 		return err
 	}
@@ -260,17 +260,6 @@ func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown stat name for K8sNativeValidation: %s", statName)
 	}
-}
-
-func (d *Driver) assumeVAPEnforcement(ct *templates.ConstraintTemplate) (bool, error) {
-	source, err := pSchema.GetSourceFromTemplate(ct)
-	if err != nil {
-		return false, err
-	}
-	if source.GenerateVAP == nil {
-		return d.generateVAPDefault, nil
-	}
-	return *source.GenerateVAP, nil
 }
 
 type ARGetter interface {

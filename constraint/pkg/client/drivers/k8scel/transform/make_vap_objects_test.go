@@ -18,6 +18,42 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+func makeTemplateWithSource(source *schema.Source) *templates.ConstraintTemplate {
+	template := &templates.ConstraintTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "testkind",
+		},
+		Spec: templates.ConstraintTemplateSpec{
+			Targets: []templates.Target{
+				{
+					Target: "admission.k8s.io",
+					Code: []templates.Code{
+						{
+							Engine: schema.Name,
+							Source: &templates.Anything{
+								Value: source.MustToUnstructured(),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return template
+}
+
+func makeTemplate(vapGenerationVal *bool) *templates.ConstraintTemplate {
+	return makeTemplateWithSource(&schema.Source{
+		Validations: []schema.Validation{
+			{
+				Expression: "1 == 1",
+				Message:    "Always true",
+			},
+		},
+		GenerateVAP: vapGenerationVal,
+	})
+}
+
 func TestTemplateToPolicyDefinition(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -408,6 +444,60 @@ func TestConstraintToBinding(t *testing.T) {
 			}
 			if !reflect.DeepEqual(binding, test.expected) {
 				t.Errorf("got %+v\n\nwant %+v", *binding, *test.expected)
+			}
+		})
+	}
+}
+
+func TestAssumeVAPEnforcement(t *testing.T) {
+	tests := []struct {
+		name       string
+		template   *templates.ConstraintTemplate
+		vapDefault bool
+		expected   bool
+	}{
+		{
+			name:       "No stance, default enabled",
+			template:   makeTemplate(nil),
+			vapDefault: true,
+			expected:   true,
+		},
+		{
+			name:       "No stance, default disabled",
+			template:   makeTemplate(nil),
+			vapDefault: false,
+			expected:   false,
+		},
+		{
+			name:       "Enabled, default 'no'",
+			template:   makeTemplate(ptr.To[bool](true)),
+			vapDefault: false,
+			expected:   true,
+		},
+		{
+			name:       "Enabled, default 'yes'",
+			template:   makeTemplate(ptr.To[bool](true)),
+			vapDefault: true,
+			expected:   true,
+		},
+		{
+			name:       "Disabled, default 'yes'",
+			template:   makeTemplate(ptr.To[bool](false)),
+			vapDefault: true,
+			expected:   false,
+		},
+		{
+			name:       "Disabled, default 'no'",
+			template:   makeTemplate(ptr.To[bool](false)),
+			vapDefault: false,
+			expected:   false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assumeVAP, _ := AssumeVAPEnforcement(test.template, test.vapDefault)
+			if assumeVAP != test.expected {
+				t.Errorf("wanted assumeVAP to be %v; got %v", test.expected, assumeVAP)
 			}
 		})
 	}

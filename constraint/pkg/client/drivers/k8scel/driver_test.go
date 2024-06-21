@@ -27,7 +27,7 @@ func makeTemplateWithSource(source *schema.Source) *templates.ConstraintTemplate
 					Target: "admission.k8s.io",
 					Code: []templates.Code{
 						{
-							Engine:      schema.Name,
+							Engine: schema.Name,
 							Source: &templates.Anything{
 								Value: source.MustToUnstructured(),
 							},
@@ -38,18 +38,6 @@ func makeTemplateWithSource(source *schema.Source) *templates.ConstraintTemplate
 		},
 	}
 	return template
-}
-
-func makeTemplate(vapGenerationVal *bool) *templates.ConstraintTemplate {
-	return makeTemplateWithSource(&schema.Source{
-		Validations: []schema.Validation{
-			{
-				Expression: "1 == 1",
-				Message:    "Always true",
-			},
-		},
-		GenerateVAP: vapGenerationVal,
-	})
 }
 
 func makeConstraint() *unstructured.Unstructured {
@@ -317,66 +305,6 @@ func TestValidation(t *testing.T) {
 			}
 			if len(response.Results) > 0 != test.expectedViolations {
 				t.Errorf("wanted violation presence to be %v; got %v", test.expectedViolations, spew.Sdump(response.Results))
-			}
-		})
-	}
-}
-
-func TestAssumeVAPEnforcement(t *testing.T) {
-	tests := []struct {
-		name       string
-		template   *templates.ConstraintTemplate
-		vapDefault bool
-		expected   bool
-	}{
-		{
-			name:       "No stance, default enabled",
-			template:   makeTemplate(nil),
-			vapDefault: true,
-			expected:   true,
-		},
-		{
-			name:       "No stance, default disabled",
-			template:   makeTemplate(nil),
-			vapDefault: false,
-			expected:   false,
-		},
-		{
-			name:       "Enabled, default 'no'",
-			template:   makeTemplate(ptr.To[bool](true)),
-			vapDefault: false,
-			expected:   true,
-		},
-		{
-			name:       "Enabled, default 'yes'",
-			template:   makeTemplate(ptr.To[bool](true)),
-			vapDefault: true,
-			expected:   true,
-		},
-		{
-			name:       "Disabled, default 'yes'",
-			template:   makeTemplate(ptr.To[bool](false)),
-			vapDefault: true,
-			expected:   false,
-		},
-		{
-			name:       "Disabled, default 'no'",
-			template:   makeTemplate(ptr.To[bool](false)),
-			vapDefault: false,
-			expected:   false,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			args := []Arg{}
-			args = append(args, VAPGenerationDefault(test.vapDefault))
-			driver, err := New(args...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			assumeVAP, _ := driver.assumeVAPEnforcement(test.template)
-			if assumeVAP != test.expected {
-				t.Errorf("wanted assumeVAP to be %v; got %v", test.expected, assumeVAP)
 			}
 		})
 	}
