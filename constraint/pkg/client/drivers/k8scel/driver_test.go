@@ -199,7 +199,6 @@ func TestValidation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			args := []Arg{}
-			args = append(args, VAPGenerationDefault(test.vapDefault))
 			driver, err := New(args...)
 			if err != nil {
 				t.Fatal(err)
