@@ -18,42 +18,6 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-func makeTemplateWithSource(source *schema.Source) *templates.ConstraintTemplate {
-	template := &templates.ConstraintTemplate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "testkind",
-		},
-		Spec: templates.ConstraintTemplateSpec{
-			Targets: []templates.Target{
-				{
-					Target: "admission.k8s.io",
-					Code: []templates.Code{
-						{
-							Engine: schema.Name,
-							Source: &templates.Anything{
-								Value: source.MustToUnstructured(),
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	return template
-}
-
-func makeTemplate(vapGenerationVal *bool) *templates.ConstraintTemplate {
-	return makeTemplateWithSource(&schema.Source{
-		Validations: []schema.Validation{
-			{
-				Expression: "1 == 1",
-				Message:    "Always true",
-			},
-		},
-		GenerateVAP: vapGenerationVal,
-	})
-}
-
 func TestTemplateToPolicyDefinition(t *testing.T) {
 	tests := []struct {
 		name        string

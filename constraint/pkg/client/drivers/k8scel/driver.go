@@ -57,7 +57,7 @@ type Driver struct {
 }
 
 type validatorWrapper struct {
-	validator            validatingadmissionpolicy.Validator
+	validator validatingadmissionpolicy.Validator
 }
 
 func (d *Driver) Name() string {
@@ -122,7 +122,7 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	d.validators[ct.GetName()] = &validatorWrapper{
-		validator:            validator,
+		validator: validator,
 	}
 	return nil
 }
