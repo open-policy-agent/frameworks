@@ -68,7 +68,7 @@ func (rw *requestWrapper) IsAdmissionRequest() bool {
 	return rw.isAdmission
 }
 
-func fakeRequest(isAdmission bool) *requestWrapper {
+func fakeRequest() *requestWrapper {
 	objStr := `
 apiVersion: v1
 kind: Pod
@@ -82,7 +82,6 @@ metadata:
 	}
 
 	return &requestWrapper{
-		isAdmission: isAdmission,
 		request: &admissionv1.AdmissionRequest{
 			Object: runtime.RawExtension{Raw: objJSON},
 		},
@@ -94,8 +93,6 @@ func TestValidation(t *testing.T) {
 		name               string
 		template           *templates.ConstraintTemplate
 		constraint         *unstructured.Unstructured
-		vapDefault         bool
-		isAdmissionRequest bool
 		expectedViolations bool
 		expectedErr        bool
 	}{
@@ -206,7 +203,7 @@ func TestValidation(t *testing.T) {
 			if err := driver.AddTemplate(context.Background(), test.template); err != nil {
 				t.Fatal(err)
 			}
-			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, fakeRequest(test.isAdmissionRequest))
+			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, fakeRequest())
 			if (err != nil) != test.expectedErr {
 				t.Errorf("wanted error state to be %v; got %v", test.expectedErr, err != nil)
 			}
