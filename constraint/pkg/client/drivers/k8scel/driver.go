@@ -120,7 +120,7 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 		failurePolicy,
 	)
 
-	assumeVAPEnforcement, err := transform.AssumeVAPEnforcement(ct, d.generateVAPDefault)
+	assumeVAPEnforcement, err := transform.ShouldGenerateVAP(ct, d.generateVAPDefault)
 	if err != nil {
 		return err
 	}
@@ -192,12 +192,6 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		wrappedValidator := d.validators[strings.ToLower(constraint.GetKind())]
 		if wrappedValidator == nil {
 			return nil, fmt.Errorf("unknown constraint template validator: %s", constraint.GetKind())
-		}
-
-		// if we assume VAP enforcement for a given template, Gatekeeper
-		// should not be evaluating that constraint/template in an admission context.
-		if isAdmission && wrappedValidator.assumeVAPEnforcement {
-			continue
 		}
 
 		validator := wrappedValidator.validator

@@ -133,7 +133,7 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 	return binding, nil
 }
 
-func AssumeVAPEnforcement(ct *templates.ConstraintTemplate, generateVAPDefault bool) (bool, error) {
+func ShouldGenerateVAP(ct *templates.ConstraintTemplate, generateVAPDefault bool) (bool, error) {
 	source, err := schema.GetSourceFromTemplate(ct)
 	if err != nil {
 		return false, err

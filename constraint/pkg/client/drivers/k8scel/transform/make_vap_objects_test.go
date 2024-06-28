@@ -495,7 +495,7 @@ func TestAssumeVAPEnforcement(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assumeVAP, _ := AssumeVAPEnforcement(test.template, test.vapDefault)
+			assumeVAP, _ := ShouldGenerateVAP(test.template, test.vapDefault)
 			if assumeVAP != test.expected {
 				t.Errorf("wanted assumeVAP to be %v; got %v", test.expected, assumeVAP)
 			}
