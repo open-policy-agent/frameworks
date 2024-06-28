@@ -57,7 +57,6 @@ type Driver struct {
 }
 
 type validatorWrapper struct {
-	assumeVAPEnforcement bool
 	validator            validatingadmissionpolicy.Validator
 }
 
@@ -120,16 +119,10 @@ func (d *Driver) AddTemplate(_ context.Context, ct *templates.ConstraintTemplate
 		failurePolicy,
 	)
 
-	assumeVAPEnforcement, err := transform.ShouldGenerateVAP(ct, d.generateVAPDefault)
-	if err != nil {
-		return err
-	}
-
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	d.validators[ct.GetName()] = &validatorWrapper{
 		validator:            validator,
-		assumeVAPEnforcement: assumeVAPEnforcement,
 	}
 	return nil
 }
@@ -167,12 +160,6 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	defer d.mux.RUnlock()
 
 	var statsEntries []*instrumentation.StatsEntry
-
-	isAdmission := false
-	isAdmissionGetter, ok := review.(IsAdmissionGetter)
-	if ok {
-		isAdmission = isAdmissionGetter.IsAdmissionRequest()
-	}
 
 	arGetter, ok := review.(ARGetter)
 	if !ok {
