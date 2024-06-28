@@ -50,10 +50,9 @@ const (
 var _ drivers.Driver = &Driver{}
 
 type Driver struct {
-	mux                sync.RWMutex
-	validators         map[string]*validatorWrapper
-	generateVAPDefault bool
-	gatherStats        bool
+	mux         sync.RWMutex
+	validators  map[string]*validatorWrapper
+	gatherStats bool
 }
 
 type validatorWrapper struct {
