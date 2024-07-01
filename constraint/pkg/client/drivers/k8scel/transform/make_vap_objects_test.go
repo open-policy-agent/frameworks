@@ -241,8 +241,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 	}
 }
 
-func newTestConstraint(enforcementAction string, namespaceSelector, labelSelector *metav1.LabelSelector) *unstructured.Unstructured {
-	constraint := &unstructured.Unstructured{}
+func newTestConstraint(enforcementAction string, namespaceSelector, labelSelector *metav1.LabelSelector, constraint *unstructured.Unstructured) *unstructured.Unstructured {
 	constraint.SetGroupVersionKind(rschema.GroupVersionKind{Group: constraints.Group, Version: "v1beta1", Kind: "FooTemplate"})
 	constraint.SetName("foo-name")
 	if namespaceSelector != nil {
@@ -280,7 +279,7 @@ func TestConstraintToBinding(t *testing.T) {
 	}{
 		{
 			name:       "empty constraint",
-			constraint: newTestConstraint("", nil, nil),
+			constraint: newTestConstraint("", nil, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -298,7 +297,7 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:       "with object selector",
-			constraint: newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
+			constraint: newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -318,7 +317,7 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:       "with namespace selector",
-			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil),
+			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -338,7 +337,7 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:       "with both selectors",
-			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
+			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -359,7 +358,7 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:       "with explicit deny",
-			constraint: newTestConstraint("deny", nil, nil),
+			constraint: newTestConstraint("deny", nil, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -377,7 +376,7 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:       "with warn",
-			constraint: newTestConstraint("warn", nil, nil),
+			constraint: newTestConstraint("warn", nil, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -395,7 +394,78 @@ func TestConstraintToBinding(t *testing.T) {
 		},
 		{
 			name:        "unrecognized enforcement action",
-			constraint:  newTestConstraint("magicunicorns", nil, nil),
+			constraint:  newTestConstraint("magicunicorns", nil, nil, &unstructured.Unstructured{}),
+			expected:    nil,
+			expectedErr: ErrBadEnforcementAction,
+		},
+		{
+			name: "scoped enforcement action",
+			constraint: newTestConstraint("scoped", nil, nil, &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"scopedEnforcementActions": []interface{}{
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": WebhookEnforcementPoint,
+									},
+								},
+								"action": "warn",
+							},
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": "*",
+									},
+								},
+								"action": "deny",
+							},
+						},
+					},
+				},
+			}),
+			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "gatekeeper-foo-name",
+				},
+				Spec: admissionregistrationv1beta1.ValidatingAdmissionPolicyBindingSpec{
+					PolicyName: "gatekeeper-footemplate",
+					ParamRef: &admissionregistrationv1beta1.ParamRef{
+						Name:                    "foo-name",
+						ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
+					},
+					MatchResources:    &admissionregistrationv1beta1.MatchResources{},
+					ValidationActions: []admissionregistrationv1beta1.ValidationAction{admissionregistrationv1beta1.Warn, admissionregistrationv1beta1.Deny},
+				},
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "scoped enforcement action without VAP enforcement point",
+			constraint: newTestConstraint("scoped", nil, nil, &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"scopedEnforcementActions": []interface{}{
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]string{
+										"name": "test",
+									},
+								},
+								"action": "warn",
+							},
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]string{
+										"name": "another-test",
+									},
+								},
+								"action": "deny",
+							},
+						},
+					},
+				},
+			}),
 			expected:    nil,
 			expectedErr: ErrBadEnforcementAction,
 		},

@@ -62,6 +62,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
+			EnforcementPoints("test"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -743,6 +744,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 			Driver(driverC),
 			Driver(driverB),
 			Driver(driverA),
+			EnforcementPoints("test"),
 		)
 		if err != nil {
 			t.Fatal(err)

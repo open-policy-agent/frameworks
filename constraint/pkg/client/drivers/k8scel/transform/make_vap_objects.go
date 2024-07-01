@@ -15,6 +15,8 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+const WebhookEnforcementPoint = "validation.k8s.io"
+
 func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1beta1.ValidatingAdmissionPolicy, error) {
 	source, err := schema.GetSourceFromTemplate(template)
 	if err != nil {
@@ -81,14 +83,42 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 		return nil, err
 	}
 
-	var enforcementAction admissionregistrationv1beta1.ValidationAction
-	switch enforcementActionStr {
-	case apiconstraints.EnforcementActionDeny:
-		enforcementAction = admissionregistrationv1beta1.Deny
-	case "warn":
-		enforcementAction = admissionregistrationv1beta1.Warn
-	default:
-		return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, enforcementActionStr)
+	actions := []string{}
+	if apiconstraints.IsEnforcementActionScoped(enforcementActionStr) {
+		actionsForEP, err := apiconstraints.GetEnforcementActionsForEP(constraint, []string{WebhookEnforcementPoint})
+		if err != nil {
+			return nil, err
+		}
+		if len(actionsForEP[WebhookEnforcementPoint]) == 0 {
+			return nil, fmt.Errorf("%w: unrecognized enforcement action, must be `warn` or `deny` for admission webhook, nil is not allowed", ErrBadEnforcementAction)
+		}
+		for action := range actionsForEP[WebhookEnforcementPoint] {
+			actions = append(actions, action)
+		}
+	}
+
+	var enforcementActions []admissionregistrationv1beta1.ValidationAction
+
+	for _, action := range actions {
+		switch action {
+		case apiconstraints.EnforcementActionDeny:
+			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Deny)
+		case "warn":
+			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Warn)
+		default:
+			return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, action)
+		}
+	}
+
+	if len(enforcementActions) == 0 {
+		switch enforcementActionStr {
+		case apiconstraints.EnforcementActionDeny:
+			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Deny)
+		case "warn":
+			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Warn)
+		default:
+			return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, enforcementActionStr)
+		}
 	}
 
 	binding := &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
@@ -102,7 +132,7 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 				ParameterNotFoundAction: ptr.To[admissionregistrationv1beta1.ParameterNotFoundActionType](admissionregistrationv1beta1.AllowAction),
 			},
 			MatchResources:    &admissionregistrationv1beta1.MatchResources{},
-			ValidationActions: []admissionregistrationv1beta1.ValidationAction{enforcementAction},
+			ValidationActions: enforcementActions,
 		},
 	}
 	objectSelectorMap, found, err := unstructured.NestedMap(constraint.Object, "spec", "match", "labelSelector")
