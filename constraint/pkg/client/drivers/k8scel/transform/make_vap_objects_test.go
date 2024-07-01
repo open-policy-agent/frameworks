@@ -102,12 +102,16 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 					FailurePolicy: ptr.To[admissionregistrationv1beta1.FailurePolicyType](admissionregistrationv1beta1.Fail),
 					Variables: []admissionregistrationv1beta1.Variable{
 						{
-							Name:       "my_variable",
-							Expression: "true",
+							Name:       schema.ObjectName,
+							Expression: `has(request.operation) && request.operation == "DELETE" && object == null ? oldObject : object`,
 						},
 						{
 							Name:       schema.ParamsName,
 							Expression: "!has(params.spec) ? null : !has(params.spec.parameters) ? null: params.spec.parameters",
+						},
+						{
+							Name:       "my_variable",
+							Expression: "true",
 						},
 					},
 				},

@@ -109,6 +109,25 @@ func TestValidationErrors(t *testing.T) {
 			},
 			expectedErr: ErrBadVariable,
 		},
+		{
+			name: "Reserved Variable `anyObject`",
+			source: &Source{
+				FailurePolicy: ptr.To[string]("Fail"),
+				MatchConditions: []MatchCondition{
+					{
+						Name:       "must_match_something",
+						Expression: "true == true",
+					},
+				},
+				Variables: []Variable{
+					{
+						Name:       "anyObject",
+						Expression: "true",
+					},
+				},
+			},
+			expectedErr: ErrBadVariable,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
