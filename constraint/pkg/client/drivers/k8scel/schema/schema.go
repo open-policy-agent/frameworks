@@ -1,7 +1,6 @@
 package schema
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -24,11 +23,6 @@ const (
 	ParamsName = "params"
 	// ObjectName is the VAP variable that describes either an object or (on DELETE requests) oldObject.
 	ObjectName = "anyObject"
-)
-
-var (
-	ErrBadType      = errors.New("Could not recognize the type")
-	ErrMissingField = errors.New("K8sNativeValidation source missing required field")
 )
 
 type Validation struct {
@@ -278,7 +272,7 @@ func GetSource(code templates.Code) (*Source, error) {
 
 func GetSourceFromTemplate(ct *templates.ConstraintTemplate) (*Source, error) {
 	if len(ct.Spec.Targets) != 1 {
-		return nil, errors.New("wrong number of targets defined, only 1 target allowed")
+		return nil, ErrOneTargetAllowed
 	}
 
 	var source *Source
@@ -294,7 +288,7 @@ func GetSourceFromTemplate(ct *templates.ConstraintTemplate) (*Source, error) {
 		break
 	}
 	if source == nil {
-		return nil, errors.New("K8sNativeValidation code not defined")
+		return nil, ErrCodeNotDefined
 	}
 	return source, nil
 }
