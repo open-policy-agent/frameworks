@@ -95,6 +95,7 @@ func TestValidation(t *testing.T) {
 		constraint         *unstructured.Unstructured
 		expectedViolations bool
 		expectedErr        bool
+		isDelete           bool
 	}{
 		{
 			name: "Satisfied constraint",
@@ -192,6 +193,20 @@ func TestValidation(t *testing.T) {
 			constraint:         makeConstraint(),
 			expectedViolations: false,
 		},
+		{
+			name: "Object Not Set for Delete",
+			template: makeTemplateWithSource(&schema.Source{
+				Validations: []schema.Validation{
+					{
+						Expression: `object == null`,
+						Message:    "object should be null",
+					},
+				},
+			}),
+			constraint:         makeConstraint(),
+			expectedViolations: false,
+			isDelete:           true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -203,7 +218,11 @@ func TestValidation(t *testing.T) {
 			if err := driver.AddTemplate(context.Background(), test.template); err != nil {
 				t.Fatal(err)
 			}
-			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, fakeRequest())
+			req := fakeRequest()
+			if test.isDelete {
+				req.request.Operation = admissionv1.Delete
+			}
+			response, err := driver.Query(context.Background(), "", []*unstructured.Unstructured{test.constraint}, req)
 			if (err != nil) != test.expectedErr {
 				t.Errorf("wanted error state to be %v; got %v", test.expectedErr, err != nil)
 			}
