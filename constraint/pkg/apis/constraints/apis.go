@@ -38,6 +38,9 @@ var (
 
 	// ErrSchema is a specific error that a Constraint failed schema validation.
 	ErrSchema = errors.New("schema validation failed")
+
+	// ErrMissingRequiredField is a specific error that a field is missing from a Constraint.
+	ErrMissingRequiredField = errors.New("missing required field")
 )
 
 // GetEnforcementAction returns a Constraint's enforcementAction, which indicates
@@ -78,7 +81,7 @@ func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, eps []str
 
 	// Return early if scopedEnforcementAction is not found
 	if !found {
-		return nil, nil
+		return nil, fmt.Errorf("%w: spec.scopedEnforcementAction must be defined", ErrMissingRequiredField)
 	}
 
 	// Convert scopedActions to a slice of map[string]interface{}

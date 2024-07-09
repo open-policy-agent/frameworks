@@ -108,6 +108,9 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured, en
 			return false, err
 		}
 		for ep, actions := range enforcementActionsForEPMap {
+			if len(actions) == 0 {
+				continue
+			}
 			enforcementActionsForEP[ep] = make([]string, 0, len(actions))
 			for action := range actions {
 				enforcementActionsForEP[ep] = append(enforcementActionsForEP[ep], action)
@@ -115,6 +118,7 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured, en
 		}
 	} else {
 		for _, ep := range enforcementPoints {
+			enforcementActionsForEP[ep] = make([]string, 0, 1)
 			enforcementActionsForEP[ep] = append(enforcementActionsForEP[ep], enforcementAction)
 		}
 	}
