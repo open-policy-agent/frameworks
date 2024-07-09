@@ -15,8 +15,6 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-const WebhookEnforcementPoint = "validation.k8s.io"
-
 func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admissionregistrationv1beta1.ValidatingAdmissionPolicy, error) {
 	source, err := schema.GetSourceFromTemplate(template)
 	if err != nil {
@@ -77,26 +75,13 @@ func TemplateToPolicyDefinition(template *templates.ConstraintTemplate) (*admiss
 	return policy, nil
 }
 
-func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding, error) {
-	enforcementActionStr, err := apiconstraints.GetEnforcementAction(constraint)
-	if err != nil {
-		return nil, err
+// ConstraintToBinding converts a Constraint to a ValidatingAdmissionPolicyBinding.
+// Accepts a list of enforcement actions to apply to the binding.
+// If the enforcement action is not recognized, returns an error.
+func ConstraintToBinding(constraint *unstructured.Unstructured, actions []string) (*admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding, error) {
+	if len(actions) == 0 {
+		return nil, fmt.Errorf("%w: enforcement actions must be provided", ErrBadEnforcementAction)
 	}
-
-	actions := []string{}
-	if apiconstraints.IsEnforcementActionScoped(enforcementActionStr) {
-		actionsForEP, err := apiconstraints.GetEnforcementActionsForEP(constraint, []string{WebhookEnforcementPoint})
-		if err != nil {
-			return nil, err
-		}
-		if len(actionsForEP[WebhookEnforcementPoint]) == 0 {
-			return nil, fmt.Errorf("%w: unrecognized enforcement action, must be `warn` or `deny` for admission webhook, nil is not allowed", ErrBadEnforcementAction)
-		}
-		for action := range actionsForEP[WebhookEnforcementPoint] {
-			actions = append(actions, action)
-		}
-	}
-
 	var enforcementActions []admissionregistrationv1beta1.ValidationAction
 
 	for _, action := range actions {
@@ -107,17 +92,6 @@ func ConstraintToBinding(constraint *unstructured.Unstructured) (*admissionregis
 			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Warn)
 		default:
 			return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, action)
-		}
-	}
-
-	if len(enforcementActions) == 0 {
-		switch enforcementActionStr {
-		case apiconstraints.EnforcementActionDeny:
-			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Deny)
-		case "warn":
-			enforcementActions = append(enforcementActions, admissionregistrationv1beta1.Warn)
-		default:
-			return nil, fmt.Errorf("%w: unrecognized enforcement action %s, must be `warn` or `deny`", ErrBadEnforcementAction, enforcementActionStr)
 		}
 	}
 
