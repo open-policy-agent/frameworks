@@ -3,6 +3,7 @@ package constraints
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,6 +30,9 @@ const (
 	EnforcementActionDeny = "deny"
 
 	EnforcementActionScoped = "scoped"
+
+	// AllEnforcementPoints is a wildcard to indicate all enforcement points.
+	AllEnforcementPoints = "*"
 )
 
 var (
@@ -62,52 +66,61 @@ func GetEnforcementAction(constraint *unstructured.Unstructured) (string, error)
 }
 
 func IsEnforcementActionScoped(action string) bool {
-	return action == EnforcementActionScoped
+	return strings.EqualFold(action, EnforcementActionScoped)
 }
 
-// GetEnforcementActionsForEP returns a map of enforcement actions for enforcement points.
+// GetEnforcementActionsForEP returns a map of enforcement actions for enforcement points passed in.
 func GetEnforcementActionsForEP(constraint *unstructured.Unstructured, eps []string) (map[string]map[string]bool, error) {
-	actionsForEPs := make(map[string]map[string]bool)
-
-	for _, enforcementPoint := range eps {
-		actionsForEPs[enforcementPoint] = make(map[string]bool)
+	if len(eps) == 0 {
+		return nil, fmt.Errorf("enforcement points must be provided to get enforcement actions")
 	}
 
-	// Access the scopedEnforcementAction field
 	scopedActions, found, err := getNestedFieldAsArray(constraint.Object, "spec", "scopedEnforcementActions")
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid spec.enforcementActionPerEP", ErrInvalidConstraint)
 	}
-
-	// Return early if scopedEnforcementAction is not found
 	if !found {
 		return nil, fmt.Errorf("%w: spec.scopedEnforcementAction must be defined", ErrMissingRequiredField)
 	}
 
-	// Convert scopedActions to a slice of map[string]interface{}
-	scopedEnforcementActions, err := convertToMapSlice(scopedActions)
+	scopedEnforcementActions, err := convertToSliceScopedEnforcementAction(scopedActions)
 	if err != nil {
-		return nil, fmt.Errorf("%w: spec.scopedEnforcementAction must be an array", ErrInvalidConstraint)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidConstraint, err)
 	}
 
-	for _, scopedEnforcementAction := range scopedEnforcementActions {
-		scopedEA := &ScopedEnforcementAction{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(scopedEnforcementAction, scopedEA); err != nil {
-			return nil, err
+	// Flag to indicate if all enforcement points should be enforced
+	enforceAll := false
+	// Initialize a map to hold enforcement actions for each enforcement point
+	actionsForEPs := make(map[string]map[string]bool)
+	// Populate the actionsForEPs map with enforcement points from eps, initializing their action maps
+	for _, enforcementPoint := range eps {
+		if enforcementPoint == AllEnforcementPoints {
+			enforceAll = true // Set enforceAll to true if the special identifier for all enforcement points is found
 		}
+		actionsForEPs[enforcementPoint] = make(map[string]bool) // Initialize the action map for the enforcement point
+	}
 
-		// Iterate over enforcementPoints
+	// Iterate over the scoped enforcement actions to populate actions for each enforcement point
+	for _, scopedEA := range scopedEnforcementActions {
 		for _, enforcementPoint := range scopedEA.EnforcementPoints {
-			if _, ok := actionsForEPs[enforcementPoint.Name]; !ok && enforcementPoint.Name != "*" {
+			epName := strings.ToLower(enforcementPoint.Name)
+			ea := strings.ToLower(scopedEA.Action)
+			// If enforceAll is true, or the enforcement point is explicitly listed, initialize its action map
+			if _, ok := actionsForEPs[epName]; !ok && enforceAll {
+				actionsForEPs[epName] = make(map[string]bool)
+			}
+			// Skip adding actions for enforcement points not in the list unless enforceAll is true
+			if _, ok := actionsForEPs[epName]; !ok && epName != AllEnforcementPoints {
 				continue
 			}
-			switch enforcementPoint.Name {
-			case "*":
-				for _, ep := range eps {
-					actionsForEPs[ep][scopedEA.Action] = true
+			// If the enforcement point is the special identifier for all, apply the action to all enforcement points
+			switch epName {
+			case AllEnforcementPoints:
+				for ep := range actionsForEPs {
+					actionsForEPs[ep][ea] = true
 				}
 			default:
-				actionsForEPs[enforcementPoint.Name][scopedEA.Action] = true
+				actionsForEPs[epName][ea] = true
 			}
 		}
 	}
@@ -130,16 +143,22 @@ func getNestedFieldAsArray(obj map[string]interface{}, fields ...string) ([]inte
 	return nil, false, nil
 }
 
-// Helper function to convert a value to a []map[string]interface{}.
-func convertToMapSlice(value interface{}) ([]map[string]interface{}, error) {
+// Helper function to convert a value to a []ScopedEnforcementAction.
+func convertToSliceScopedEnforcementAction(value interface{}) ([]ScopedEnforcementAction, error) {
+	var result []ScopedEnforcementAction
 	if arr, ok := value.([]interface{}); ok {
-		result := make([]map[string]interface{}, 0, len(arr))
 		for _, v := range arr {
 			if m, ok := v.(map[string]interface{}); ok {
-				result = append(result, m)
+				scopedEA := &ScopedEnforcementAction{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(m, scopedEA); err != nil {
+					return nil, err
+				}
+				result = append(result, *scopedEA)
+			} else {
+				return nil, fmt.Errorf("scopedEnforcementActions value must be a []scopedEnforcementAction{action: string, enforcementPoints: []EnforcementPoint{name: string}}")
 			}
 		}
 		return result, nil
 	}
-	return nil, fmt.Errorf("value must be a []interface{}")
+	return nil, fmt.Errorf("scopedEnforcementActions value must be a []scopedEnforcementAction{action: string, enforcementPoints: []EnforcementPoint{name: string}}")
 }

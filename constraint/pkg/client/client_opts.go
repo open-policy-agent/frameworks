@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
@@ -75,6 +76,9 @@ func IgnoreNoReferentialDriverWarning(ignore bool) Opt {
 
 func EnforcementPoints(eps ...string) Opt {
 	return func(client *Client) error {
+		for i, ep := range eps {
+			eps[i] = strings.ToLower(ep)
+		}
 		client.enforcementPoints = eps
 		return nil
 	}

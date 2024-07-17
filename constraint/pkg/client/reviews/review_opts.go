@@ -1,5 +1,7 @@
 package reviews
 
+import "strings"
+
 type ReviewCfg struct {
 	TracingEnabled bool
 	StatsEnabled   bool
@@ -28,6 +30,6 @@ func Stats(enabled bool) ReviewOpt {
 
 func SourceEP(ep string) ReviewOpt {
 	return func(cfg *ReviewCfg) {
-		cfg.SourceEP = ep
+		cfg.SourceEP = strings.ToLower(ep)
 	}
 }

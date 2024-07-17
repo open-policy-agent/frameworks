@@ -627,26 +627,49 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 // On error, the responses return value will still be populated so that
 // partial results can be analyzed.
 func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.ReviewOpt) (*types.Responses, error) {
+	// Initialize an empty slice for enforcement points
 	var eps []string
+	// Create a new ReviewCfg instance
 	cfg := &reviews.ReviewCfg{}
+	// Apply each option to the ReviewCfg instance
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
+	// Check if a source enforcement point is specified in the configuration
 	if cfg.SourceEP != "" {
+		// Initialize enforceAll as false. It will be used to determine if all enforcement points should be enforced
+		enforceAll := false
+		// Iterate through the client's enforcement points
 		for _, ep := range c.enforcementPoints {
+			// Check if the current enforcement point indicates all enforcement points should be enforced
+			if ep == apiconstraints.AllEnforcementPoints {
+				enforceAll = true
+			}
+			// If the specified source enforcement point matches the current enforcement point, add it to the list
 			if cfg.SourceEP == ep {
 				eps = append(eps, ep)
-				break
+				break // Exit the loop since the matching enforcement point is found
 			}
 		}
+		// If enforceAll is true, add the source enforcement point to the list of enforcement points
+		if enforceAll {
+			eps = append(eps, cfg.SourceEP)
+		}
+		// If no enforcement points match the source enforcement point, return nil indicating no review should be run
 		if eps == nil {
 			return nil, nil
 		}
 	}
 
+	// If no specific enforcement points are specified, use the client's enforcement points
 	if eps == nil {
 		eps = c.enforcementPoints
+	}
+
+	// If there are no enforcement points specified, default to using all enforcement points
+	if eps == nil {
+		eps = []string{apiconstraints.AllEnforcementPoints}
 	}
 
 	responses := types.NewResponses()
@@ -713,7 +736,9 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.Re
 		}
 
 		for i := range resp.Results {
-			resp.Results[i].EnforcementAction = enforcementActionsByTarget[target][resp.Results[i].Constraint.GetName()]
+			if val, ok := enforcementActionsByTarget[target][resp.Results[i].Constraint.GetName()]; ok {
+				resp.Results[i].EnforcementAction = val
+			}
 		}
 
 		for _, autorejection := range autorejections[target] {

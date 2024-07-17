@@ -71,7 +71,7 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 			eps: []string{AuditEnforcementPoint, WebhookEnforcementPoint, GatorEnforcementPoint},
 		},
 		{
-			name: "Actions for selective enforcement point",
+			name: "Actions for selective enforcement point with case sensitive input",
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"spec": map[string]interface{}{
@@ -82,10 +82,10 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 										"name": AuditEnforcementPoint,
 									},
 									map[string]interface{}{
-										"name": WebhookEnforcementPoint,
+										"name": "Validation.K8s.io",
 									},
 								},
-								"action": "warn",
+								"action": "Warn",
 							},
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
@@ -109,6 +109,91 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 				},
 			},
 			eps: []string{WebhookEnforcementPoint, GatorEnforcementPoint},
+		},
+		{
+			name: "wildcard enforcement point in scoped enforcement action, get actions for all enforcement points",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"scopedEnforcementActions": []interface{}{
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AuditEnforcementPoint,
+									},
+									map[string]interface{}{
+										"name": WebhookEnforcementPoint,
+									},
+								},
+								"action": "warn",
+							},
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AllEnforcementPoints,
+									},
+								},
+								"action": "deny",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]map[string]bool{
+				AuditEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				WebhookEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				AllEnforcementPoints: {
+					"deny": true,
+				},
+			},
+			eps: []string{AllEnforcementPoints},
+		},
+		{
+			name: "wildcard enforcement point in scoped enforcement action, get actions for two enforcement points",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"scopedEnforcementActions": []interface{}{
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AuditEnforcementPoint,
+									},
+									map[string]interface{}{
+										"name": WebhookEnforcementPoint,
+									},
+								},
+								"action": "warn",
+							},
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AllEnforcementPoints,
+									},
+								},
+								"action": "deny",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]map[string]bool{
+				AuditEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+				WebhookEnforcementPoint: {
+					"warn": true,
+					"deny": true,
+				},
+			},
+			eps: []string{WebhookEnforcementPoint, AuditEnforcementPoint},
 		},
 	}
 

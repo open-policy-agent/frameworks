@@ -33,17 +33,35 @@ func (c *constraintClient) matches(target string, review interface{}, sourceEPs 
 		return nil
 	}
 
-	var actions []string
+	// Initialize a map to track unique enforcement actions
+	enforcementActions := make(map[string]bool)
+	// Iterate over the provided source enforcement points (EPs)
 	for _, ep := range sourceEPs {
+		var actions []string
+		// Check if there are predefined actions for the current EP
 		if acts, found := c.enforcementActionsForEP[ep]; found {
-			actions = append(actions, acts...)
+			actions = acts // Use the predefined actions if found
+		} else if ep == "*" {
+			// If the EP is "*", aggregate actions from all EPs
+			for _, acts := range c.enforcementActionsForEP {
+				actions = append(actions, acts...)
+			}
+		}
+		// Mark each action as true in the map to ensure uniqueness
+		for _, act := range actions {
+			enforcementActions[act] = true
 		}
 	}
 
-	if len(actions) == 0 {
+	// If no enforcement actions are found, return nil
+	if len(enforcementActions) == 0 {
 		return nil
 	}
 
+	var actions []string
+	for action := range enforcementActions {
+		actions = append(actions, action)
+	}
 	matches, err := matcher.Match(review)
 
 	// We avoid DeepCopying the Constraint out of the Client cache here, only

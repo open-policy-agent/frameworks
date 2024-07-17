@@ -41,7 +41,7 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	return u
 }
 
-func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, actions []string, eps ...string) *unstructured.Unstructured {
+func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, globalAction string, actions []string, eps ...string) *unstructured.Unstructured {
 	t.Helper()
 
 	scopedEnforcementActions := make([]interface{}, len(actions))
@@ -75,7 +75,7 @@ func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, actions []
 		t.Fatal(err)
 	}
 
-	err = unstructured.SetNestedField(u.Object, "scoped", "spec", "enforcementAction")
+	err = unstructured.SetNestedField(u.Object, globalAction, "spec", "enforcementAction")
 	if err != nil {
 		t.Fatal(err)
 	}
