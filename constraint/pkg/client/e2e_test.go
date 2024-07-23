@@ -3,7 +3,6 @@ package client_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -80,6 +79,23 @@ func TestClient_Review(t *testing.T) {
 			}},
 			sourceEP:  "",
 			clientEPs: []string{"audit"},
+		},
+		{
+			name:    "deny all wihtout enforcementAction",
+			targets: []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeConstraintWithoutActions(t, clienttest.KindDeny, "constraint"),
+			},
+			toReview: handlertest.NewReview("", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "denied",
+				EnforcementAction: []string{constraints.EnforcementActionDeny},
+				Constraint:        cts.MakeConstraint(t, clienttest.KindDeny, "constraint"),
+			}},
 		},
 		{
 			name:    "wrong review type",
@@ -576,6 +592,26 @@ func TestClient_Review(t *testing.T) {
 			sourceEP:  "",
 			clientEPs: []string{"test"},
 		},
+		{
+			name:       "case sensitive enforcement actions and enforcement points",
+			namespaces: nil,
+			targets:    []handler.TargetHandler{&handlertest.Handler{}},
+			templates: []*templates.ConstraintTemplate{
+				clienttest.TemplateDeny(),
+			},
+			constraints: []*unstructured.Unstructured{
+				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "Scoped", []string{"Deny"}, "Test.gateKeeper.sh"),
+			},
+			toReview: handlertest.NewReview("", "foo", "bar"),
+			wantResults: []*types.Result{{
+				Target:            handlertest.TargetName,
+				Msg:               "denied",
+				EnforcementAction: []string{constraints.EnforcementActionDeny},
+				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "Scoped", []string{"Deny"}, "Test.gateKeeper.sh"),
+			}},
+			sourceEP:  "teSt.gAtekeeper.sh",
+			clientEPs: []string{"tEst.Gatekeeper.sh"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -660,8 +696,6 @@ func TestClient_Review_Details(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	fmt.Println(responses)
 
 	want := []*types.Result{{
 		Target:            handlertest.TargetName,
