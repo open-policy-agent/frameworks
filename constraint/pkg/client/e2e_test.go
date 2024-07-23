@@ -542,14 +542,14 @@ func TestClient_Review(t *testing.T) {
 				clienttest.TemplateDeny(),
 			},
 			constraints: []*unstructured.Unstructured{
-				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny", "warn"}, "test", "audit"),
+				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test", "audit"),
 			},
 			toReview: handlertest.NewReview("", "foo", "bar"),
 			wantResults: []*types.Result{{
 				Target:            handlertest.TargetName,
 				Msg:               "denied",
-				EnforcementAction: []string{constraints.EnforcementActionDeny, "warn"},
-				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny", "warn"}, "test", "audit"),
+				EnforcementAction: []string{constraints.EnforcementActionDeny},
+				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test", "audit"),
 			}},
 			sourceEP: "",
 		},
