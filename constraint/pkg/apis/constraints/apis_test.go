@@ -9,7 +9,7 @@ import (
 
 const (
 	// WebhookEnforcementPoint is the enforcement point for admission.
-	WebhookEnforcementPoint = "validation.k8s.io"
+	WebhookEnforcementPoint = "validation.gatekeeper.sh"
 
 	// AuditEnforcementPoint is the enforcement point for audit.
 	AuditEnforcementPoint = "audit.gatekeeper.sh"
@@ -82,7 +82,7 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 										"name": AuditEnforcementPoint,
 									},
 									map[string]interface{}{
-										"name": "Validation.K8s.io",
+										"name": "Validation.Gatekeeper.Sh",
 									},
 								},
 								"action": "Warn",
