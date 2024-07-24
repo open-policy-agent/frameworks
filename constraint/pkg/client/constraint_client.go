@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 
+	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
@@ -19,6 +20,10 @@ type constraintClient struct {
 	// matchers are the per-target Matchers for this Constraint.
 	matchers map[string]constraints.Matcher
 
+	// enforcementAction is what should be done if the Constraint is violated or
+	// fails to run on a review.
+	enforcementAction string
+
 	// enforcementActionsForEP stores precompiled enforcement actions for each enforcement point.
 	enforcementActionsForEP map[string][]string
 }
@@ -33,28 +38,30 @@ func (c *constraintClient) matches(target string, review interface{}, sourceEPs 
 		return nil
 	}
 
-	// Initialize a map to track unique enforcement actions
 	enforcementActions := make(map[string]bool)
-	// Iterate over the provided source enforcement points (EPs)
-	for _, ep := range sourceEPs {
-		var actions []string
-		// Check if there are predefined actions for the current EP
-		if acts, found := c.enforcementActionsForEP[ep]; found {
-			actions = acts // Use the predefined actions if found
-		} else if ep == "*" {
-			// If the EP is "*", aggregate actions from all EPs
-			for _, acts := range c.enforcementActionsForEP {
-				actions = append(actions, acts...)
+	if apiconstraints.IsEnforcementActionScoped(c.enforcementAction) {
+		// Initialize a map to track unique enforcement actions
+		// Iterate over the provided source enforcement points (EPs)
+		for _, ep := range sourceEPs {
+			var actions []string
+			// Check if there are predefined actions for the current EP
+			if acts, found := c.enforcementActionsForEP[ep]; found {
+				actions = acts // Use the predefined actions if found
+			} else if ep == "*" {
+				// If the EP is "*", aggregate actions from all EPs
+				for _, acts := range c.enforcementActionsForEP {
+					actions = append(actions, acts...)
+				}
+			}
+			// Mark each action as true in the map to ensure uniqueness
+			for _, act := range actions {
+				enforcementActions[act] = true
 			}
 		}
-		// Mark each action as true in the map to ensure uniqueness
-		for _, act := range actions {
-			enforcementActions[act] = true
-		}
-	}
 
+	}
 	// If no enforcement actions are found, return nil
-	if len(enforcementActions) == 0 {
+	if len(enforcementActions) == 0 && apiconstraints.IsEnforcementActionScoped(c.enforcementAction) {
 		return nil
 	}
 
@@ -75,15 +82,17 @@ func (c *constraintClient) matches(target string, review interface{}, sourceEPs 
 		// determine if the Constraint matched, so we assume it violated the
 		// Constraint.
 		return &constraintMatchResult{
-			constraint:         c.constraint,
-			error:              fmt.Errorf("%w: %v", errors.ErrAutoreject, err),
-			enforcementActions: actions,
+			constraint:               c.constraint,
+			error:                    fmt.Errorf("%w: %v", errors.ErrAutoreject, err),
+			enforcementAction:        c.enforcementAction,
+			scopedEnforcementActions: actions,
 		}
 	case matches:
 		// Fill in Constraint, so we can pass it to the Driver to run.
 		return &constraintMatchResult{
-			constraint:         c.constraint,
-			enforcementActions: actions,
+			constraint:               c.constraint,
+			enforcementAction:        c.enforcementAction,
+			scopedEnforcementActions: actions,
 		}
 	default:
 		// No match and no error, so no need to record a result.
@@ -96,7 +105,10 @@ type constraintMatchResult struct {
 	constraint *unstructured.Unstructured
 	// enforcementAction, if specified, is the immediate action to take.
 	// Only filled in if error is non-nil.
-	enforcementActions []string
+	enforcementAction string
+	// scopedEnforcementActions are action to take for specific enforcement point.
+	// Only filled in if error is non-nil.
+	scopedEnforcementActions []string
 	// error is a problem encountered while attempting to run the Constraint's
 	// Matcher.
 	error error
@@ -104,8 +116,9 @@ type constraintMatchResult struct {
 
 func (r *constraintMatchResult) ToResult() *types.Result {
 	return &types.Result{
-		Msg:               r.error.Error(),
-		Constraint:        r.constraint,
-		EnforcementAction: r.enforcementActions,
+		Msg:                      r.error.Error(),
+		Constraint:               r.constraint,
+		EnforcementAction:        r.enforcementAction,
+		ScopedEnforcementActions: r.scopedEnforcementActions,
 	}
 }

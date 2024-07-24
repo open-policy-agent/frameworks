@@ -155,6 +155,7 @@ func (e *templateClient) AddConstraint(constraint *unstructured.Unstructured, en
 	e.constraints[constraint.GetName()] = &constraintClient{
 		constraint:              cpy,
 		matchers:                matchers,
+		enforcementAction:       enforcementAction,
 		enforcementActionsForEP: enforcementActionsForEP,
 	}
 

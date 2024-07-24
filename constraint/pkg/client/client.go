@@ -696,7 +696,8 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.Re
 
 	constraintsByTarget := make(map[string][]*unstructured.Unstructured)
 	autorejections := make(map[string][]constraintMatchResult)
-	enforcementActionsByTarget := make(map[string]map[string][]string)
+	scopedEnforcementActionsByTarget := make(map[string]map[string][]string)
+	enforcementActionByTarget := make(map[string]map[string]string)
 
 	var templateList []*templateClient
 
@@ -709,21 +710,23 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.Re
 
 	for target, review := range reviews {
 		var targetConstraints []*unstructured.Unstructured
-		targetEnforcementActions := make(map[string][]string)
-
+		targetScopedEnforcementActions := make(map[string][]string)
+		targetEnforcementAction := make(map[string]string)
 		for _, template := range templateList {
 			matchingConstraints := template.Matches(target, review, eps)
 			for _, matchResult := range matchingConstraints {
 				if matchResult.error == nil {
 					targetConstraints = append(targetConstraints, matchResult.constraint)
-					targetEnforcementActions[matchResult.constraint.GetName()] = matchResult.enforcementActions
+					targetScopedEnforcementActions[matchResult.constraint.GetName()] = matchResult.scopedEnforcementActions
+					targetEnforcementAction[matchResult.constraint.GetName()] = matchResult.enforcementAction
 				} else {
 					autorejections[target] = append(autorejections[target], matchResult)
 				}
 			}
 		}
 		constraintsByTarget[target] = targetConstraints
-		enforcementActionsByTarget[target] = targetEnforcementActions
+		scopedEnforcementActionsByTarget[target] = targetScopedEnforcementActions
+		enforcementActionByTarget[target] = targetEnforcementAction
 	}
 
 	for target, review := range reviews {
@@ -736,7 +739,10 @@ func (c *Client) Review(ctx context.Context, obj interface{}, opts ...reviews.Re
 		}
 
 		for i := range resp.Results {
-			if val, ok := enforcementActionsByTarget[target][resp.Results[i].Constraint.GetName()]; ok {
+			if val, ok := scopedEnforcementActionsByTarget[target][resp.Results[i].Constraint.GetName()]; ok {
+				resp.Results[i].ScopedEnforcementActions = val
+			}
+			if val, ok := enforcementActionByTarget[target][resp.Results[i].Constraint.GetName()]; ok {
 				resp.Results[i].EnforcementAction = val
 			}
 		}

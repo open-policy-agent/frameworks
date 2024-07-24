@@ -206,7 +206,8 @@ func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.
 			Msg:        fmt.Sprintf("rejected by driver %s: %s", d.name, d.code[strings.ToLower(constraint.GetObjectKind().GroupVersionKind().Kind)]),
 			Constraint: constraint,
 			// TODO: the engine should not determine the enforcement action -- that does not work with CEL KEP
-			EnforcementAction: []string{apiconstraints.EnforcementActionDeny},
+			ScopedEnforcementActions: []string{apiconstraints.EnforcementActionDeny},
+			EnforcementAction:        apiconstraints.EnforcementActionScoped,
 		}
 		results = append(results, result)
 	}
