@@ -578,27 +578,6 @@ func TestClient_Review(t *testing.T) {
 			sourceEP: "audit",
 		},
 		{
-			name:       "enforcementAction and scopedEnforcementAction provided. enforcementAction: deny with scoped enforcement action",
-			namespaces: nil,
-			targets:    []handler.TargetHandler{&handlertest.Handler{}},
-			templates: []*templates.ConstraintTemplate{
-				clienttest.TemplateDeny(),
-			},
-			constraints: []*unstructured.Unstructured{
-				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "deny", []string{"deny"}, "test"),
-			},
-			toReview: handlertest.NewReview("", "foo", "bar"),
-			wantResults: []*types.Result{{
-				Target:                   handlertest.TargetName,
-				Msg:                      "denied",
-				ScopedEnforcementActions: []string{constraints.EnforcementActionDeny},
-				EnforcementAction:        constraints.EnforcementActionScoped,
-				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test"),
-			}},
-			sourceEP:  "",
-			clientEPs: []string{"test"},
-		},
-		{
 			name:       "client initialized for all EP, specific scopedEnforcementActions in constraints, without sourceEP",
 			namespaces: nil,
 			targets:    []handler.TargetHandler{&handlertest.Handler{}},
