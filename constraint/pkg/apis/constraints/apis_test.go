@@ -111,50 +111,6 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 			eps: []string{WebhookEnforcementPoint, GatorEnforcementPoint},
 		},
 		{
-			name: "wildcard enforcement point in scoped enforcement action, get actions for all enforcement points",
-			constraint: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"spec": map[string]interface{}{
-						"scopedEnforcementActions": []interface{}{
-							map[string]interface{}{
-								"enforcementPoints": []interface{}{
-									map[string]interface{}{
-										"name": AuditEnforcementPoint,
-									},
-									map[string]interface{}{
-										"name": WebhookEnforcementPoint,
-									},
-								},
-								"action": "warn",
-							},
-							map[string]interface{}{
-								"enforcementPoints": []interface{}{
-									map[string]interface{}{
-										"name": AllEnforcementPoints,
-									},
-								},
-								"action": "deny",
-							},
-						},
-					},
-				},
-			},
-			expected: map[string]map[string]bool{
-				AuditEnforcementPoint: {
-					"warn": true,
-					"deny": true,
-				},
-				WebhookEnforcementPoint: {
-					"warn": true,
-					"deny": true,
-				},
-				AllEnforcementPoints: {
-					"deny": true,
-				},
-			},
-			eps: []string{AllEnforcementPoints},
-		},
-		{
 			name: "wildcard enforcement point in scoped enforcement action, get actions for two enforcement points",
 			constraint: &unstructured.Unstructured{
 				Object: map[string]interface{}{
@@ -204,8 +160,49 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			}
 
-			if !reflect.DeepEqual(actions, tt.expected) {
+			got := make(map[string]map[string]bool)
+			for ep, actions := range actions {
+				got[ep] = make(map[string]bool)
+				for _, action := range actions {
+					got[ep][action] = true
+				}
+			}
+
+			if !reflect.DeepEqual(got, tt.expected) {
 				t.Errorf("Expected %v, got %v", tt.expected, actions)
+			}
+		})
+	}
+}
+
+func TestIsEnforcementActionScoped(t *testing.T) {
+	tests := []struct {
+		name   string
+		action string
+		want   bool
+	}{
+		{
+			name:   "Scoped enforcement action",
+			action: "Scoped",
+			want:   true,
+		},
+		{
+			name:   "Non-scoped enforcement action",
+			action: "Deny",
+			want:   false,
+		},
+		{
+			name:   "Empty enforcement action",
+			action: "",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsEnforcementActionScoped(tt.action)
+			if got != tt.want {
+				t.Errorf("Expected %v, got %v", tt.want, got)
 			}
 		})
 	}

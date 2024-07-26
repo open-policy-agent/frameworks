@@ -27,17 +27,17 @@ import (
 
 func TestClient_Review(t *testing.T) {
 	tests := []struct {
-		name                       string
-		namespaces                 []string
-		targets                    []handler.TargetHandler
-		templates                  []*templates.ConstraintTemplate
-		constraints                []*unstructured.Unstructured
-		inventory                  []*handlertest.Object
-		toReview                   interface{}
-		callingEnfrocementPoint    string
-		enforcementPointsForClient []string
-		wantResults                []*types.Result
-		wantErr                    error
+		name                              string
+		namespaces                        []string
+		targets                           []handler.TargetHandler
+		templates                         []*templates.ConstraintTemplate
+		constraints                       []*unstructured.Unstructured
+		inventory                         []*handlertest.Object
+		toReview                          interface{}
+		enforcementPointFromReview        string
+		enforcementPointSupportedByClient []string
+		wantResults                       []*types.Result
+		wantErr                           error
 	}{
 		{
 			name:        "empty client",
@@ -434,8 +434,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "audit", "webhook"),
 			}},
-			callingEnfrocementPoint:    "audit",
-			enforcementPointsForClient: []string{"audit"},
+			enforcementPointFromReview:        "audit",
+			enforcementPointSupportedByClient: []string{"audit"},
 		},
 		{
 			name:       "deny with scoped audit EP and webhook caller",
@@ -447,10 +447,11 @@ func TestClient_Review(t *testing.T) {
 			constraints: []*unstructured.Unstructured{
 				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "audit"),
 			},
-			toReview:                   handlertest.NewReview("", "foo", "bar"),
-			wantResults:                nil,
-			callingEnfrocementPoint:    "webhook",
-			enforcementPointsForClient: []string{"audit"},
+			toReview:                          handlertest.NewReview("", "foo", "bar"),
+			wantResults:                       nil,
+			enforcementPointFromReview:        "webhook",
+			enforcementPointSupportedByClient: []string{"audit"},
+			wantErr:                           client.ErrUnsupportedEnforcementPoints,
 		},
 		{
 			name:       "deny with scoped test EP and test caller",
@@ -470,8 +471,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test"),
 			}},
-			callingEnfrocementPoint:    "test",
-			enforcementPointsForClient: []string{"test"},
+			enforcementPointFromReview:        "test",
+			enforcementPointSupportedByClient: []string{"test"},
 		},
 		{
 			name:       "scoped enforcement action without caller source EP in review",
@@ -491,8 +492,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test"),
 			}},
-			callingEnfrocementPoint:    "",
-			enforcementPointsForClient: []string{"test"},
+			enforcementPointFromReview:        "",
+			enforcementPointSupportedByClient: []string{"test"},
 		},
 		{
 			name:       "client initialized for all EP, specific scopedEnforcementActions in constraints, without sourceEP",
@@ -512,7 +513,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test", "audit"),
 			}},
-			callingEnfrocementPoint: "",
+			enforcementPointFromReview:        "",
+			enforcementPointSupportedByClient: []string{"test", "audit"},
 		},
 		{
 			name:       "client initialized for all EP, specific scopedEnforcementActions in constraints, with sourceEP",
@@ -532,7 +534,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test", "audit"),
 			}},
-			callingEnfrocementPoint: "audit",
+			enforcementPointFromReview:        "audit",
+			enforcementPointSupportedByClient: []string{"test", "audit"},
 		},
 		{
 			name:       "enforcementAction and scopedEnforcementAction provided. enforcementAction: deny with scoped enforcement action",
@@ -551,8 +554,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction: constraints.EnforcementActionDeny,
 				Constraint:        cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "deny", []string{"deny"}, "test"),
 			}},
-			callingEnfrocementPoint:    "",
-			enforcementPointsForClient: []string{"test"},
+			enforcementPointFromReview:        "",
+			enforcementPointSupportedByClient: []string{"test"},
 		},
 		{
 			name:       "case sensitive enforcement actions and enforcement points",
@@ -572,8 +575,8 @@ func TestClient_Review(t *testing.T) {
 				EnforcementAction:        constraints.EnforcementActionScoped,
 				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"Deny"}, "Test.gateKeeper.sh"),
 			}},
-			callingEnfrocementPoint:    "teSt.gAtekeeper.sh",
-			enforcementPointsForClient: []string{"tEst.Gatekeeper.sh"},
+			enforcementPointFromReview:        "teSt.gAtekeeper.sh",
+			enforcementPointSupportedByClient: []string{"tEst.Gatekeeper.sh"},
 		},
 		{
 			name:       "review caller is webhook and constraint is for audit",
@@ -585,10 +588,10 @@ func TestClient_Review(t *testing.T) {
 			constraints: []*unstructured.Unstructured{
 				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", "scoped", []string{"deny"}, "test", "audit"),
 			},
-			toReview:                   handlertest.NewReview("", "foo", "bar"),
-			wantResults:                nil,
-			callingEnfrocementPoint:    "webhook",
-			enforcementPointsForClient: []string{"webhook"},
+			toReview:                          handlertest.NewReview("", "foo", "bar"),
+			wantResults:                       nil,
+			enforcementPointFromReview:        "webhook",
+			enforcementPointSupportedByClient: []string{"webhook"},
 		},
 	}
 
@@ -597,8 +600,8 @@ func TestClient_Review(t *testing.T) {
 			ctx := context.Background()
 
 			opts := []client.Opt{client.Targets(tt.targets...)}
-			if tt.enforcementPointsForClient != nil {
-				opts = append(opts, client.EnforcementPoints(tt.enforcementPointsForClient...))
+			if tt.enforcementPointSupportedByClient != nil {
+				opts = append(opts, client.EnforcementPoints(tt.enforcementPointSupportedByClient...))
 			}
 
 			c := clienttest.New(t, opts...)
@@ -631,7 +634,7 @@ func TestClient_Review(t *testing.T) {
 				}
 			}
 
-			responses, err := c.Review(ctx, tt.toReview, reviews.SourceEP(tt.callingEnfrocementPoint))
+			responses, err := c.Review(ctx, tt.toReview, reviews.EnforcementPoint(tt.enforcementPointFromReview))
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("got error %v, want %v", err, tt.wantErr)
 			}
@@ -934,7 +937,7 @@ func TestE2E_Tracing(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, reviews.SourceEP("audit"), reviews.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, reviews.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1017,7 +1020,7 @@ func TestE2E_Tracing_Unmatched(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar", Namespace: "ns"}}
 
-			rsps, err := c.Review(ctx, obj, reviews.SourceEP("audit"), reviews.Tracing(tt.tracingEnabled))
+			rsps, err := c.Review(ctx, obj, reviews.Tracing(tt.tracingEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1063,7 +1066,7 @@ func TestE2E_DriverStats(t *testing.T) {
 
 			obj := handlertest.Review{Object: handlertest.Object{Name: "bar"}}
 
-			rsps, err := c.Review(ctx, obj, reviews.SourceEP("audit"), reviews.Stats(tt.statsEnabled))
+			rsps, err := c.Review(ctx, obj, reviews.Stats(tt.statsEnabled))
 			if err != nil {
 				t.Fatal(err)
 			}
