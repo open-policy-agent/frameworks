@@ -85,7 +85,7 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 										"name": "Validation.Gatekeeper.Sh",
 									},
 								},
-								"action": "Warn",
+								"action": "warn",
 							},
 							map[string]interface{}{
 								"enforcementPoints": []interface{}{
@@ -151,6 +151,45 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 			},
 			eps: []string{WebhookEnforcementPoint, AuditEnforcementPoint},
 		},
+		{
+			name: "Unrecognized enforcement action in scoped enforcement actions",
+			constraint: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"spec": map[string]interface{}{
+						"scopedEnforcementActions": []interface{}{
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AuditEnforcementPoint,
+									},
+									map[string]interface{}{
+										"name": WebhookEnforcementPoint,
+									},
+								},
+								"action": "test",
+							},
+							map[string]interface{}{
+								"enforcementPoints": []interface{}{
+									map[string]interface{}{
+										"name": AllEnforcementPoints,
+									},
+								},
+								"action": "deny",
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]map[string]bool{
+				AuditEnforcementPoint: {
+					"deny": true,
+				},
+				WebhookEnforcementPoint: {
+					"deny": true,
+				},
+			},
+			eps: []string{WebhookEnforcementPoint, AuditEnforcementPoint},
+		},
 	}
 
 	for _, tt := range tests {
@@ -182,9 +221,14 @@ func TestIsEnforcementActionScoped(t *testing.T) {
 		want   bool
 	}{
 		{
+			name:   "scoped enforcement action",
+			action: "scoped",
+			want:   true,
+		},
+		{
 			name:   "Scoped enforcement action",
 			action: "Scoped",
-			want:   true,
+			want:   false,
 		},
 		{
 			name:   "Non-scoped enforcement action",
