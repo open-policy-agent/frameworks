@@ -21,14 +21,14 @@ func TestNewClient(t *testing.T) {
 			wantError:  client.ErrCreatingClient,
 		},
 		{
-			name:       "with handler",
-			clientOpts: []client.Opt{client.Targets(&handlertest.Handler{})},
+			name:       "with handler with enforcement point",
+			clientOpts: []client.Opt{client.Targets(&handlertest.Handler{}), client.EnforcementPoints("test")},
 			wantError:  nil,
 		},
 		{
-			name:       "with enforcement points",
+			name:       "without enforcement points",
 			clientOpts: []client.Opt{client.Targets(&handlertest.Handler{})},
-			wantError:  nil,
+			wantError:  client.ErrCreatingClient,
 		},
 	}
 

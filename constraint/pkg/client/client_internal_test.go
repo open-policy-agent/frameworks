@@ -832,6 +832,7 @@ func TestMultiDriverRemoveTemplate(t *testing.T) {
 			Driver(driverA),
 			Driver(driverB),
 			Driver(driverC),
+			EnforcementPoints("test"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -911,6 +912,7 @@ func TestDriverForTemplate(t *testing.T) {
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -925,6 +927,7 @@ func TestDriverForTemplate(t *testing.T) {
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -940,6 +943,7 @@ func TestDriverForTemplate(t *testing.T) {
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 				Driver(fake.New("driverB")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -955,6 +959,7 @@ func TestDriverForTemplate(t *testing.T) {
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
 				Driver(fake.New("driverA")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -969,6 +974,7 @@ func TestDriverForTemplate(t *testing.T) {
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -984,6 +990,7 @@ func TestDriverForTemplate(t *testing.T) {
 			options: []Opt{
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -1000,6 +1007,7 @@ func TestDriverForTemplate(t *testing.T) {
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverA")),
 				Driver(fake.New("driverB")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(
@@ -1016,6 +1024,7 @@ func TestDriverForTemplate(t *testing.T) {
 				Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
 				Driver(fake.New("driverB")),
 				Driver(fake.New("driverA")),
+				EnforcementPoints("test"),
 			},
 			template: cts.New(cts.OptTargets(
 				cts.TargetCustomEngines(

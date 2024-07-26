@@ -61,7 +61,7 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			_, err = client.NewClient(client.Targets(tc.handler), client.Driver(d), client.EnforcementPoints("test"))
 			if !errors.Is(err, tc.wantError) {
 				t.Errorf("got NewClient() error = %v, want %v",
 					err, tc.wantError)
@@ -143,7 +143,7 @@ func TestClient_AddData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -248,7 +248,7 @@ func TestClient_RemoveData(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler1, tc.handler2), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -405,7 +405,7 @@ r = 5
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -515,7 +515,7 @@ func TestClient_RemoveTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -577,7 +577,7 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -642,7 +642,7 @@ func TestClient_GetTemplate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -709,7 +709,7 @@ func TestClient_GetTemplate_ByNameOnly(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Driver(d), client.Targets(tc.handler))
+			c, err := client.NewClient(client.Driver(d), client.Targets(tc.handler), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -748,7 +748,7 @@ func TestClient_RemoveTemplate_CascadingDelete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := client.NewClient(client.Targets(h), client.Driver(d))
+	c, err := client.NewClient(client.Targets(h), client.Driver(d), client.EnforcementPoints("test"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,7 +982,7 @@ func TestClient_AddConstraint(t *testing.T) {
 				target = &handlertest.Handler{}
 			}
 
-			c, err := client.NewClient(client.Targets(target), client.Driver(d))
+			c, err := client.NewClient(client.Targets(target), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1230,7 +1230,7 @@ func TestClient_AddConstraint_withDefaultParams(t *testing.T) {
 				baseConstraint.Object["spec"] = tc.constraintSpec
 			}
 
-			c, err := client.NewClient(client.Targets(target), client.Driver(fake.New("fake")))
+			c, err := client.NewClient(client.Targets(target), client.Driver(fake.New("fake")), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1337,7 +1337,7 @@ func TestClient_RemoveConstraint(t *testing.T) {
 				t.Fatal(err)
 			}
 			h := &handlertest.Handler{}
-			c, err := client.NewClient(client.Targets(h), client.Driver(d))
+			c, err := client.NewClient(client.Targets(h), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1429,7 +1429,7 @@ violation[{"msg": "msg"}] {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.handler), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1731,7 +1731,7 @@ func TestClient_CreateCRD(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d))
+			c, err := client.NewClient(client.Targets(tc.targets...), client.Driver(d), client.EnforcementPoints("test"))
 			if err != nil {
 				t.Fatal(err)
 			}
