@@ -41,6 +41,74 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	return u
 }
 
+func MakeConstraintWithoutActions(t testing.TB, kind, name string, args ...ConstraintArg) *unstructured.Unstructured {
+	t.Helper()
+
+	u := &unstructured.Unstructured{Object: make(map[string]interface{})}
+
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   constraints.Group,
+		Version: "v1beta1",
+		Kind:    kind,
+	})
+	u.SetName(name)
+	err := unstructured.SetNestedField(u.Object, make(map[string]interface{}), "spec", "parameters")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, arg := range args {
+		err = arg(u)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return u
+}
+
+func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, globalAction string, actions []string, eps ...string) *unstructured.Unstructured {
+	t.Helper()
+
+	scopedEnforcementActions := make([]interface{}, len(actions))
+
+	for i, action := range actions {
+		enfocementPoints := make([]interface{}, len(eps))
+		for j, point := range eps {
+			enfocementPoints[j] = map[string]interface{}{"name": point}
+		}
+		scopedEnforcementActions[i] = map[string]interface{}{
+			"enforcementPoints": enfocementPoints,
+			"action":            action,
+		}
+	}
+
+	u := &unstructured.Unstructured{Object: map[string]interface{}{
+		"spec": map[string]interface{}{
+			"scopedEnforcementActions": scopedEnforcementActions,
+		},
+	}}
+
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   constraints.Group,
+		Version: "v1beta1",
+		Kind:    kind,
+	})
+	u.SetName(name)
+
+	err := unstructured.SetNestedField(u.Object, make(map[string]interface{}), "spec", "parameters")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = unstructured.SetNestedField(u.Object, globalAction, "spec", "enforcementAction")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return u
+}
+
 type ConstraintArg func(*unstructured.Unstructured) error
 
 // MatchNamespace modifies the Constraint to only match objects with the passed

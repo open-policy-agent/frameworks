@@ -241,8 +241,7 @@ func TestTemplateToPolicyDefinition(t *testing.T) {
 	}
 }
 
-func newTestConstraint(enforcementAction string, namespaceSelector, labelSelector *metav1.LabelSelector) *unstructured.Unstructured {
-	constraint := &unstructured.Unstructured{}
+func newTestConstraint(enforcementAction string, namespaceSelector, labelSelector *metav1.LabelSelector, constraint *unstructured.Unstructured) *unstructured.Unstructured {
 	constraint.SetGroupVersionKind(rschema.GroupVersionKind{Group: constraints.Group, Version: "v1beta1", Kind: "FooTemplate"})
 	constraint.SetName("foo-name")
 	if namespaceSelector != nil {
@@ -273,14 +272,16 @@ func newTestConstraint(enforcementAction string, namespaceSelector, labelSelecto
 
 func TestConstraintToBinding(t *testing.T) {
 	tests := []struct {
-		name        string
-		constraint  *unstructured.Unstructured
-		expectedErr error
-		expected    *admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding
+		name               string
+		constraint         *unstructured.Unstructured
+		enforcementActions []string
+		expectedErr        error
+		expected           *admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding
 	}{
 		{
-			name:       "empty constraint",
-			constraint: newTestConstraint("", nil, nil),
+			name:               "empty constraint",
+			constraint:         newTestConstraint("", nil, nil, &unstructured.Unstructured{}),
+			enforcementActions: []string{"deny"},
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -297,8 +298,9 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:       "with object selector",
-			constraint: newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
+			name:               "with object selector",
+			constraint:         newTestConstraint("", nil, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, &unstructured.Unstructured{}),
+			enforcementActions: []string{"deny"},
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -317,8 +319,9 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:       "with namespace selector",
-			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil),
+			name:               "with namespace selector",
+			enforcementActions: []string{"deny"},
+			constraint:         newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -337,8 +340,9 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:       "with both selectors",
-			constraint: newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}),
+			name:               "with both selectors",
+			enforcementActions: []string{"deny"},
+			constraint:         newTestConstraint("", &metav1.LabelSelector{MatchLabels: map[string]string{"matchNS": "yes"}}, &metav1.LabelSelector{MatchLabels: map[string]string{"match": "yes"}}, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -358,8 +362,9 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:       "with explicit deny",
-			constraint: newTestConstraint("deny", nil, nil),
+			name:               "with explicit deny",
+			enforcementActions: []string{"deny"},
+			constraint:         newTestConstraint("deny", nil, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -376,8 +381,9 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:       "with warn",
-			constraint: newTestConstraint("warn", nil, nil),
+			name:               "with warn",
+			enforcementActions: []string{"warn"},
+			constraint:         newTestConstraint("warn", nil, nil, &unstructured.Unstructured{}),
 			expected: &admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "gatekeeper-foo-name",
@@ -394,15 +400,16 @@ func TestConstraintToBinding(t *testing.T) {
 			},
 		},
 		{
-			name:        "unrecognized enforcement action",
-			constraint:  newTestConstraint("magicunicorns", nil, nil),
-			expected:    nil,
-			expectedErr: ErrBadEnforcementAction,
+			name:               "unrecognized enforcement action",
+			enforcementActions: []string{"magicunicorns"},
+			constraint:         newTestConstraint("magicunicorns", nil, nil, &unstructured.Unstructured{}),
+			expected:           nil,
+			expectedErr:        ErrBadEnforcementAction,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			binding, err := ConstraintToBinding(test.constraint)
+			binding, err := ConstraintToBinding(test.constraint, test.enforcementActions)
 			if !errors.Is(err, test.expectedErr) {
 				t.Errorf("unexpected error. got %v; wanted %v", err, test.expectedErr)
 			}

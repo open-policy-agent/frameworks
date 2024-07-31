@@ -10,6 +10,7 @@ import (
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 	"github.com/open-policy-agent/opa/storage"
@@ -197,7 +198,7 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
-func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...drivers.QueryOpt) (*drivers.QueryResponse, error) {
+func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...reviews.ReviewOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
 		constraint := constraints[i]
@@ -205,7 +206,8 @@ func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.
 			Msg:        fmt.Sprintf("rejected by driver %s: %s", d.name, d.code[strings.ToLower(constraint.GetObjectKind().GroupVersionKind().Kind)]),
 			Constraint: constraint,
 			// TODO: the engine should not determine the enforcement action -- that does not work with CEL KEP
-			EnforcementAction: apiconstraints.EnforcementActionDeny,
+			ScopedEnforcementActions: []string{string(apiconstraints.Deny)},
+			EnforcementAction:        string(apiconstraints.Scoped),
 		}
 		results = append(results, result)
 	}
