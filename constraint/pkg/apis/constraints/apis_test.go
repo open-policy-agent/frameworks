@@ -101,7 +101,6 @@ func TestGetEnforcementActionsForEP(t *testing.T) {
 			},
 			expected: map[string]map[string]bool{
 				WebhookEnforcementPoint: {
-					"warn": true,
 					"deny": true,
 				},
 				GatorEnforcementPoint: {

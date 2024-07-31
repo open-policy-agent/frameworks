@@ -567,14 +567,9 @@ func TestClient_Review(t *testing.T) {
 			constraints: []*unstructured.Unstructured{
 				cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", string(constraints.Scoped), []string{string(constraints.Deny)}, "Test.gateKeeper.sh"),
 			},
-			toReview: handlertest.NewReview("", "foo", "bar"),
-			wantResults: []*types.Result{{
-				Target:                   handlertest.TargetName,
-				Msg:                      "denied",
-				ScopedEnforcementActions: []string{string(constraints.Deny)},
-				EnforcementAction:        string(constraints.Scoped),
-				Constraint:               cts.MakeScopedEnforcementConstraint(t, clienttest.KindDeny, "constraint", string(constraints.Scoped), []string{string(constraints.Deny)}, "Test.gateKeeper.sh"),
-			}},
+			toReview:                          handlertest.NewReview("", "foo", "bar"),
+			wantResults:                       nil,
+			wantErr:                           client.ErrUnsupportedEnforcementPoints,
 			enforcementPointFromReview:        "teSt.gAtekeeper.sh",
 			enforcementPointSupportedByClient: []string{"tEst.Gatekeeper.sh"},
 		},
