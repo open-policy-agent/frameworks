@@ -6,7 +6,7 @@ permissions:
 
 jobs:
   gk-test:
-    name: "Gatekeeper Test"
+    name: "[Informative] Gatekeeper Test"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
