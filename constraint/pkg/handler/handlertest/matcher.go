@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/open-policy-agent/opa/v1/storage"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/constraints"
-	"github.com/open-policy-agent/opa/storage"
 )
 
 var (
