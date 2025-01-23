@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/golang/glog"
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/format"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/format"
 )
 
 const (
@@ -124,7 +124,17 @@ func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 		return fmt.Errorf("%w: %v", ErrReadingFile, err)
 	}
 
-	m, err := ast.ParseModule(path, string(bytes))
+	attemptVersions := []ast.RegoVersion{ast.RegoV0, ast.RegoV1}
+
+	var m *ast.Module
+	for _, v := range attemptVersions {
+		m, err = ast.ParseModuleWithOpts(path, string(bytes), ast.ParserOptions{
+			RegoVersion: v,
+		})
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return err
 	}
@@ -406,7 +416,12 @@ func (r *RegoRewriter) Rewrite() (*Sources, error) {
 
 	// write updated modules
 	err = r.forAllModules(func(mod *Module) error {
-		b, err := format.Ast(mod.Module)
+		b, err := format.AstWithOpts(mod.Module, format.Opts{
+			RegoVersion: mod.Module.RegoVersion(),
+			ParserOptions: &ast.ParserOptions{
+				RegoVersion: mod.Module.RegoVersion(),
+			},
+		})
 		if err != nil {
 			return err
 		}

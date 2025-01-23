@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/open-policy-agent/opa/v1/ast"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
-	"github.com/open-policy-agent/opa/ast"
 )
 
 var ErrNoRego = errors.New("Could not extract Rego from the constraint template")
@@ -236,7 +237,18 @@ func compileTemplateTarget(module []*ast.Module, capabilities *ast.Capabilities,
 
 // parseModule parses the module and also fails empty modules.
 func parseModule(path, rego string) (*ast.Module, error) {
-	module, err := ast.ParseModule(path, rego)
+	attemptVersions := []ast.RegoVersion{ast.RegoV0, ast.RegoV1}
+
+	var module *ast.Module
+	var err error
+	for _, v := range attemptVersions {
+		module, err = ast.ParseModuleWithOpts(path, rego, ast.ParserOptions{
+			RegoVersion: v,
+		})
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
