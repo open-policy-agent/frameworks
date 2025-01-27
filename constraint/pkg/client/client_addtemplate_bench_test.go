@@ -322,9 +322,6 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 							// Add Templates in individual goroutines so that calls are as
 							// simultaneous as reasonable..
 							for _, ct := range cts {
-								// Shadow ct to allow the variable to be safely passed in to the
-								// goroutine.
-								ct := ct
 								go func() {
 									_, err := c.AddTemplate(ctx, ct)
 									if err != nil {

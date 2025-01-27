@@ -1,5 +1,6 @@
 run:
   timeout: 5m
+  go: "1.22"
 
 linters-settings:
   gocritic:
@@ -13,14 +14,12 @@ linters-settings:
 
   misspell:
     locale: US
-  staticcheck:
-    go: "1.22"
 
 linters:
   disable-all: true
   enable:
   - errcheck
-  - exportloopref
+  - copyloopvar
   - forcetypeassert
   - gocritic
   - goconst
@@ -39,3 +38,10 @@ linters:
   - typecheck
   - unused
   - whitespace
+
+issues:
+  exclude-rules:
+    - linters: [revive]
+      text: 'redefines-builtin-id: redefinition of the built-in function new'
+  exclude:
+    - 'deprecated: This package is intended for older projects transitioning from OPA v0.x and will remain for the lifetime of OPA v1.x'
