@@ -10,6 +10,29 @@ type PropMap map[string]apiextensions.JSONSchemaProps
 func ExpectedSchema(pm PropMap) *apiextensions.JSONSchemaProps {
 	defaultEnforcementAction := apiextensions.JSON("deny")
 	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string", Default: &defaultEnforcementAction}
+	pm["scopedEnforcementActions"] = apiextensions.JSONSchemaProps{
+		Type:    "array",
+		Default: nil,
+		Items: &apiextensions.JSONSchemaPropsOrArray{
+			Schema: &apiextensions.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]apiextensions.JSONSchemaProps{
+					"action": {Type: "string"},
+					"enforcementPoints": {
+						Type: "array",
+						Items: &apiextensions.JSONSchemaPropsOrArray{
+							Schema: &apiextensions.JSONSchemaProps{
+								Type: "object",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"name": {Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 	p := Prop(
 		PropMap{
 			"metadata": Prop(PropMap{

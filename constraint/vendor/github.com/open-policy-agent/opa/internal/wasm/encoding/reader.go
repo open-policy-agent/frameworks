@@ -375,9 +375,9 @@ func readTableSection(r io.Reader, s *module.TableSection) error {
 			return err
 		} else if elem != constant.ElementTypeAnyFunc {
 			return fmt.Errorf("illegal element type")
-		} else {
-			table.Type = types.Anyfunc
 		}
+
+		table.Type = types.Anyfunc
 
 		if err := readLimits(r, &table.Lim); err != nil {
 			return err
@@ -809,19 +809,19 @@ func readLimits(r io.Reader, l *module.Limit) error {
 		return err
 	}
 
-	min, err := leb128.ReadVarUint32(r)
+	minLim, err := leb128.ReadVarUint32(r)
 	if err != nil {
 		return err
 	}
 
-	l.Min = min
+	l.Min = minLim
 
 	if b == 1 {
-		max, err := leb128.ReadVarUint32(r)
+		maxLim, err := leb128.ReadVarUint32(r)
 		if err != nil {
 			return err
 		}
-		l.Max = &max
+		l.Max = &maxLim
 	} else if b != 0 {
 		return fmt.Errorf("illegal limit flag")
 	}

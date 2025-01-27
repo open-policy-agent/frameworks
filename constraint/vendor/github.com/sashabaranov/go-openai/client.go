@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	utils "github.com/sashabaranov/go-openai/internal"
@@ -36,6 +37,12 @@ func (h *httpHeader) Header() http.Header {
 
 func (h *httpHeader) GetRateLimitHeaders() RateLimitHeaders {
 	return newRateLimitHeaders(h.Header())
+}
+
+type RawResponse struct {
+	io.ReadCloser
+
+	httpHeader
 }
 
 // NewClient creates new OpenAI API client.
@@ -83,9 +90,9 @@ func withContentType(contentType string) requestOption {
 	}
 }
 
-func withBetaAssistantV1() requestOption {
+func withBetaAssistantVersion(version string) requestOption {
 	return func(args *requestOptions) {
-		args.header.Set("OpenAI-Beta", "assistants=v1")
+		args.header.Set("OpenAI-Beta", fmt.Sprintf("assistants=%s", version))
 	}
 }
 
@@ -123,19 +130,19 @@ func (c *Client) sendRequest(req *http.Request, v Response) error {
 
 	defer res.Body.Close()
 
-	if isFailureStatusCode(res) {
-		return c.handleErrorResp(res)
-	}
-
 	if v != nil {
 		v.SetHeader(res.Header)
+	}
+
+	if isFailureStatusCode(res) {
+		return c.handleErrorResp(res)
 	}
 
 	return decodeResponse(res.Body, v)
 }
 
-func (c *Client) sendRequestRaw(req *http.Request) (body io.ReadCloser, err error) {
-	resp, err := c.config.HTTPClient.Do(req)
+func (c *Client) sendRequestRaw(req *http.Request) (response RawResponse, err error) {
+	resp, err := c.config.HTTPClient.Do(req) //nolint:bodyclose // body should be closed by outer function
 	if err != nil {
 		return
 	}
@@ -144,7 +151,10 @@ func (c *Client) sendRequestRaw(req *http.Request) (body io.ReadCloser, err erro
 		err = c.handleErrorResp(resp)
 		return
 	}
-	return resp.Body, nil
+
+	response.SetHeader(resp.Header)
+	response.ReadCloser = resp.Body
+	return
 }
 
 func sendRequestStream[T streamable](client *Client, req *http.Request) (*streamReader[T], error) {
@@ -173,7 +183,7 @@ func sendRequestStream[T streamable](client *Client, req *http.Request) (*stream
 func (c *Client) setCommonHeaders(req *http.Request) {
 	// https://learn.microsoft.com/en-us/azure/cognitive-services/openai/reference#authentication
 	// Azure API Key authentication
-	if c.config.APIType == APITypeAzure {
+	if c.config.APIType == APITypeAzure || c.config.APIType == APITypeCloudflareAzure {
 		req.Header.Set(AzureAPIKeyHeader, c.config.authToken)
 	} else if c.config.authToken != "" {
 		// OpenAI or Azure AD authentication
@@ -212,42 +222,81 @@ func decodeString(body io.Reader, output *string) error {
 	return nil
 }
 
+type fullURLOptions struct {
+	model string
+}
+
+type fullURLOption func(*fullURLOptions)
+
+func withModel(model string) fullURLOption {
+	return func(args *fullURLOptions) {
+		args.model = model
+	}
+}
+
+var azureDeploymentsEndpoints = []string{
+	"/completions",
+	"/embeddings",
+	"/chat/completions",
+	"/audio/transcriptions",
+	"/audio/translations",
+	"/audio/speech",
+	"/images/generations",
+}
+
 // fullURL returns full URL for request.
-// args[0] is model name, if API type is Azure, model name is required to get deployment name.
-func (c *Client) fullURL(suffix string, args ...any) string {
-	// /openai/deployments/{model}/chat/completions?api-version={api_version}
-	if c.config.APIType == APITypeAzure || c.config.APIType == APITypeAzureAD {
-		baseURL := c.config.BaseURL
-		baseURL = strings.TrimRight(baseURL, "/")
-		// if suffix is /models change to {endpoint}/openai/models?api-version=2022-12-01
-		// https://learn.microsoft.com/en-us/rest/api/cognitiveservices/azureopenaistable/models/list?tabs=HTTP
-		if containsSubstr([]string{"/models", "/assistants", "/threads", "/files"}, suffix) {
-			return fmt.Sprintf("%s/%s%s?api-version=%s", baseURL, azureAPIPrefix, suffix, c.config.APIVersion)
-		}
-		azureDeploymentName := "UNKNOWN"
-		if len(args) > 0 {
-			model, ok := args[0].(string)
-			if ok {
-				azureDeploymentName = c.config.GetAzureDeploymentByModel(model)
-			}
-		}
-		return fmt.Sprintf("%s/%s/%s/%s%s?api-version=%s",
-			baseURL, azureAPIPrefix, azureDeploymentsPrefix,
-			azureDeploymentName, suffix, c.config.APIVersion,
-		)
+func (c *Client) fullURL(suffix string, setters ...fullURLOption) string {
+	baseURL := strings.TrimRight(c.config.BaseURL, "/")
+	args := fullURLOptions{}
+	for _, setter := range setters {
+		setter(&args)
 	}
 
-	// c.config.APIType == APITypeOpenAI || c.config.APIType == ""
-	return fmt.Sprintf("%s%s", c.config.BaseURL, suffix)
+	if c.config.APIType == APITypeAzure || c.config.APIType == APITypeAzureAD {
+		baseURL = c.baseURLWithAzureDeployment(baseURL, suffix, args.model)
+	}
+
+	if c.config.APIVersion != "" {
+		suffix = c.suffixWithAPIVersion(suffix)
+	}
+	return fmt.Sprintf("%s%s", baseURL, suffix)
+}
+
+func (c *Client) suffixWithAPIVersion(suffix string) string {
+	parsedSuffix, err := url.Parse(suffix)
+	if err != nil {
+		panic("failed to parse url suffix")
+	}
+	query := parsedSuffix.Query()
+	query.Add("api-version", c.config.APIVersion)
+	return fmt.Sprintf("%s?%s", parsedSuffix.Path, query.Encode())
+}
+
+func (c *Client) baseURLWithAzureDeployment(baseURL, suffix, model string) (newBaseURL string) {
+	baseURL = fmt.Sprintf("%s/%s", strings.TrimRight(baseURL, "/"), azureAPIPrefix)
+	if containsSubstr(azureDeploymentsEndpoints, suffix) {
+		azureDeploymentName := c.config.GetAzureDeploymentByModel(model)
+		if azureDeploymentName == "" {
+			azureDeploymentName = "UNKNOWN"
+		}
+		baseURL = fmt.Sprintf("%s/%s/%s", baseURL, azureDeploymentsPrefix, azureDeploymentName)
+	}
+	return baseURL
 }
 
 func (c *Client) handleErrorResp(resp *http.Response) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error, reading response body: %w", err)
+	}
 	var errRes ErrorResponse
-	err := json.NewDecoder(resp.Body).Decode(&errRes)
+	err = json.Unmarshal(body, &errRes)
 	if err != nil || errRes.Error == nil {
 		reqErr := &RequestError{
+			HTTPStatus:     resp.Status,
 			HTTPStatusCode: resp.StatusCode,
 			Err:            err,
+			Body:           body,
 		}
 		if errRes.Error != nil {
 			reqErr.Err = errRes.Error
@@ -255,6 +304,7 @@ func (c *Client) handleErrorResp(resp *http.Response) error {
 		return reqErr
 	}
 
+	errRes.Error.HTTPStatus = resp.Status
 	errRes.Error.HTTPStatusCode = resp.StatusCode
 	return errRes.Error
 }

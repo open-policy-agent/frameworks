@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/bundle"
-	"github.com/open-policy-agent/opa/resolver/wasm"
-	"github.com/open-policy-agent/opa/storage"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/bundle"
+	"github.com/open-policy-agent/opa/v1/resolver/wasm"
+	"github.com/open-policy-agent/opa/v1/storage"
 )
 
 // LoadWasmResolversFromStore will lookup all Wasm modules from the store along with the
@@ -95,7 +95,8 @@ func LoadBundleFromDisk(path, name string, bvc *bundle.VerificationConfig) (*bun
 func LoadBundleFromDiskForRegoVersion(regoVersion ast.RegoVersion, path, name string, bvc *bundle.VerificationConfig) (*bundle.Bundle, error) {
 	bundlePath := filepath.Join(path, name, "bundle.tar.gz")
 
-	if _, err := os.Stat(bundlePath); err == nil {
+	_, err := os.Stat(bundlePath)
+	if err == nil {
 		f, err := os.Open(filepath.Join(bundlePath))
 		if err != nil {
 			return nil, err
@@ -116,9 +117,9 @@ func LoadBundleFromDiskForRegoVersion(regoVersion ast.RegoVersion, path, name st
 		return &b, nil
 	} else if os.IsNotExist(err) {
 		return nil, nil
-	} else {
-		return nil, err
 	}
+
+	return nil, err
 }
 
 // SaveBundleToDisk saves the given raw bytes representing the bundle's content to disk

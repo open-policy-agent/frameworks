@@ -16,12 +16,19 @@ const (
 type APIType string
 
 const (
-	APITypeOpenAI  APIType = "OPEN_AI"
-	APITypeAzure   APIType = "AZURE"
-	APITypeAzureAD APIType = "AZURE_AD"
+	APITypeOpenAI          APIType = "OPEN_AI"
+	APITypeAzure           APIType = "AZURE"
+	APITypeAzureAD         APIType = "AZURE_AD"
+	APITypeCloudflareAzure APIType = "CLOUDFLARE_AZURE"
 )
 
 const AzureAPIKeyHeader = "api-key"
+
+const defaultAssistantVersion = "v2" // upgrade to v2 to support vector store
+
+type HTTPDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
 
 // ClientConfig is a configuration of a client.
 type ClientConfig struct {
@@ -30,19 +37,21 @@ type ClientConfig struct {
 	BaseURL              string
 	OrgID                string
 	APIType              APIType
-	APIVersion           string                    // required when APIType is APITypeAzure or APITypeAzureAD
+	APIVersion           string // required when APIType is APITypeAzure or APITypeAzureAD
+	AssistantVersion     string
 	AzureModelMapperFunc func(model string) string // replace model to azure deployment name func
-	HTTPClient           *http.Client
+	HTTPClient           HTTPDoer
 
 	EmptyMessagesLimit uint
 }
 
 func DefaultConfig(authToken string) ClientConfig {
 	return ClientConfig{
-		authToken: authToken,
-		BaseURL:   openaiAPIURLv1,
-		APIType:   APITypeOpenAI,
-		OrgID:     "",
+		authToken:        authToken,
+		BaseURL:          openaiAPIURLv1,
+		APIType:          APITypeOpenAI,
+		AssistantVersion: defaultAssistantVersion,
+		OrgID:            "",
 
 		HTTPClient: &http.Client{},
 

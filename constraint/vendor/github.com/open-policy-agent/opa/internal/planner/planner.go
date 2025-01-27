@@ -11,10 +11,10 @@ import (
 	"io"
 	"sort"
 
-	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/ast/location"
 	"github.com/open-policy-agent/opa/internal/debug"
-	"github.com/open-policy-agent/opa/ir"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/ast/location"
+	"github.com/open-policy-agent/opa/v1/ir"
 )
 
 // QuerySet represents the input to the planner.
@@ -893,6 +893,40 @@ func (p *Planner) planExprEvery(e *ast.Expr, iter planiter) error {
 	})
 
 	err := p.planTerm(every.Domain, func() error {
+		// Assert that the domain is a collection type:
+		// block outer
+		//   block a
+		//     isArray
+		//     br 1: break outer, and continue
+		//   block b
+		//     isObject
+		//     br 1: break outer, and continue
+		//   block c
+		//     isSet
+		//     br 1: break outer, and continue
+		//   br 1: invalid domain, break every
+
+		aBlock := &ir.Block{}
+		p.appendStmtToBlock(&ir.IsArrayStmt{Source: p.ltarget}, aBlock)
+		p.appendStmtToBlock(&ir.BreakStmt{Index: 1}, aBlock)
+
+		bBlock := &ir.Block{}
+		p.appendStmtToBlock(&ir.IsObjectStmt{Source: p.ltarget}, bBlock)
+		p.appendStmtToBlock(&ir.BreakStmt{Index: 1}, bBlock)
+
+		cBlock := &ir.Block{}
+		p.appendStmtToBlock(&ir.IsSetStmt{Source: p.ltarget}, cBlock)
+		p.appendStmtToBlock(&ir.BreakStmt{Index: 1}, cBlock)
+
+		outerBlock := &ir.BlockStmt{Blocks: []*ir.Block{
+			{
+				Stmts: []ir.Stmt{
+					&ir.BlockStmt{Blocks: []*ir.Block{aBlock, bBlock, cBlock}},
+					&ir.BreakStmt{Index: 1}},
+			},
+		}}
+		p.appendStmt(outerBlock)
+
 		return p.planScan(every.Key, func(ir.Local) error {
 			p.appendStmt(&ir.ResetLocalStmt{
 				Target: cond1,
@@ -1003,7 +1037,7 @@ func (p *Planner) planExprCall(e *ast.Expr, iter planiter) error {
 			args = p.defaultOperands()
 		} else if decl, ok := p.decls[operator]; ok {
 			relation = decl.Relation
-			arity = len(decl.Decl.Args())
+			arity = decl.Decl.Arity()
 			void = decl.Decl.Result() == nil
 			name = operator
 			p.externs[operator] = decl
@@ -1485,11 +1519,11 @@ func (p *Planner) planValue(t ast.Value, loc *ast.Location, iter planiter) error
 		p.loc = loc
 		return p.planObjectComprehension(v, iter)
 	default:
-		return fmt.Errorf("%v term not implemented", ast.TypeName(v))
+		return fmt.Errorf("%v term not implemented", ast.ValueName(v))
 	}
 }
 
-func (p *Planner) planNull(null ast.Null, iter planiter) error {
+func (p *Planner) planNull(_ ast.Null, iter planiter) error {
 
 	target := p.newLocal()
 

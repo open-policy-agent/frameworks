@@ -17,6 +17,7 @@ func defaults() []client.Opt {
 	return []client.Opt{
 		client.Driver(d),
 		client.Targets(&handlertest.Handler{Cache: &handlertest.Cache{}}),
+		client.EnforcementPoints("audit.gatekeeper.sh"),
 	}
 }
 

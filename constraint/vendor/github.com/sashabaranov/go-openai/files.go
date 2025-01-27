@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 )
@@ -23,6 +22,7 @@ const (
 	PurposeFineTuneResults  PurposeType = "fine-tune-results"
 	PurposeAssistants       PurposeType = "assistants"
 	PurposeAssistantsOutput PurposeType = "assistants_output"
+	PurposeBatch            PurposeType = "batch"
 )
 
 // FileBytesRequest represents a file upload request.
@@ -102,6 +102,7 @@ func (c *Client) CreateFile(ctx context.Context, request FileRequest) (file File
 	if err != nil {
 		return
 	}
+	defer fileData.Close()
 
 	err = builder.CreateFormFile("file", fileData)
 	if err != nil {
@@ -159,13 +160,12 @@ func (c *Client) GetFile(ctx context.Context, fileID string) (file File, err err
 	return
 }
 
-func (c *Client) GetFileContent(ctx context.Context, fileID string) (content io.ReadCloser, err error) {
+func (c *Client) GetFileContent(ctx context.Context, fileID string) (content RawResponse, err error) {
 	urlSuffix := fmt.Sprintf("/files/%s/content", fileID)
 	req, err := c.newRequest(ctx, http.MethodGet, c.fullURL(urlSuffix))
 	if err != nil {
 		return
 	}
 
-	content, err = c.sendRequestRaw(req)
-	return
+	return c.sendRequestRaw(req)
 }

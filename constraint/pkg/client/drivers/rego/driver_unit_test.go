@@ -16,9 +16,9 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest/cts"
-	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	clienterrors "github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
+	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
@@ -153,6 +153,14 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
 	}
 
+	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")); err != nil {
+		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+	}
+
+	if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", "scoped", []string{"deny", "warn"}, "ep", "gator")); err != nil {
+		t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+	}
+
 	qr, err := d.Query(
 		ctx,
 		cts.MockTargetHandler,
@@ -176,6 +184,23 @@ func TestDriver_Query(t *testing.T) {
 		ctx,
 		cts.MockTargetHandler,
 		[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
+		map[string]interface{}{"hi": "there"},
+	)
+	if err != nil {
+		t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
+	}
+	if len(qr.Results) == 0 {
+		t.Fatalf("got 0 errors on data-less query; want 1")
+	}
+
+	if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
+		t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
+	}
+
+	qr, err = d.Query(
+		ctx,
+		cts.MockTargetHandler,
+		[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")},
 		map[string]interface{}{"hi": "there"},
 	)
 	if err != nil {
@@ -242,26 +267,26 @@ func TestDriver_Query_Stats(t *testing.T) {
 		name                 string
 		driverArgs           []Arg
 		constraints          []*unstructured.Unstructured
-		opts                 []drivers.QueryOpt
+		opts                 []reviews.ReviewOpt
 		expectedStatsEntries []*instrumentation.StatsEntry
 	}{
 		{
 			name:                 "violations; no stats enabled",
 			constraints:          []*unstructured.Unstructured{c1},
-			opts:                 []drivers.QueryOpt{},
+			opts:                 []reviews.ReviewOpt{},
 			expectedStatsEntries: []*instrumentation.StatsEntry{},
 		},
 		{
 			name:                 "no violations; no stats enabled",
 			constraints:          []*unstructured.Unstructured{c2},
-			opts:                 []drivers.QueryOpt{},
+			opts:                 []reviews.ReviewOpt{},
 			expectedStatsEntries: []*instrumentation.StatsEntry{},
 		},
 		{
 			name:        "violations; stats enabled",
 			constraints: []*unstructured.Unstructured{c1},
-			opts: []drivers.QueryOpt{
-				drivers.Stats(true),
+			opts: []reviews.ReviewOpt{
+				reviews.Stats(true),
 			},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -301,7 +326,7 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "violations; stats enabled w driver args",
 			constraints: []*unstructured.Unstructured{c1},
-			opts:        []drivers.QueryOpt{},
+			opts:        []reviews.ReviewOpt{},
 			driverArgs:  []Arg{GatherStats()},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -341,8 +366,8 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "no violations; stats enabled",
 			constraints: []*unstructured.Unstructured{c2},
-			opts: []drivers.QueryOpt{
-				drivers.Stats(true),
+			opts: []reviews.ReviewOpt{
+				reviews.Stats(true),
 			},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -382,7 +407,7 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "no violations; stats enabled w driver args",
 			constraints: []*unstructured.Unstructured{c2},
-			opts:        []drivers.QueryOpt{},
+			opts:        []reviews.ReviewOpt{},
 			driverArgs:  []Arg{GatherStats()},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -422,8 +447,8 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "violations and no violations; stats enabled",
 			constraints: []*unstructured.Unstructured{c1, c2},
-			opts: []drivers.QueryOpt{
-				drivers.Stats(true),
+			opts: []reviews.ReviewOpt{
+				reviews.Stats(true),
 			},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -463,8 +488,8 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "violations and no violations; stats enabled; multiple kinds",
 			constraints: []*unstructured.Unstructured{c1, c2, c3, c4},
-			opts: []drivers.QueryOpt{
-				drivers.Stats(true),
+			opts: []reviews.ReviewOpt{
+				reviews.Stats(true),
 			},
 			expectedStatsEntries: []*instrumentation.StatsEntry{
 				{
@@ -536,8 +561,8 @@ func TestDriver_Query_Stats(t *testing.T) {
 		{
 			name:        "violations; stats enabled; driver args on",
 			constraints: []*unstructured.Unstructured{c1},
-			opts: []drivers.QueryOpt{
-				drivers.Stats(true),
+			opts: []reviews.ReviewOpt{
+				reviews.Stats(true),
 			},
 			driverArgs: []Arg{
 				Tracing(true),
