@@ -161,7 +161,7 @@ func TestClient_AddData(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.wantError, gotErrs, cmpopts.EquateEmpty()); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 
 			if r == nil {
@@ -266,7 +266,7 @@ func TestClient_RemoveData(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(tc.wantError, gotErrs, cmpopts.EquateEmpty()); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 
 			if r == nil {

@@ -1237,7 +1237,7 @@ func TestDriver_RemoveData(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(wantValue, gotValue); diff != "" {
-				t.Errorf(diff)
+				t.Error(diff)
 			}
 		})
 	}
