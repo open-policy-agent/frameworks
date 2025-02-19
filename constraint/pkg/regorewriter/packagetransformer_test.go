@@ -3,7 +3,7 @@ package regorewriter
 import (
 	"testing"
 
-	"github.com/open-policy-agent/opa/ast"
+	"github.com/open-policy-agent/opa/v1/ast"
 )
 
 func TestPackagePrefixer(t *testing.T) {

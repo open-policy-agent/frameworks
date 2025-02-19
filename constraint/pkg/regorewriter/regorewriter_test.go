@@ -8,7 +8,8 @@ import (
 	"text/template"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/open-policy-agent/opa/ast"
+
+	"github.com/open-policy-agent/opa/v1/ast"
 )
 
 const regoSrcTemplateText = `
@@ -30,7 +31,29 @@ deny[{
 {{.Body}}
 `
 
-var regoSrcTemplate *template.Template
+const regoSrcTemplateTextV1 = `
+package {{.Package}}
+
+{{range .Imports}}
+import {{.}}
+{{end}}
+
+{{if .DenyBody}}
+deny contains {
+    "msg": message,
+    "details": metadata,
+} if {
+    {{.DenyBody}}
+}
+{{end}}
+
+{{.Body}}
+`
+
+var (
+	regoSrcTemplate   *template.Template
+	regoSrcTemplateV1 *template.Template
+)
 
 func init() {
 	var err error
@@ -38,16 +61,28 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	regoSrcTemplateV1, err = template.New("template").Parse(regoSrcTemplateTextV1)
+	if err != nil {
+		panic(err)
+	}
 }
 
 type regoSrc struct {
-	Package  string
-	Imports  []string
-	DenyBody string
-	Body     string
+	Package     string
+	Imports     []string
+	DenyBody    string
+	Body        string
+	RegoVersion ast.RegoVersion
 }
 
 type RegoOption func(src *regoSrc)
+
+func RegoVersionOption(v ast.RegoVersion) RegoOption {
+	return func(src *regoSrc) {
+		src.RegoVersion = v
+	}
+}
 
 func Body(b string) RegoOption {
 	return func(src *regoSrc) {
@@ -71,6 +106,16 @@ myfunc() {
 	}
 }
 
+func FuncBodyV1(b string) RegoOption {
+	return func(src *regoSrc) {
+		src.Body = fmt.Sprintf(`
+myfunc() if {
+  %s
+}
+`, b)
+	}
+}
+
 func Import(i ...string) RegoOption {
 	return func(src *regoSrc) {
 		src.Imports = i
@@ -85,7 +130,13 @@ func RegoSrc(pkg string, opts ...RegoOption) string {
 		opt(&rs)
 	}
 	str := &strings.Builder{}
-	if err := regoSrcTemplate.Execute(str, rs); err != nil {
+
+	template := regoSrcTemplate
+	if rs.RegoVersion == ast.RegoV1 {
+		template = regoSrcTemplateV1
+	}
+
+	if err := template.Execute(str, rs); err != nil {
 		panic(err)
 	}
 	return str.String()
@@ -93,10 +144,11 @@ func RegoSrc(pkg string, opts ...RegoOption) string {
 
 // RegoRewriterTestcase is a testcase for rewriting rego.
 type RegoRewriterTestcase struct {
-	name      string            // testcase name
-	baseSrcs  map[string]string // entrypoint files
-	libSrcs   map[string]string // lib files
-	wantError error             // error returned when RegoRewriter should reject input
+	name        string            // testcase name
+	baseSrcs    map[string]string // entrypoint files
+	libSrcs     map[string]string // lib files
+	wantError   error             // error returned when RegoRewriter should reject input
+	regoVersion ast.RegoVersion
 }
 
 func MockRegoWriter() (*RegoRewriter, error) {
@@ -112,9 +164,11 @@ func (tc *RegoRewriterTestcase) Run(t *testing.T) {
 		t.Fatalf("Failed to create %s", err)
 	}
 	for path, content := range tc.baseSrcs {
-		m, err := ast.ParseModule(path, content)
+		m, err := ast.ParseModuleWithOpts(path, content, ast.ParserOptions{
+			RegoVersion: tc.regoVersion,
+		})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("unexpected error during parsing baseSrcs %v", err)
 		}
 
 		if err := rr.AddEntryPoint(path, m); err != nil {
@@ -122,9 +176,11 @@ func (tc *RegoRewriterTestcase) Run(t *testing.T) {
 		}
 	}
 	for path, content := range tc.libSrcs {
-		m, err := ast.ParseModule(path, content)
+		m, err := ast.ParseModuleWithOpts(path, content, ast.ParserOptions{
+			RegoVersion: tc.regoVersion,
+		})
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("unexpected error during parsing libSrcs %v", err)
 		}
 
 		if err := rr.AddLib(path, m); err != nil {
@@ -221,6 +277,7 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 			pkg            string
 			snippetBuilder func(string) RegoOption
 			srcSetter      func(*RegoRewriterTestcase, string)
+			regoVersion    ast.RegoVersion
 		}{
 			{
 				name:           "entrypoint",
@@ -229,6 +286,16 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 				srcSetter: func(tc *RegoRewriterTestcase, src string) {
 					tc.baseSrcs["my_template.rego"] = src
 				},
+				regoVersion: ast.RegoV0,
+			},
+			{
+				name:           "entrypoint v1",
+				pkg:            "template.stuff.MyTemplateV1",
+				snippetBuilder: DenyBody,
+				srcSetter: func(tc *RegoRewriterTestcase, src string) {
+					tc.baseSrcs["my_template.rego"] = src
+				},
+				regoVersion: ast.RegoV1,
 			},
 			{
 				name:           "lib",
@@ -237,21 +304,38 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 				srcSetter: func(tc *RegoRewriterTestcase, src string) {
 					tc.libSrcs["my_lib.rego"] = src
 				},
+				regoVersion: ast.RegoV0,
+			},
+			{
+				name:           "lib v1",
+				pkg:            "lib.fail",
+				snippetBuilder: FuncBodyV1,
+				srcSetter: func(tc *RegoRewriterTestcase, src string) {
+					tc.libSrcs["my_lib.rego"] = src
+				},
+				regoVersion: ast.RegoV1,
 			},
 		} {
 			var opts []RegoOption
 			if tc.imports != "" {
 				opts = append(opts, Import(tc.imports))
 			}
-			opts = append(opts, srcTypeMeta.snippetBuilder(tc.snippet))
+
+			opts = append(opts, srcTypeMeta.snippetBuilder(tc.snippet), RegoVersionOption(srcTypeMeta.regoVersion))
 
 			subTc := RegoRewriterTestcase{
-				name:      tc.name,
-				wantError: tc.wantError,
-				baseSrcs:  map[string]string{},
-				libSrcs:   map[string]string{},
+				name:        tc.name,
+				wantError:   tc.wantError,
+				baseSrcs:    map[string]string{},
+				libSrcs:     map[string]string{},
+				regoVersion: srcTypeMeta.regoVersion,
 			}
-			srcTypeMeta.srcSetter(&subTc, RegoSrc(srcTypeMeta.pkg, opts...))
+
+			srcTypeMeta.srcSetter(
+				&subTc,
+				RegoSrc(srcTypeMeta.pkg, opts...),
+			)
+
 			t.Run(fmt.Sprintf("%s-%s", srcTypeMeta.name, tc.name), subTc.Run)
 		}
 	}
@@ -325,17 +409,30 @@ func TestRegoRewriterRewriteDataRef(t *testing.T) {
 
 func TestAddEntryPointParseErrors(t *testing.T) {
 	tcs := []struct {
-		name      string
-		path      string
-		src       string
-		wantError error
+		name        string
+		path        string
+		src         string
+		wantError   error
+		regoVersion ast.RegoVersion
 	}{
 		{
-			name: "add lib.rego path",
-			path: "data.stuff.foolib",
+			name:        "add lib.rego path",
+			path:        "data.stuff.foolib",
+			regoVersion: ast.RegoV0,
 			src: `package lib.rego
 
 test_ok {
+	true
+}
+`,
+		},
+		{
+			name:        "add lib.rego path v1",
+			path:        "data.stuff.foolib",
+			regoVersion: ast.RegoV1,
+			src: `package lib.rego
+
+test_ok if {
 	true
 }
 `,
@@ -349,7 +446,9 @@ test_ok {
 				t.Fatalf("Failed to create RegoRewriter %q", err)
 			}
 
-			m, err := ast.ParseModule(tc.path, tc.src)
+			m, err := ast.ParseModuleWithOpts(tc.path, tc.src, ast.ParserOptions{
+				RegoVersion: tc.regoVersion,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -380,6 +479,10 @@ func TestRegoRewriterAddPathFromFs(t *testing.T) {
 			name: "path without test",
 			path: "test/no-test",
 		},
+		{
+			name: "path without test v1",
+			path: "testv1",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -399,14 +502,16 @@ func TestRegoRewriterAddPathFromFs(t *testing.T) {
 
 func TestRegoRewriteEntryPoint(t *testing.T) {
 	tests := []struct {
-		name       string
-		prefix     string
-		content    string
-		wantResult map[string]string
+		name        string
+		prefix      string
+		regoVersion ast.RegoVersion
+		content     string
+		wantResult  map[string]string
 	}{
 		{
-			name:   "entry point imports lib",
-			prefix: "prefix.path",
+			name:        "entry point imports lib",
+			prefix:      "prefix.path",
+			regoVersion: ast.RegoV0,
 			content: `package lib.alpha
 import data.lib.alpha
 violation[{"msg":msg}] {
@@ -428,9 +533,37 @@ violation[{"msg": msg}] {
 	ex := data.ext.alpha
 }
 `},
-		}, {
-			name:   "entry point binds data.lib to var",
-			prefix: "prefix",
+		},
+		{
+			name:        "entry point imports lib v1",
+			prefix:      "prefix.path",
+			regoVersion: ast.RegoV1,
+			content: `package lib.alpha
+import data.lib.alpha
+violation contains {"msg":msg} if {
+	x := data.lib.alpha
+	y := data.lib.alpha.ext[_]
+	z := "data.lib.alpha"
+	data.lib.alpha.check[input.name]
+	ex := data.ext.alpha
+}`,
+			wantResult: map[string]string{"path": `package lib.alpha
+
+import data.prefix.path.lib.alpha
+
+violation contains {"msg": msg} if {
+	x := data.prefix.path.lib.alpha
+	y := data.prefix.path.lib.alpha.ext[_]
+	z := "data.lib.alpha"
+	data.prefix.path.lib.alpha.check[input.name]
+	ex := data.ext.alpha
+}
+`},
+		},
+		{
+			name:        "entry point binds data.lib to var",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package templates.stuff.MyTemplateV1
 import data.lib.alpha
 violation[{"msg":msg}] {
@@ -446,9 +579,31 @@ violation[{"msg": msg}] {
 	y := x[_]
 }
 `},
-		}, {
-			name:   "entry point uses data.lib[_]",
-			prefix: "prefix",
+		},
+		{
+			name:        "entry point binds data.lib to var v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package templates.stuff.MyTemplateV1
+import data.lib.alpha
+violation contains {"msg":msg} if {
+	x := data.lib
+	y := x[_]
+}`,
+			wantResult: map[string]string{"path": `package templates.stuff.MyTemplateV1
+
+import data.prefix.lib.alpha
+
+violation contains {"msg": msg} if {
+	x := data.prefix.lib
+	y := x[_]
+}
+`},
+		},
+		{
+			name:        "entry point uses data.lib[_]",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package templates.stuff.MyTemplateV1
 import data.lib.alpha
 violation[{"msg":msg}] {
@@ -462,9 +617,29 @@ violation[{"msg": msg}] {
 	x := data.prefix.lib[_]
 }
 `},
-		}, {
-			name:   "entry point references input",
-			prefix: "prefix",
+		},
+		{
+			name:        "entry point uses data.lib[_] v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package templates.stuff.MyTemplateV1
+import data.lib.alpha
+violation contains {"msg":msg} if {
+	x := data.lib[_]
+}`,
+			wantResult: map[string]string{"path": `package templates.stuff.MyTemplateV1
+
+import data.prefix.lib.alpha
+
+violation contains {"msg": msg} if {
+	x := data.prefix.lib[_]
+}
+`},
+		},
+		{
+			name:        "entry point references input",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package templates.stuff.MyTemplateV1
 violation[{"msg":msg}] {
 	bucket := input.asset.bucket
@@ -472,6 +647,21 @@ violation[{"msg":msg}] {
 			wantResult: map[string]string{"path": `package templates.stuff.MyTemplateV1
 
 violation[{"msg": msg}] {
+	bucket := input.asset.bucket
+}
+`},
+		},
+		{
+			name:        "entry point references input v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package templates.stuff.MyTemplateV1
+violation contains {"msg":msg} if{
+	bucket := input.asset.bucket
+}`,
+			wantResult: map[string]string{"path": `package templates.stuff.MyTemplateV1
+
+violation contains {"msg": msg} if {
 	bucket := input.asset.bucket
 }
 `},
@@ -484,7 +674,9 @@ violation[{"msg": msg}] {
 				t.Fatalf("Failed to create RegoRewriter %s", err)
 			}
 
-			m, err := ast.ParseModule("path", tc.content)
+			m, err := ast.ParseModuleWithOpts("path", tc.content, ast.ParserOptions{
+				RegoVersion: tc.regoVersion,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -512,15 +704,17 @@ violation[{"msg": msg}] {
 
 func TestRegoRewriteLib(t *testing.T) {
 	tests := []struct {
-		name       string
-		prefix     string
-		content    string
-		wantResult map[string]string
-		wantError  error
+		name        string
+		prefix      string
+		content     string
+		regoVersion ast.RegoVersion
+		wantResult  map[string]string
+		wantError   error
 	}{
 		{
-			name:   "entry point imports lib",
-			prefix: "prefix.path",
+			name:        "entry point imports lib",
+			prefix:      "prefix.path",
+			regoVersion: ast.RegoV0,
 			content: `package lib.alpha
 import data.lib.alpha
 check(objects) = object {
@@ -538,9 +732,35 @@ check(objects) = object {
 	data.prefix.path.lib.beta.check(object)
 }
 `},
-		}, {
-			name:   "entry point binds data.lib to var",
-			prefix: "prefix",
+		},
+		{
+			name:        "entry point imports lib v1",
+			prefix:      "prefix.path",
+			regoVersion: ast.RegoV1,
+			content: `package lib.alpha
+
+import data.lib.alpha
+
+check(objects) := object if {
+	some object in objects
+	beta.check(object)
+	data.lib.beta.check(object)
+}`,
+			wantResult: map[string]string{"path": `package prefix.path.lib.alpha
+
+import data.prefix.path.lib.alpha
+
+check(objects) := object if {
+	some object in objects
+	beta.check(object)
+	data.prefix.path.lib.beta.check(object)
+}
+`},
+		},
+		{
+			name:        "entry point binds data.lib to var",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package lib.mylib
 myfunc() {
 	x := data.lib
@@ -553,9 +773,28 @@ myfunc {
 	y := x[_]
 }
 `},
-		}, {
-			name:   "lib uses data.lib[_]",
-			prefix: "prefix",
+		},
+		{
+			name:        "entry point binds data.lib to var v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package lib.mylib
+myfunc() if {
+	x := data.lib
+	some y in x
+}`,
+			wantResult: map[string]string{"path": `package prefix.lib.mylib
+
+myfunc if {
+	x := data.prefix.lib
+	some y in x
+}
+`},
+		},
+		{
+			name:        "lib uses data.lib[_]",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package lib.alpha
 check(object) {
 	x := data.lib[_]
@@ -568,9 +807,28 @@ check(object) {
 	object == "foo"
 }
 `},
-		}, {
-			name:   "lib references input",
-			prefix: "prefix",
+		},
+		{
+			name:        "lib uses data.lib[_] v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package lib.alpha
+check(object) if {
+	x := data.lib[_]
+	object == "foo"
+}`,
+			wantResult: map[string]string{"path": `package prefix.lib.alpha
+
+check(object) if {
+	x := data.prefix.lib[_]
+	object == "foo"
+}
+`},
+		},
+		{
+			name:        "lib references input",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package lib.myLib
 is_foo(name) {
 	input.foo[name]
@@ -581,9 +839,26 @@ is_foo(name) {
 	input.foo[name]
 }
 `},
-		}, {
-			name:   "walk data.lib",
-			prefix: "prefix",
+		},
+		{
+			name:        "lib references input v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package lib.myLib
+is_foo(name) if {
+	input.foo[name]
+}`,
+			wantResult: map[string]string{"path": `package prefix.lib.myLib
+
+is_foo(name) if {
+	input.foo[name]
+}
+`},
+		},
+		{
+			name:        "walk data.lib",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
 			content: `package lib.myLib
 is_foo(name) {
 	walk(data.lib, [p, v])
@@ -594,16 +869,49 @@ is_foo(name) {
 	walk(data.prefix.lib, [p, v])
 }
 `},
-		}, {
-			name:      "lib cannot have package name data.lib",
-			prefix:    "prefix",
-			content:   `package lib`,
-			wantError: ErrInvalidLibs,
-		}, {
-			name:      "lib has invalid package prefix",
-			prefix:    "prefix",
-			content:   `package mystuff.myLib`,
-			wantError: ErrInvalidLibs,
+		},
+		{
+			name:        "walk data.lib v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content: `package lib.myLib
+is_foo(name) if {
+	walk(data.lib, [p, v])
+}`,
+			wantResult: map[string]string{"path": `package prefix.lib.myLib
+
+is_foo(name) if {
+	walk(data.prefix.lib, [p, v])
+}
+`},
+		},
+		{
+			name:        "lib cannot have package name data.lib",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
+			content:     `package lib`,
+			wantError:   ErrInvalidLibs,
+		},
+		{
+			name:        "lib cannot have package name data.lib v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content:     `package lib`,
+			wantError:   ErrInvalidLibs,
+		},
+		{
+			name:        "lib has invalid package prefix",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV0,
+			content:     `package mystuff.myLib`,
+			wantError:   ErrInvalidLibs,
+		},
+		{
+			name:        "lib has invalid package prefix v1",
+			prefix:      "prefix",
+			regoVersion: ast.RegoV1,
+			content:     `package mystuff.myLib`,
+			wantError:   ErrInvalidLibs,
 		},
 	}
 	for _, tc := range tests {
@@ -613,7 +921,9 @@ is_foo(name) {
 				t.Fatalf("Failed to create RegoRewriter %s", err)
 			}
 
-			m, err := ast.ParseModule("path", tc.content)
+			m, err := ast.ParseModuleWithOpts("path", tc.content, ast.ParserOptions{
+				RegoVersion: tc.regoVersion,
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
