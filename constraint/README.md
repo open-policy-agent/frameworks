@@ -81,7 +81,7 @@ spec:
 
 The most important pieces of the above YAML are:
 
-   * `validation`, which provides the schema for the `parameters` field for the constraint
+   * `crd`, which provides the schema for the `parameters` field for the constraint
    * `targets`, which specifies what "target" (defined later) the constraint applies to. Note
       that currently constraints can only apply to one target.
    * `rego`, which defines the logic that enforces the constraint.
