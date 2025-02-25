@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/open-policy-agent/opa/v1/storage"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
-	"github.com/open-policy-agent/opa/storage"
 )
 
 var ErrInvalidObject = errors.New("invalid object")
