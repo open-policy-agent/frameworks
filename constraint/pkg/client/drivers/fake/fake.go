@@ -7,14 +7,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/open-policy-agent/opa/v1/storage"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	apiconstraints "github.com/open-policy-agent/frameworks/constraint/pkg/apis/constraints"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/fake/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/reviews"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
-	"github.com/open-policy-agent/opa/storage"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var ErrTesting = errors.New("test error")
