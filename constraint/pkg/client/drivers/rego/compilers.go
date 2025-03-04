@@ -237,7 +237,9 @@ func compileTemplateTarget(module []*ast.Module, capabilities *ast.Capabilities,
 
 // parseModule parses the module and also fails empty modules.
 func parseModule(path, rego string) (*ast.Module, error) {
-	attemptVersions := []ast.RegoVersion{ast.RegoV0, ast.RegoV1}
+	// attempt to parse v1 first and fallback to v0 if it fails.
+	// Some v1 files still parse as v0, but then fail at compilation.
+	attemptVersions := []ast.RegoVersion{ast.RegoV1, ast.RegoV0}
 
 	var module *ast.Module
 	var err error
