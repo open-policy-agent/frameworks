@@ -124,7 +124,9 @@ func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 		return fmt.Errorf("%w: %v", ErrReadingFile, err)
 	}
 
-	attemptVersions := []ast.RegoVersion{ast.RegoV0, ast.RegoV1}
+	// attempt to parse v1 first and fallback to v0 if it fails.
+	// Some v1 files still parse as v0, but then fail at compilation.
+	attemptVersions := []ast.RegoVersion{ast.RegoV1, ast.RegoV0}
 
 	var m *ast.Module
 	for _, v := range attemptVersions {
