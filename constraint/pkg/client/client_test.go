@@ -20,6 +20,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
+	"github.com/open-policy-agent/opa/v1/ast"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -319,17 +320,17 @@ func TestClient_AddTemplate(t *testing.T) {
 		{
 			name: "Change targets",
 			targets: []handler.TargetHandler{
-				&handlertest.Handler{Name: ptr.To[string]("foo")},
-				&handlertest.Handler{Name: ptr.To[string]("bar")},
+				&handlertest.Handler{Name: ptr.To("foo")},
+				&handlertest.Handler{Name: ptr.To("bar")},
 			},
 			before: cts.New(cts.OptTargets(
-				cts.Target("foo", cts.ModuleDeny),
+				cts.TargetWithVersion("foo", cts.ModuleDeny, ast.RegoV1),
 			)),
 			beforeConstraints: []*unstructured.Unstructured{
 				cts.MakeConstraint(t, cts.MockTemplate, "qux"),
 			},
 			template: cts.New(cts.OptTargets(
-				cts.Target("bar", cts.ModuleDeny),
+				cts.TargetWithVersion("bar", cts.ModuleDeny, ast.RegoV1),
 			)),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrChangeTargets,
@@ -550,14 +551,14 @@ func TestClient_RemoveTemplate_ByNameOnly(t *testing.T) {
 		{
 			name:        "Good Template",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target(handlertest.TargetName, cts.ModuleDeny))),
+			template:    cts.New(cts.OptTargets(cts.TargetWithVersion(handlertest.TargetName, cts.ModuleDeny, ast.RegoV1))),
 			wantHandled: map[string]bool{handlertest.TargetName: true},
 			wantError:   nil,
 		},
 		{
 			name:        "Unknown Target",
 			handler:     &handlertest.Handler{},
-			template:    cts.New(cts.OptTargets(cts.Target("h2", cts.ModuleDeny))),
+			template:    cts.New(cts.OptTargets(cts.TargetWithVersion("h2", cts.ModuleDeny, ast.RegoV1))),
 			wantHandled: nil,
 			wantError:   clienterrors.ErrInvalidConstraintTemplate,
 		},

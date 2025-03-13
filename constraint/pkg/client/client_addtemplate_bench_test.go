@@ -18,7 +18,7 @@ func BenchmarkClient_AddTemplate(b *testing.B) {
 					ctx := context.Background()
 					cts := make([]*templates.ConstraintTemplate, n)
 					for i := range cts {
-						cts[i] = makeConstraintTemplate(i, tc.module, tc.libs...)
+						cts[i] = makeConstraintTemplate(i, tc.module, tc.version, tc.libs...)
 					}
 
 					for i := 0; i < b.N; i++ {
@@ -50,7 +50,7 @@ func BenchmarkClient_AddTemplate_Parallel(b *testing.B) {
 				b.Run(fmt.Sprintf("%d Templates", n), func(b *testing.B) {
 					cts := make([]*templates.ConstraintTemplate, n)
 					for i := range cts {
-						cts[i] = makeConstraintTemplate(i, tc.module, tc.libs...)
+						cts[i] = makeConstraintTemplate(i, tc.module, tc.version, tc.libs...)
 					}
 					b.ResetTimer()
 

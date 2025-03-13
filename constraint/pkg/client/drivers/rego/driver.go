@@ -107,6 +107,7 @@ func (d *Driver) AddTemplate(ctx context.Context, templ *templates.ConstraintTem
 		if err != nil {
 			return err
 		}
+
 		targets = append(targets, target.Target)
 	}
 
@@ -433,8 +434,9 @@ func rewriteModulePackage(module *ast.Module) error {
 	pathParts := ast.Ref([]*ast.Term{ast.VarTerm(templatePath)})
 
 	packageRef := ast.Ref([]*ast.Term{ast.VarTerm("data")})
-	newPath := packageRef.Extend(pathParts)
-	module.Package.Path = newPath
+
+	module.Package.Path = packageRef.Extend(pathParts)
+
 	return nil
 }
 

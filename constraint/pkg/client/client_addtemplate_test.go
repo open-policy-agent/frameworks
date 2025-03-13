@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/open-policy-agent/opa/v1/ast"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/clienttest"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -12,39 +14,46 @@ import (
 )
 
 var modules = []struct {
-	name   string
-	module string
-	libs   []string
+	name    string
+	module  string
+	version ast.RegoVersion
+	libs    []string
 }{
 	{
-		name:   "Simple",
-		module: moduleSimple,
-		libs:   nil,
+		name:    "Simple",
+		module:  moduleSimple,
+		version: ast.RegoV0,
+		libs:    nil,
 	},
 	{
-		name:   "Complex",
-		module: moduleComplex,
-		libs:   nil,
+		name:    "Complex",
+		module:  moduleComplex,
+		version: ast.RegoV0,
+		libs:    nil,
 	},
 	{
-		name:   "Very Complex",
-		module: moduleVeryComplex,
-		libs:   []string{libVeryComplex},
+		name:    "Very Complex",
+		module:  moduleVeryComplex,
+		version: ast.RegoV0,
+		libs:    []string{libVeryComplex},
 	},
 	{
-		name:   "Simple Rego V1",
-		module: moduleSimpleV1,
-		libs:   nil,
+		name:    "Simple Rego V1",
+		module:  moduleSimpleV1,
+		version: ast.RegoV1,
+		libs:    nil,
 	},
 	{
-		name:   "Complex Rego V1",
-		module: moduleComplexV1,
-		libs:   nil,
+		name:    "Complex Rego V1",
+		module:  moduleComplexV1,
+		version: ast.RegoV1,
+		libs:    nil,
 	},
 	{
-		name:   "Very Complex Rego V1",
-		module: moduleVeryComplexV1,
-		libs:   []string{libVeryComplexV1},
+		name:    "Very Complex Rego V1",
+		module:  moduleVeryComplexV1,
+		version: ast.RegoV1,
+		libs:    []string{libVeryComplexV1},
 	},
 }
 
@@ -459,7 +468,7 @@ violation contains {"msg": msg} if {
 }
 `
 
-func makeConstraintTemplate(i int, module string, libs ...string) *templates.ConstraintTemplate {
+func makeConstraintTemplate(i int, module string, version ast.RegoVersion, libs ...string) *templates.ConstraintTemplate {
 	kind := makeKind(i)
 	ct := &templates.ConstraintTemplate{}
 	ct.SetName(kind)
@@ -471,8 +480,9 @@ func makeConstraintTemplate(i int, module string, libs ...string) *templates.Con
 				Engine: schema.Name,
 				Source: &templates.Anything{
 					Value: (&schema.Source{
-						Rego: module,
-						Libs: libs,
+						Rego:    module,
+						Version: version.String(),
+						Libs:    libs,
 					}).ToUnstructured(),
 				},
 			},
@@ -489,7 +499,7 @@ func TestAddTemplate(t *testing.T) {
 
 			c := clienttest.New(t)
 
-			_, err := c.AddTemplate(ctx, makeConstraintTemplate(0, tc.module, tc.libs...))
+			_, err := c.AddTemplate(ctx, makeConstraintTemplate(0, tc.module, tc.version, tc.libs...))
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -246,7 +246,6 @@ func TestRegoRewriterErrorCases(t *testing.T) {
 			wantError: ErrDataReferences,
 		},
 		{
-			name:    "invalid import of input",
 			imports: "input.metadata",
 			snippet: `
 	metadata.x == "abc"
@@ -463,25 +462,30 @@ test_ok if {
 func TestRegoRewriterAddPathFromFs(t *testing.T) {
 	tests := []struct {
 		name    string
+		version ast.RegoVersion
 		path    string
 		wantErr error
 	}{
 		{
 			name:    "path not exist",
+			version: ast.RegoV0,
 			path:    "foo/bar",
 			wantErr: ErrReadingFile,
 		},
 		{
-			name: "path with test folder",
-			path: ".",
+			name:    "path with test folder",
+			version: ast.RegoV0,
+			path:    "test",
 		},
 		{
-			name: "path without test",
-			path: "test/no-test",
+			name:    "path without test",
+			version: ast.RegoV0,
+			path:    "test/no-test",
 		},
 		{
-			name: "path without test v1",
-			path: "testv1",
+			name:    "path v1",
+			version: ast.RegoV1,
+			path:    "testv1",
 		},
 	}
 	for _, tc := range tests {
@@ -490,11 +494,24 @@ func TestRegoRewriterAddPathFromFs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create RegoRewriter %q", err)
 			}
-			if err := rr.AddLibFromFs(tc.path); !errors.Is(err, tc.wantErr) {
-				t.Errorf("AddLibFromFs() error = %v, wantErr %v", err, tc.wantErr)
-			}
-			if err := rr.AddBaseFromFs(tc.path); !errors.Is(err, tc.wantErr) {
-				t.Errorf("AddBaseFromFs() error = %v, wantErr %v", err, tc.wantErr)
+
+			switch tc.version {
+			case ast.RegoV0:
+				if err := rr.AddLibFromFs(tc.path); !errors.Is(err, tc.wantErr) {
+					t.Errorf("AddLibFromFs() error = %v, wantErr %v", err, tc.wantErr)
+				}
+				if err := rr.AddBaseFromFs(tc.path); !errors.Is(err, tc.wantErr) {
+					t.Errorf("AddBaseFromFs() error = %v, wantErr %v", err, tc.wantErr)
+				}
+			case ast.RegoV1:
+				if err := rr.AddLibFromFsV1(tc.path); !errors.Is(err, tc.wantErr) {
+					t.Errorf("AddLibFromFs() error = %v, wantErr %v", err, tc.wantErr)
+				}
+				if err := rr.AddBaseFromFsV1(tc.path); !errors.Is(err, tc.wantErr) {
+					t.Errorf("AddBaseFromFs() error = %v, wantErr %v", err, tc.wantErr)
+				}
+			default:
+				t.Errorf("unexpected rego version %v", tc.version)
 			}
 		})
 	}

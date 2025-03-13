@@ -160,7 +160,18 @@ func parseConstraintTemplateTarget(rr *regorewriter.RegoRewriter, targetSpec *te
 	if err != nil {
 		return nil, err
 	}
-	entryPoint, err := parseModule(templatePath, regoSrc.Rego)
+
+	var version ast.RegoVersion
+	switch regoSrc.Version {
+	case "v0":
+		version = ast.RegoV0
+	case "v1":
+		version = ast.RegoV1
+	default:
+		version = ast.RegoV0
+	}
+
+	entryPoint, err := parseModule(templatePath, version, regoSrc.Rego)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", clienterrors.ErrInvalidConstraintTemplate, err)
 	}
@@ -185,7 +196,7 @@ func parseConstraintTemplateTarget(rr *regorewriter.RegoRewriter, targetSpec *te
 	for idx, libSrc := range regoSrc.Libs {
 		libPath := fmt.Sprintf(`%s["lib_%d"]`, templateLibPrefix, idx)
 
-		m, err := parseModule(libPath, libSrc)
+		m, err := parseModule(libPath, version, libSrc)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v",
 				clienterrors.ErrInvalidConstraintTemplate, err)
@@ -236,21 +247,10 @@ func compileTemplateTarget(module []*ast.Module, capabilities *ast.Capabilities,
 }
 
 // parseModule parses the module and also fails empty modules.
-func parseModule(path, rego string) (*ast.Module, error) {
-	// attempt to parse v1 first and fallback to v0 if it fails.
-	// Some v1 files still parse as v0, but then fail at compilation.
-	attemptVersions := []ast.RegoVersion{ast.RegoV1, ast.RegoV0}
-
-	var module *ast.Module
-	var err error
-	for _, v := range attemptVersions {
-		module, err = ast.ParseModuleWithOpts(path, rego, ast.ParserOptions{
-			RegoVersion: v,
-		})
-		if err == nil {
-			break
-		}
-	}
+func parseModule(path string, version ast.RegoVersion, rego string) (*ast.Module, error) {
+	module, err := ast.ParseModuleWithOpts(path, rego, ast.ParserOptions{
+		RegoVersion: version,
+	})
 	if err != nil {
 		return nil, err
 	}

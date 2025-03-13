@@ -170,76 +170,81 @@ func TestDriver_Query(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	regoModules := []string{AlwaysViolate, AlwaysViolateV1}
+	regoModules := map[ast.RegoVersion]string{
+		ast.RegoV0: AlwaysViolate,
+		ast.RegoV1: AlwaysViolateV1,
+	}
 
-	for _, module := range regoModules {
-		tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, module)))
-		ctx := context.Background()
+	for version, module := range regoModules {
+		t.Run(version.String(), func(t *testing.T) {
+			tmpl := cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, module, version)))
+			ctx := context.Background()
 
-		if err := d.AddTemplate(ctx, tmpl); err != nil {
-			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
-		}
+			if err := d.AddTemplate(ctx, tmpl); err != nil {
+				t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
+			}
 
-		if err := d.AddConstraint(ctx, cts.MakeConstraint(t, "Fakes", "foo-1")); err != nil {
-			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
-		}
+			if err := d.AddConstraint(ctx, cts.MakeConstraint(t, "Fakes", "foo-1")); err != nil {
+				t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+			}
 
-		if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")); err != nil {
-			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
-		}
+			if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")); err != nil {
+				t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+			}
 
-		if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", "scoped", []string{"deny", "warn"}, "ep", "gator")); err != nil {
-			t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
-		}
+			if err := d.AddConstraint(ctx, cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-3", "scoped", []string{"deny", "warn"}, "ep", "gator")); err != nil {
+				t.Fatalf("got AddConstraint() error = %v, want %v", err, nil)
+			}
 
-		qr, err := d.Query(
-			ctx,
-			cts.MockTargetHandler,
-			[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
-			map[string]interface{}{"hi": "there"},
-		)
-		if err != nil {
-			t.Fatalf("got Query() error = %v, want %v", err, nil)
-		}
-		if len(qr.Results) == 0 {
-			t.Fatalf("got 0 errors on normal query; want 1")
-		}
+			qr, err := d.Query(
+				ctx,
+				cts.MockTargetHandler,
+				[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
+				map[string]interface{}{"hi": "there"},
+			)
+			if err != nil {
+				t.Fatalf("got Query() error = %v, want %v", err, nil)
+			}
+			if len(qr.Results) == 0 {
+				t.Fatalf("got 0 errors on normal query; want 1")
+			}
 
-		// Remove data to make sure our rego hook is well-behaved when
-		// there is no external data root
-		if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
-			t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
-		}
+			// Remove data to make sure our rego hook is well-behaved when
+			// there is no external data root
+			if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
+				t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
+			}
 
-		qr, err = d.Query(
-			ctx,
-			cts.MockTargetHandler,
-			[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
-			map[string]interface{}{"hi": "there"},
-		)
-		if err != nil {
-			t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
-		}
-		if len(qr.Results) == 0 {
-			t.Fatalf("got 0 errors on data-less query; want 1")
-		}
+			qr, err = d.Query(
+				ctx,
+				cts.MockTargetHandler,
+				[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
+				map[string]interface{}{"hi": "there"},
+			)
+			if err != nil {
+				t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
+			}
+			if len(qr.Results) == 0 {
+				t.Fatalf("got 0 errors on data-less query; want 1")
+			}
 
-		if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
-			t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
-		}
+			if err := d.RemoveData(ctx, cts.MockTargetHandler, nil); err != nil {
+				t.Fatalf("got RemoveData() error = %v, want %v", err, nil)
+			}
 
-		qr, err = d.Query(
-			ctx,
-			cts.MockTargetHandler,
-			[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")},
-			map[string]interface{}{"hi": "there"},
-		)
-		if err != nil {
-			t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
-		}
-		if len(qr.Results) == 0 {
-			t.Fatalf("got 0 errors on data-less query; want 1")
-		}
+			qr, err = d.Query(
+				ctx,
+				cts.MockTargetHandler,
+				[]*unstructured.Unstructured{cts.MakeScopedEnforcementConstraint(t, "Fakes", "foo-2", "scoped", []string{"deny", "warn"}, "audit", "gator")},
+				map[string]interface{}{"hi": "there"},
+			)
+			if err != nil {
+				t.Fatalf("got Query() (#2) error = %v, want %v", err, nil)
+			}
+			if len(qr.Results) == 0 {
+				t.Fatalf("got 0 errors on data-less query; want 1")
+			}
+		})
 	}
 }
 
@@ -254,13 +259,16 @@ func TestDriver_Query_Stats(t *testing.T) {
 	c3 := cts.MakeConstraint(t, "Fakes-2", "foo-1")
 	c4 := cts.MakeConstraint(t, "Fakes-2", "foo-2")
 
-	prepareDriverFunc := func(d *Driver, violatingModule, neverViolatingModule string) {
+	prepareDriverFunc := func(t *testing.T, d *Driver, violatingModule string, neverViolatingModule string, version ast.RegoVersion) {
+		t.Helper()
+
 		/// Start Kind: Fakes
-		tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, violatingModule)))
+		tmpl := cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, violatingModule, version)))
 		if err := d.AddTemplate(ctx, tmpl); err != nil {
 			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
 		}
-		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, neverViolatingModule)))
+
+		tmpl = cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, neverViolatingModule, version)))
 		if err := d.AddTemplate(ctx, tmpl); err != nil {
 			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
 		}
@@ -274,11 +282,12 @@ func TestDriver_Query_Stats(t *testing.T) {
 		/// End Kind: Fakes
 
 		/// Start Kind: Fakes-2
-		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, violatingModule)), cts.OptCRDNames("Fakes-2"))
+		tmpl = cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, violatingModule, version)), cts.OptCRDNames("Fakes-2"))
 		if err := d.AddTemplate(ctx, tmpl); err != nil {
 			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
 		}
-		tmpl = cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, neverViolatingModule)), cts.OptCRDNames("Fakes-2"))
+
+		tmpl = cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, neverViolatingModule, version)), cts.OptCRDNames("Fakes-2"))
 		if err := d.AddTemplate(ctx, tmpl); err != nil {
 			t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
 		}
@@ -639,76 +648,78 @@ func TestDriver_Query_Stats(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			regoModulePairs := []struct {
+			regoModulePairs := map[ast.RegoVersion]struct {
 				AlwaysViolateModule string
 				NeverViolateModule  string
 			}{
-				{AlwaysViolate, NeverViolate},
-				{AlwaysViolateV1, NeverViolateV1},
+				ast.RegoV0: {AlwaysViolate, NeverViolate},
+				ast.RegoV1: {AlwaysViolateV1, NeverViolateV1},
 			}
 
-			for _, modulePair := range regoModulePairs {
-				var d *Driver
-				var err error
+			for version, modulePair := range regoModulePairs {
+				t.Run(version.String(), func(t *testing.T) {
+					var d *Driver
+					var err error
 
-				if tc.driverArgs == nil {
-					d, err = New()
-				} else {
-					d, err = New(tc.driverArgs...)
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
+					if tc.driverArgs == nil {
+						d, err = New()
+					} else {
+						d, err = New(tc.driverArgs...)
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
 
-				prepareDriverFunc(d, modulePair.AlwaysViolateModule, modulePair.NeverViolateModule)
+					prepareDriverFunc(t, d, modulePair.AlwaysViolateModule, modulePair.NeverViolateModule, version)
 
-				response, err := d.Query(context.Background(), target, tc.constraints, review, tc.opts...)
-				if err != nil {
-					t.Fatalf("unexpected error in Query: %v", err)
-				}
-				if response == nil {
-					t.Fatalf("Query response is nil")
-				}
+					response, err := d.Query(context.Background(), target, tc.constraints, review, tc.opts...)
+					if err != nil {
+						t.Fatalf("unexpected error in Query: %v", err)
+					}
+					if response == nil {
+						t.Fatalf("Query response is nil")
+					}
 
-				if len(response.StatsEntries) != len(tc.expectedStatsEntries) {
-					t.Errorf("expected %d stats, but got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
-				}
+					if len(response.StatsEntries) != len(tc.expectedStatsEntries) {
+						t.Errorf("expected %d stats, but got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
+					}
 
-				if len(tc.expectedStatsEntries) != len(response.StatsEntries) {
-					t.Errorf("stat entry counts don't match; want %d, got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
-				}
-				for _, expectedStatEntry := range tc.expectedStatsEntries {
-					found := false
-					for _, actualStatsEntry := range response.StatsEntries {
-						if diff := cmp.Diff(expectedStatEntry, actualStatsEntry, cmpopts.IgnoreFields(instrumentation.Stat{}, "Value")); diff != "" {
-							continue
-						}
-						found = true
+					if len(tc.expectedStatsEntries) != len(response.StatsEntries) {
+						t.Errorf("stat entry counts don't match; want %d, got %d", len(tc.expectedStatsEntries), len(response.StatsEntries))
+					}
+					for _, expectedStatEntry := range tc.expectedStatsEntries {
+						found := false
+						for _, actualStatsEntry := range response.StatsEntries {
+							if diff := cmp.Diff(expectedStatEntry, actualStatsEntry, cmpopts.IgnoreFields(instrumentation.Stat{}, "Value")); diff != "" {
+								continue
+							}
+							found = true
 
-						for j, expectedStat := range expectedStatEntry.Stats {
-							actualStat := actualStatsEntry.Stats[j]
+							for j, expectedStat := range expectedStatEntry.Stats {
+								actualStat := actualStatsEntry.Stats[j]
 
-							switch actualStat.Name {
-							case templateRunTimeNS:
-								switch actualValue := actualStat.Value.(type) {
-								case uint64:
-									if !(actualValue > 0) {
-										t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
+								switch actualStat.Name {
+								case templateRunTimeNS:
+									switch actualValue := actualStat.Value.(type) {
+									case uint64:
+										if !(actualValue > 0) {
+											t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
+										}
+									default:
+										t.Errorf("unknown stat value type: %T for stat: %+v", actualValue, actualValue)
 									}
-								default:
-									t.Errorf("unknown stat value type: %T for stat: %+v", actualValue, actualValue)
-								}
-							case constraintCountName:
-								if actualStat.Value != expectedStat.Value {
-									t.Errorf("%s values don't match; want: %+v; got: %+v", constraintCountName, expectedStat.Value, actualStat.Value)
+								case constraintCountName:
+									if actualStat.Value != expectedStat.Value {
+										t.Errorf("%s values don't match; want: %+v; got: %+v", constraintCountName, expectedStat.Value, actualStat.Value)
+									}
 								}
 							}
 						}
+						if !found {
+							t.Errorf("expected stat entry not found: %v; got %v", expectedStatEntry, response.StatsEntries)
+						}
 					}
-					if !found {
-						t.Errorf("expected stat entry not found: %v; got %v", expectedStatEntry, response.StatsEntries)
-					}
-				}
+				})
 			}
 		})
 	}
@@ -830,13 +841,14 @@ func TestDriver_ExternalData(t *testing.T) {
 				d.sendRequestToProvider = tt.sendRequestToProvider
 			}
 
-			regoModules := map[string]string{
-				"v0": ExternalData,
-				"v1": ExternalDataV1,
+			regoModules := map[ast.RegoVersion]string{
+				ast.RegoV0: ExternalData,
+				ast.RegoV1: ExternalDataV1,
 			}
+
 			for version, module := range regoModules {
-				t.Run(version, func(t *testing.T) {
-					tmpl := cts.New(cts.OptTargets(cts.Target(cts.MockTargetHandler, module)))
+				t.Run(version.String(), func(t *testing.T) {
+					tmpl := cts.New(cts.OptTargets(cts.TargetWithVersion(cts.MockTargetHandler, module, version)))
 
 					if err := d.AddTemplate(ctx, tmpl); err != nil {
 						t.Fatalf("got AddTemplate() error = %v, want %v", err, nil)
@@ -871,6 +883,7 @@ func TestDriver_AddTemplate(t *testing.T) {
 	testCases := []struct {
 		name          string
 		rego          string
+		regoVersion   ast.RegoVersion
 		targetHandler string
 		externs       []string
 
@@ -886,6 +899,7 @@ func TestDriver_AddTemplate(t *testing.T) {
 			name:          "rego missing violation",
 			targetHandler: cts.MockTargetHandler,
 			rego:          Module,
+			regoVersion:   ast.RegoV0,
 			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
 			wantCompilers: map[string][]string{},
 		},
@@ -897,12 +911,14 @@ package foobar
 
 fooisbar contains "input.foo is bar" if input.foo == "bar"
 `,
+			regoVersion:   ast.RegoV1,
 			wantErr:       clienterrors.ErrInvalidConstraintTemplate,
 			wantCompilers: map[string][]string{},
 		},
 		{
 			name:          "valid template",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV0,
 			rego: `
 package something
 
@@ -915,6 +931,7 @@ violation[{"msg": "msg"}] {
 		{
 			name:          "valid template v1",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV1,
 			rego: `
 package something
 
@@ -927,6 +944,7 @@ violation contains {"msg": "msg"} if {
 		{
 			name:          "inventory disallowed template",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV0,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -937,6 +955,7 @@ violation[{"msg": "msg"}] {
 		{
 			name:          "inventory disallowed template v1",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV1,
 			rego: `package something
 
 violation contains {"msg": "msg"} if {
@@ -947,6 +966,7 @@ violation contains {"msg": "msg"} if {
 		{
 			name:          "inventory allowed template",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV0,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -959,6 +979,7 @@ violation[{"msg": "msg"}] {
 		{
 			name:          "inventory allowed template v1",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV1,
 			rego: `package something
 
 violation contains {"msg": "msg"} if {
@@ -977,7 +998,7 @@ violation contains {"msg": "msg"} if {
 				t.Fatal(err)
 			}
 
-			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
+			tmpl := cts.New(cts.OptTargets(cts.TargetWithVersion(tc.targetHandler, tc.rego, tc.regoVersion)))
 			ctx := context.Background()
 
 			gotErr := d.AddTemplate(ctx, tmpl)
@@ -1011,6 +1032,7 @@ func TestDriver_RemoveTemplates(t *testing.T) {
 	testCases := []struct {
 		name          string
 		rego          string
+		regoVersion   ast.RegoVersion
 		targetHandler string
 		externs       []string
 		wantErr       error
@@ -1018,6 +1040,7 @@ func TestDriver_RemoveTemplates(t *testing.T) {
 		{
 			name:          "valid template",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV0,
 			rego: `
 package something
 
@@ -1026,6 +1049,7 @@ violation[{"msg": msg}] {msg := "always"}`,
 		{
 			name:          "valid template v1",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV1,
 			rego: `
 package something
 
@@ -1036,6 +1060,7 @@ violation contains {"msg": msg} if {
 		{
 			name:          "inventory allowed template",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV0,
 			rego: `package something
 
 violation[{"msg": "msg"}] {
@@ -1047,6 +1072,7 @@ violation[{"msg": "msg"}] {
 		{
 			name:          "inventory allowed template v1",
 			targetHandler: cts.MockTargetHandler,
+			regoVersion:   ast.RegoV1,
 			rego: `package something
 
 violation contains {"msg": "msg"} if {
@@ -1064,7 +1090,7 @@ violation contains {"msg": "msg"} if {
 				t.Fatal(err)
 			}
 
-			tmpl := cts.New(cts.OptTargets(cts.Target(tc.targetHandler, tc.rego)))
+			tmpl := cts.New(cts.OptTargets(cts.TargetWithVersion(tc.targetHandler, tc.rego, tc.regoVersion)))
 			ctx := context.Background()
 
 			gotErr := d.AddTemplate(ctx, tmpl)
@@ -1603,7 +1629,9 @@ func TestDriver_AddConstraint(t *testing.T) {
 			}
 
 			ctx := context.Background()
+
 			beforeTemplate := cts.New(cts.OptName("foo"), cts.OptCRDNames("Foo"))
+
 			err = d.AddTemplate(ctx, beforeTemplate)
 			if err != nil {
 				t.Fatal(err)

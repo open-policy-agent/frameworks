@@ -113,7 +113,7 @@ func (r *RegoRewriter) addTestDir(testDirPath string) error {
 }
 
 // addFileFromFs reads a file from the filesystem, parses it then appends it to slice.
-func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
+func (r *RegoRewriter) addFileFromFs(path string, version ast.RegoVersion, slice *[]*Module) error {
 	glog.V(vLog).Infof("adding file %s", path)
 	if !strings.HasSuffix(path, ".rego") {
 		return fmt.Errorf("invalid file specified %s", path)
@@ -124,21 +124,11 @@ func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 		return fmt.Errorf("%w: %v", ErrReadingFile, err)
 	}
 
-	// attempt to parse v1 first and fallback to v0 if it fails.
-	// Some v1 files still parse as v0, but then fail at compilation.
-	attemptVersions := []ast.RegoVersion{ast.RegoV1, ast.RegoV0}
-
-	var m *ast.Module
-	for _, v := range attemptVersions {
-		m, err = ast.ParseModuleWithOpts(path, string(bytes), ast.ParserOptions{
-			RegoVersion: v,
-		})
-		if err == nil {
-			break
-		}
-	}
+	m, err := ast.ParseModuleWithOpts(path, string(bytes), ast.ParserOptions{
+		RegoVersion: version,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse module %s: %w", path, err)
 	}
 
 	return r.add(path, m, slice)
@@ -151,7 +141,7 @@ func (r *RegoRewriter) addFileFromFs(path string, slice *[]*Module) error {
 //  3. any '.rego' loaded by "opa test" can reference any "test" data member that is loaded by
 //     opa test, for example, if "opa test foo/ bar/" is specified, a test in foo/ can see test data
 //     from bar/test/.
-func (r *RegoRewriter) addPathFromFs(path string, slice *[]*Module) error {
+func (r *RegoRewriter) addPathFromFs(path string, version ast.RegoVersion, slice *[]*Module) error {
 	fileStat, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrReadingFile, err)
@@ -177,24 +167,40 @@ func (r *RegoRewriter) addPathFromFs(path string, slice *[]*Module) error {
 			if info == nil || (info.IsDir() || !strings.HasSuffix(path, ".rego")) {
 				return nil
 			}
-			return r.addFileFromFs(path, slice)
+			return r.addFileFromFs(path, version, slice)
 		}
 
 		return filepath.Walk(path, walkFn)
 	}
 
-	return r.addFileFromFs(path, slice)
+	return r.addFileFromFs(path, version, slice)
 }
 
 // AddBaseFromFs adds a base source which will not have it's package path rewritten.  These correspond
 // to the rego that will be populated into a ConstraintTemplate with the 'violation' rule.
 func (r *RegoRewriter) AddBaseFromFs(path string) error {
-	return r.addPathFromFs(path, &r.entryPoints)
+	// TODO: use v0 for regorewriter until version can be determined
+	return r.addPathFromFs(path, ast.RegoV0, &r.entryPoints)
+}
+
+// AddBaseFromFsV1 adds a base source which will not have it's package path
+// rewritten.  These correspond to the rego that will be populated into a
+// ConstraintTemplate with the 'violation' rule.
+// The Rego path is parsed as RegoV1.
+func (r *RegoRewriter) AddBaseFromFsV1(path string) error {
+	return r.addPathFromFs(path, ast.RegoV1, &r.entryPoints)
 }
 
 // AddLibFromFs adds a library source which will have the package path updated.
 func (r *RegoRewriter) AddLibFromFs(path string) error {
-	return r.addPathFromFs(path, &r.libs)
+	// TODO: use v0 for regorewriter until version can be determined
+	return r.addPathFromFs(path, ast.RegoV0, &r.libs)
+}
+
+// AddLibFromFsV1 adds a library source which will have the package path updated.
+// The Rego path is parsed as RegoV1.
+func (r *RegoRewriter) AddLibFromFsV1(path string) error {
+	return r.addPathFromFs(path, ast.RegoV1, &r.libs)
 }
 
 // forAllModules runs f on all rego modules (both entrypoints and libraries).
