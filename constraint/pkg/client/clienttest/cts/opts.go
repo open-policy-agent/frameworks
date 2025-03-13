@@ -1,30 +1,33 @@
 package cts
 
 import (
+	"github.com/open-policy-agent/opa/v1/ast"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
 const (
 	ModuleDeny = `
 package foo
 
-violation[{"msg": msg}] {
+violation contains {"msg": msg} if {
   true
   msg := "denied"
 }
 `
-	MockTemplateName  string = "fakes"
-	MockTemplate      string = "Fakes"
-	MockTargetHandler string = "foo"
+	MockTemplateName  string          = "fakes"
+	MockTemplate      string          = "Fakes"
+	MockTargetHandler string          = "foo"
+	RegoVersion       ast.RegoVersion = ast.RegoV0
 )
 
 var defaults = []Opt{
 	OptName(MockTemplateName),
 	OptCRDNames(MockTemplate),
-	OptTargets(Target(handlertest.TargetName, ModuleDeny)),
+	OptTargets(TargetWithVersion(handlertest.TargetName, ModuleDeny, ast.RegoV1)),
 }
 
 func New(opts ...Opt) *templates.ConstraintTemplate {
@@ -76,7 +79,23 @@ func Target(name string, rego string, libs ...string) templates.Target {
 	return templates.Target{
 		Target: name,
 		Code: []templates.Code{
-			Code(schema.Name, (&schema.Source{Rego: rego, Libs: libs}).ToUnstructured()),
+			Code(schema.Name, (&schema.Source{
+				Rego: rego,
+				Libs: libs,
+			}).ToUnstructured()),
+		},
+	}
+}
+
+func TargetWithVersion(name string, rego string, regoVersion ast.RegoVersion, libs ...string) templates.Target {
+	return templates.Target{
+		Target: name,
+		Code: []templates.Code{
+			Code(schema.Name, (&schema.Source{
+				Rego:    rego,
+				Version: regoVersion.String(),
+				Libs:    libs,
+			}).ToUnstructured()),
 		},
 	}
 }
