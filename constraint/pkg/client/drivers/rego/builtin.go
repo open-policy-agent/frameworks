@@ -1,9 +1,15 @@
 package rego
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
@@ -12,6 +18,9 @@ import (
 const (
 	providerResponseAPIVersion = "externaldata.gatekeeper.sh/v1beta1"
 	providerResponseKind       = "ProviderResponse"
+	HTTPSScheme                = "https"
+	idleConnTimeout            = 90 * time.Second
+	maxIdleConnsPerHost        = 100
 )
 
 func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *ast.Term) (*ast.Term, error) {
@@ -29,6 +38,12 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 		clientCert, err := d.getTLSCertificate()
 		if err != nil {
 			return externaldata.HandleError(http.StatusBadRequest, err)
+		}
+
+		client, err := getClient(&provider, clientCert)
+		if err != nil {
+			return externaldata.HandleError(http.StatusInternalServerError,
+				fmt.Errorf("failed to get HTTP client: %w", err))
 		}
 
 		// check provider response cache
@@ -71,7 +86,7 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 		}
 
 		if len(providerRequestKeys) > 0 {
-			externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, providerRequestKeys, clientCert)
+			externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, providerRequestKeys, client)
 			if err != nil {
 				return externaldata.HandleError(statusCode, err)
 			}
@@ -114,4 +129,50 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 		regoResponse := externaldata.NewRegoResponse(providerResponseStatusCode, providerResponse)
 		return externaldata.PrepareRegoResponse(regoResponse)
 	}
+}
+
+// getClient returns a new HTTP client, and set up its TLS configuration.
+func getClient(provider *unversioned.Provider, clientCert *tls.Certificate) (*http.Client, error) {
+	u, err := url.Parse(provider.Spec.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse provider URL %s: %w", provider.Spec.URL, err)
+	}
+
+	if u.Scheme != HTTPSScheme {
+		return nil, fmt.Errorf("only HTTPS scheme is supported")
+	}
+
+	client := &http.Client{
+		Timeout: time.Duration(provider.Spec.Timeout) * time.Second,
+	}
+
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+
+	// present our client cert to the server
+	// in case provider wants to verify it
+	if clientCert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*clientCert}
+	}
+
+	// if the provider presents its own CA bundle,
+	// we will use it to verify the server's certificate
+	caBundleData, err := base64.StdEncoding.DecodeString(provider.Spec.CABundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode CA bundle: %w", err)
+	}
+
+	providerCertPool := x509.NewCertPool()
+	if ok := providerCertPool.AppendCertsFromPEM(caBundleData); !ok {
+		return nil, fmt.Errorf("failed to append provider's CA bundle to certificate pool")
+	}
+
+	tlsConfig.RootCAs = providerCertPool
+
+	client.Transport = &http.Transport{
+		TLSClientConfig:     tlsConfig,
+		IdleConnTimeout:     idleConnTimeout,
+		MaxIdleConnsPerHost: maxIdleConnsPerHost,
+	}
+
+	return client, nil
 }
