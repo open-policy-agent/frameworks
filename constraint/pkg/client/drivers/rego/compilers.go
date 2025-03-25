@@ -163,11 +163,10 @@ func parseConstraintTemplateTarget(rr *regorewriter.RegoRewriter, targetSpec *te
 
 	var version ast.RegoVersion
 	switch regoSrc.Version {
-	case "v0":
-		version = ast.RegoV0
 	case "v1":
 		version = ast.RegoV1
 	default:
+		// v0 and any other value is v0
 		version = ast.RegoV0
 	}
 
