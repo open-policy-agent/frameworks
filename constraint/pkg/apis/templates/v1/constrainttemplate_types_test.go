@@ -146,8 +146,9 @@ func TestTypeConversion(t *testing.T) {
 			Engine: regoSchema.Name,
 			Source: &templates.Anything{
 				Value: (&regoSchema.Source{
-					Rego: regoOnlyExpectedResult.Spec.Targets[0].Rego,
-					Libs: regoOnlyExpectedResult.Spec.Targets[0].Libs,
+					Rego:    regoOnlyExpectedResult.Spec.Targets[0].Rego,
+					Libs:    regoOnlyExpectedResult.Spec.Targets[0].Libs,
+					Version: "",
 				}).ToUnstructured(),
 			},
 		},
@@ -211,7 +212,10 @@ func TestTypeConversion(t *testing.T) {
 								{
 									Engine: "Rego",
 									Source: &templates.Anything{
-										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+										Value: map[string]interface{}{
+											"rego":    `package hello ; violation[{"msg": "msg"}] { true }`,
+											"version": "",
+										},
 									},
 								},
 							},
@@ -331,7 +335,10 @@ func TestTypeConversion(t *testing.T) {
 								{
 									Engine: "Rego",
 									Source: &templates.Anything{
-										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+										Value: map[string]interface{}{
+											"rego":    `package hello ; violation[{"msg": "msg"}] { true }`,
+											"version": "",
+										},
 									},
 								},
 							},
@@ -450,7 +457,10 @@ func TestTypeConversion(t *testing.T) {
 								{
 									Engine: "Rego",
 									Source: &templates.Anything{
-										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+										Value: map[string]interface{}{
+											"rego":    `package hello ; violation[{"msg": "msg"}] { true }`,
+											"version": "",
+										},
 									},
 								},
 							},
@@ -514,7 +524,10 @@ func TestTypeConversion(t *testing.T) {
 								{
 									Engine: "Rego",
 									Source: &templates.Anything{
-										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "this rego should be clobbered"}] { true }`},
+										Value: map[string]interface{}{
+											"rego":    `package hello ; violation[{"msg": "this rego should be clobbered"}] { true }`,
+											"version": "",
+										},
 									},
 								},
 							},
@@ -575,7 +588,10 @@ func TestTypeConversion(t *testing.T) {
 								{
 									Engine: "Rego",
 									Source: &templates.Anything{
-										Value: map[string]interface{}{"rego": `package hello ; violation[{"msg": "msg"}] { true }`},
+										Value: map[string]interface{}{
+											"rego":    `package hello ; violation[{"msg": "msg"}] { true }`,
+											"version": "",
+										},
 									},
 								},
 							},
