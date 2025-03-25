@@ -69,7 +69,7 @@ func GetSource(code templates.Code) (*Source, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: while extracting Rego version", err)
 	}
-	if !found {
+	if !found || version == "" {
 		version = "v0"
 	}
 
