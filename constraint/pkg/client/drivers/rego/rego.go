@@ -21,27 +21,24 @@ const (
 	hookModuleRego = `package hooks
 
 # Determine if the object under review violates any passed Constraints.
-violation contains response if {
-	# Iterate over all keys to Constraints in storage.
-	some key in input.constraints
-
-	# Construct the input object from the Constraint and temporary object in storage.
-	# Silently exits if the Constraint no longer exists.
-	inp := {
-		"review": input.review,
-		"parameters": data.constraints[key.kind][key.name],
-	}
-
-	# Run the Template with Constraint.
-	some r in data.template.violation with input as inp
-
-	# Construct the response, defaulting "details" to empty object if it is not
-	# specified.
-	response := {
-		"key": key,
-		"details": object.get(r, "details", {}),
-		"msg": r.msg,
-	}
+violation[response] {
+  # Iterate over all keys to Constraints in storage.
+  key := input.constraints[_]
+  # Construct the input object from the Constraint and temporary object in storage.
+  # Silently exits if the Constraint no longer exists.
+  inp := {
+    "review": input.review,
+    "parameters": data.constraints[key.kind][key.name],
+  }
+  # Run the Template with Constraint.
+  data.template.violation[r] with input as inp
+  # Construct the response, defaulting "details" to empty object if it is not
+  # specified.
+  response := {
+    "key": key,
+    "details": object.get(r, "details", {}),
+    "msg": r.msg,
+  }
 }
 `
 )
@@ -50,7 +47,7 @@ var hookModule *ast.Module
 
 func init() {
 	var err error
-	hookModule, err = parseModule(hookModulePath, ast.RegoV1, hookModuleRego)
+	hookModule, err = parseModule(hookModulePath, ast.RegoV0, hookModuleRego)
 	if err != nil {
 		panic(err)
 	}
