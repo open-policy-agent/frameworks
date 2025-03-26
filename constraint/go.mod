@@ -1,7 +1,7 @@
 module github.com/open-policy-agent/frameworks/constraint
 
 go 1.22.7
-toolchain go1.24.1
+toolchain go1.23.5
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
