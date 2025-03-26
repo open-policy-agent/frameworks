@@ -17,7 +17,7 @@ func TestGetSourceVersions(t *testing.T) {
 				Engine: Name,
 				Source: &templates.Anything{
 					Value: (&Source{
-						Rego:    `pacakge foo`,
+						Rego:    `package foo`,
 						Version: "v0",
 						Libs:    nil,
 					}).ToUnstructured(),
@@ -30,7 +30,7 @@ func TestGetSourceVersions(t *testing.T) {
 				Engine: Name,
 				Source: &templates.Anything{
 					Value: (&Source{
-						Rego:    `pacakge foo`,
+						Rego:    `package foo`,
 						Version: "v1",
 						Libs:    nil,
 					}).ToUnstructured(),
@@ -43,7 +43,7 @@ func TestGetSourceVersions(t *testing.T) {
 				Engine: Name,
 				Source: &templates.Anything{
 					Value: (&Source{
-						Rego:    `pacakge foo`,
+						Rego:    `package foo`,
 						Version: "",
 						Libs:    nil,
 					}).ToUnstructured(),
@@ -56,7 +56,7 @@ func TestGetSourceVersions(t *testing.T) {
 				Engine: Name,
 				Source: &templates.Anything{
 					Value: (&Source{
-						Rego: `pacakge foo`,
+						Rego: `package foo`,
 						Libs: nil,
 					}).ToUnstructured(),
 				},
