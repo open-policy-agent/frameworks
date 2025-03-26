@@ -1,6 +1,6 @@
 # When updating this, make sure to update the corresponding action in
 # workflow.yaml
-GOLANGCI_LINT_VERSION ?= 1.63.4
+GOLANGCI_LINT_VERSION ?= 1.64.8
 KUSTOMIZE_VERSION ?= 3.8.9
 KUBERNETES_VERSION ?= 1.29.0
 
