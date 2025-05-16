@@ -40,5 +40,5 @@ jobs:
         working-directory: go/src/github.com/open-policy-agent/gatekeeper
 
       - name: Make test
-        run: make test
+        run: make native-test
         working-directory: go/src/github.com/open-policy-agent/gatekeeper
