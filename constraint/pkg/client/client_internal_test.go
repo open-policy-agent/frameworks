@@ -798,6 +798,197 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 	})
 }
 
+func Test_AddConstraint_SemanticEqualityWithLabelsAndAnnotations(t *testing.T) {
+	templateA := cts.New(cts.OptTargets(
+		cts.TargetCustomEngines(
+			"h1",
+			cts.Code("driverA", (&schema.Source{RejectWith: "REJECTING"}).ToUnstructured()),
+		),
+	))
+
+	driverA := fake.New("driverA")
+	client, err := NewClient(
+		Targets(&handlertest.Handler{Name: ptr.To[string]("h1")}),
+		Driver(driverA),
+		EnforcementPoints("test"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Add template
+	if _, err := client.AddTemplate(ctx, templateA.DeepCopy()); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("Add constraint with metadata", func(t *testing.T) {
+		// Create constraint with specific labels and annotations
+		constraint := cts.MakeConstraint(t, "Fakes", "test-constraint")
+		constraint.SetLabels(map[string]string{"env": "prod", "team": "security"})
+		constraint.SetAnnotations(map[string]string{"audit": "enabled", "export": "true"})
+
+		resp, err := client.AddConstraint(ctx, constraint.DeepCopy())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !resp.Handled["h1"] {
+			t.Errorf("Expected constraint to be handled by 'h1' handler, got: %v", resp.Handled)
+		}
+
+		// Verify constraint was added to driver
+		storedConstraints := driverA.GetConstraintsForTemplate(templateA)
+		if len(storedConstraints) != 1 {
+			t.Errorf("Expected 1 constraint, got %d", len(storedConstraints))
+		}
+		if _, exists := storedConstraints["test-constraint"]; !exists {
+			t.Errorf("Expected constraint 'test-constraint' to be stored")
+		}
+	})
+
+	t.Run("Add identical constraint - should be no-op", func(t *testing.T) {
+		// Create identical constraint
+		identicalConstraint := cts.MakeConstraint(t, "Fakes", "test-constraint")
+		identicalConstraint.SetLabels(map[string]string{"env": "prod", "team": "security"})
+		identicalConstraint.SetAnnotations(map[string]string{"audit": "enabled", "export": "true"})
+
+		// Track initial state
+		initialConstraints := driverA.GetConstraintsForTemplate(templateA)
+		initialCount := len(initialConstraints)
+
+		resp, err := client.AddConstraint(ctx, identicalConstraint.DeepCopy())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !resp.Handled["h1"] {
+			t.Errorf("Expected constraint to be handled by 'h1' handler, got: %v", resp.Handled)
+		}
+
+		// Verify no duplicate was created
+		finalConstraints := driverA.GetConstraintsForTemplate(templateA)
+		if len(finalConstraints) != initialCount {
+			t.Errorf("Expected constraint count to remain %d, got %d", initialCount, len(finalConstraints))
+		}
+	})
+
+	t.Run("Add constraint with different labels - should update", func(t *testing.T) {
+		// Create constraint with different labels
+		updatedConstraint := cts.MakeConstraint(t, "Fakes", "test-constraint")
+		updatedConstraint.SetLabels(map[string]string{"env": "staging", "team": "security"}) // Changed env
+		updatedConstraint.SetAnnotations(map[string]string{"audit": "enabled", "export": "true"})
+
+		resp, err := client.AddConstraint(ctx, updatedConstraint.DeepCopy())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !resp.Handled["h1"] {
+			t.Errorf("Expected constraint to be handled by 'h1' handler, got: %v", resp.Handled)
+		}
+
+		// Verify constraint was updated in driver
+		storedConstraints := driverA.GetConstraintsForTemplate(templateA)
+		if len(storedConstraints) != 1 {
+			t.Errorf("Expected 1 constraint, got %d", len(storedConstraints))
+		}
+
+		stored := storedConstraints["test-constraint"]
+		if stored == nil {
+			t.Fatal("Expected constraint 'test-constraint' to be stored")
+		}
+
+		// Compare labels and annotations using DeepEqual
+		if !reflect.DeepEqual(stored.GetLabels(), updatedConstraint.GetLabels()) {
+			t.Errorf("Labels mismatch: got %v, want %v", stored.GetLabels(), updatedConstraint.GetLabels())
+		}
+
+		if !reflect.DeepEqual(stored.GetAnnotations(), updatedConstraint.GetAnnotations()) {
+			t.Errorf("Annotations mismatch: got %v, want %v", stored.GetAnnotations(), updatedConstraint.GetAnnotations())
+		}
+	})
+
+	t.Run("Add constraint with different annotations - should update", func(t *testing.T) {
+		// Create constraint with different annotations
+		updatedConstraint := cts.MakeConstraint(t, "Fakes", "test-constraint")
+		updatedConstraint.SetLabels(map[string]string{"env": "staging", "team": "security"})
+		updatedConstraint.SetAnnotations(map[string]string{"audit": "disabled", "export": "false"}) // Changed annotations
+
+		resp, err := client.AddConstraint(ctx, updatedConstraint.DeepCopy())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !resp.Handled["h1"] {
+			t.Errorf("Expected constraint to be handled by 'h1' handler, got: %v", resp.Handled)
+		}
+
+		// Verify constraint was updated in driver
+		storedConstraints := driverA.GetConstraintsForTemplate(templateA)
+		stored := storedConstraints["test-constraint"]
+		if stored == nil {
+			t.Fatal("Expected constraint 'test-constraint' to be stored")
+		}
+		// Compare labels and annotations using DeepEqual
+		if !reflect.DeepEqual(stored.GetLabels(), updatedConstraint.GetLabels()) {
+			t.Errorf("Labels mismatch: got %v, want %v", stored.GetLabels(), updatedConstraint.GetLabels())
+		}
+
+		if !reflect.DeepEqual(stored.GetAnnotations(), updatedConstraint.GetAnnotations()) {
+			t.Errorf("Annotations mismatch: got %v, want %v", stored.GetAnnotations(), updatedConstraint.GetAnnotations())
+		}
+	})
+
+	t.Run("Add constraint with different spec - should update", func(t *testing.T) {
+		// Create constraint with different spec but same metadata
+		updatedConstraint := cts.MakeConstraint(t, "Fakes", "test-constraint")
+		updatedConstraint.SetLabels(map[string]string{"env": "staging", "team": "security"})
+		updatedConstraint.SetAnnotations(map[string]string{"audit": "disabled", "export": "false"})
+		err := unstructured.SetNestedField(updatedConstraint.Object, "warn", "spec", "enforcementAction")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		resp, err := client.AddConstraint(ctx, updatedConstraint.DeepCopy())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !resp.Handled["h1"] {
+			t.Errorf("Expected constraint to be handled by 'h1' handler, got: %v", resp.Handled)
+		}
+
+		// Verify constraint was updated
+		storedConstraints := driverA.GetConstraintsForTemplate(templateA)
+		if len(storedConstraints) != 1 {
+			t.Errorf("Expected 1 constraint, got %d", len(storedConstraints))
+		}
+
+		stored := storedConstraints["test-constraint"]
+		if stored == nil {
+			t.Fatal("Expected constraint 'test-constraint' to be stored")
+		}
+
+		// Compare the stored constraint directly with the updated constraint using DeepEqual
+		if !reflect.DeepEqual(stored.GetLabels(), updatedConstraint.GetLabels()) {
+			t.Errorf("Labels mismatch: got %v, want %v", stored.GetLabels(), updatedConstraint.GetLabels())
+		}
+
+		if !reflect.DeepEqual(stored.GetAnnotations(), updatedConstraint.GetAnnotations()) {
+			t.Errorf("Annotations mismatch: got %v, want %v", stored.GetAnnotations(), updatedConstraint.GetAnnotations())
+		}
+
+		storedSpec, _, err := unstructured.NestedMap(stored.Object, "spec")
+		updatedSpec, _, err := unstructured.NestedMap(updatedConstraint.Object, "spec")
+		if !reflect.DeepEqual(storedSpec, updatedSpec) {
+			t.Errorf("Spec mismatch: got %v, want %v", storedSpec, updatedSpec)
+		}
+	})
+}
+
 func TestMultiDriverRemoveTemplate(t *testing.T) {
 	templateA := cts.New(cts.OptTargets(
 		cts.TargetCustomEngines(

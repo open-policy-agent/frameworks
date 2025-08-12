@@ -3,6 +3,7 @@ package client_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -1043,6 +1044,185 @@ func TestClient_AddConstraint(t *testing.T) {
 
 			if _, err := c.GetConstraint(tc.constraint); err == nil {
 				t.Error("constraint not cleared from cache")
+			}
+		})
+	}
+}
+
+func TestClient_AddConstraint_SemanticEqualWithLabelsAndAnnotations(t *testing.T) {
+	template := cts.New(cts.OptName("semantictest"), cts.OptCRDNames("SemanticTest"))
+
+	tcs := []struct {
+		name                    string
+		initialLabels           map[string]string
+		initialAnnotations      map[string]string
+		updateLabels            map[string]string
+		updateAnnotations       map[string]string
+		updateEnforcementAction string
+		wantHandled             map[string]bool
+		wantError               error
+	}{
+		{
+			name:               "Add identical constraint - should be no-op",
+			initialLabels:      map[string]string{"env": "prod", "team": "security"},
+			initialAnnotations: map[string]string{"audit": "enabled", "export": "true"},
+			updateLabels:       map[string]string{"env": "prod", "team": "security"},
+			updateAnnotations:  map[string]string{"audit": "enabled", "export": "true"},
+			wantHandled:        map[string]bool{handlertest.TargetName: true},
+			wantError:          nil,
+		},
+		{
+			name:               "Add constraint with different labels - should update",
+			initialLabels:      map[string]string{"env": "prod", "team": "security"},
+			initialAnnotations: map[string]string{"audit": "enabled", "export": "true"},
+			updateLabels:       map[string]string{"env": "staging", "team": "security"},
+			updateAnnotations:  map[string]string{"audit": "enabled", "export": "true"},
+			wantHandled:        map[string]bool{handlertest.TargetName: true},
+			wantError:          nil,
+		},
+		{
+			name:               "Add constraint with different annotations - should update",
+			initialLabels:      map[string]string{"env": "staging", "team": "security"},
+			initialAnnotations: map[string]string{"audit": "enabled", "export": "true"},
+			updateLabels:       map[string]string{"env": "staging", "team": "security"},
+			updateAnnotations:  map[string]string{"audit": "disabled", "export": "false"},
+			wantHandled:        map[string]bool{handlertest.TargetName: true},
+			wantError:          nil,
+		},
+		{
+			name:                    "Add constraint with different spec - should update",
+			initialLabels:           map[string]string{"env": "staging", "team": "security"},
+			initialAnnotations:      map[string]string{"audit": "disabled", "export": "false"},
+			updateLabels:            map[string]string{"env": "staging", "team": "security"},
+			updateAnnotations:       map[string]string{"audit": "disabled", "export": "false"},
+			updateEnforcementAction: "warn",
+			wantHandled:             map[string]bool{handlertest.TargetName: true},
+			wantError:               nil,
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := rego.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			h := &handlertest.Handler{}
+			c, err := client.NewClient(client.Targets(h), client.Driver(d), client.EnforcementPoints("test"))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+
+			// Add template
+			if _, err := c.AddTemplate(ctx, template); err != nil {
+				t.Fatal(err)
+			}
+
+			// Add initial constraint
+			initialConstraint := cts.MakeConstraint(t, "SemanticTest", "test-constraint")
+			initialConstraint.SetLabels(tc.initialLabels)
+			initialConstraint.SetAnnotations(tc.initialAnnotations)
+
+			resp1, err := c.AddConstraint(ctx, initialConstraint)
+			if !errors.Is(err, tc.wantError) {
+				t.Fatalf("got AddConstraint() initial error = %v, want %v", err, tc.wantError)
+			}
+
+			if tc.wantError != nil {
+				return
+			}
+
+			if diff := cmp.Diff(tc.wantHandled, resp1.Handled, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("initial AddConstraint() handled mismatch: %s", diff)
+			}
+
+			// Verify initial constraint exists with correct metadata
+			stored1, err := c.GetConstraint(initialConstraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !reflect.DeepEqual(stored1.GetLabels(), tc.initialLabels) {
+				t.Errorf("Initial labels mismatch: got %v, want %v", stored1.GetLabels(), tc.initialLabels)
+			}
+
+			// Update constraint (or re-add identical)
+			updateConstraint := cts.MakeConstraint(t, "SemanticTest", "test-constraint")
+			updateConstraint.SetLabels(tc.updateLabels)
+			updateConstraint.SetAnnotations(tc.updateAnnotations)
+
+			// Set enforcement action if specified
+			if tc.updateEnforcementAction != "" {
+				err := unstructured.SetNestedField(updateConstraint.Object, tc.updateEnforcementAction, "spec", "enforcementAction")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			resp2, err := c.AddConstraint(ctx, updateConstraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(tc.wantHandled, resp2.Handled, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("update AddConstraint() handled mismatch: %s", diff)
+			}
+
+			// Verify final constraint has expected metadata
+			got, err := c.GetConstraint(updateConstraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Build expected constraint for comparison
+			want := cts.MakeConstraint(t, "SemanticTest", "test-constraint")
+			want.SetLabels(tc.updateLabels)
+			want.SetAnnotations(tc.updateAnnotations)
+			if tc.updateEnforcementAction != "" {
+				err := unstructured.SetNestedField(want.Object, tc.updateEnforcementAction, "spec", "enforcementAction")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// Compare the stored constraint with the expected constraint using DeepEqual
+			if !reflect.DeepEqual(got.GetLabels(), want.GetLabels()) {
+				t.Errorf("Labels mismatch: got %v, want %v", got.GetLabels(), want.GetLabels())
+			}
+
+			if !reflect.DeepEqual(got.GetAnnotations(), want.GetAnnotations()) {
+				t.Errorf("Annotations mismatch: got %v, want %v", got.GetAnnotations(), want.GetAnnotations())
+			}
+
+			// Compare the spec portion if enforcement action was set
+			if tc.updateEnforcementAction != "" {
+				gotSpec, found, err := unstructured.NestedMap(got.Object, "spec")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !found {
+					t.Fatal("spec not found in stored constraint")
+				}
+
+				wantSpec, found, err := unstructured.NestedMap(want.Object, "spec")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !found {
+					t.Fatal("spec not found in expected constraint")
+				}
+
+				if !reflect.DeepEqual(gotSpec, wantSpec) {
+					t.Errorf("Spec mismatch: got %v, want %v", gotSpec, wantSpec)
+				}
+			}
+
+			// Clean up
+			if _, err := c.RemoveConstraint(ctx, updateConstraint); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
