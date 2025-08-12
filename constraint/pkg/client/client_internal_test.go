@@ -798,7 +798,7 @@ func TestMultiDriverAddTemplate(t *testing.T) {
 	})
 }
 
-func Test_AddConstraint_SemanticEqualityWithLabelsAndAnnotations(t *testing.T) {
+func Test_AddConstraint_SemanticEqualWithLabelsAndAnnotations(t *testing.T) {
 	templateA := cts.New(cts.OptTargets(
 		cts.TargetCustomEngines(
 			"h1",
