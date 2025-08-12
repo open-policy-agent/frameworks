@@ -981,8 +981,8 @@ func Test_AddConstraint_SemanticEqualWithLabelsAndAnnotations(t *testing.T) {
 			t.Errorf("Annotations mismatch: got %v, want %v", stored.GetAnnotations(), updatedConstraint.GetAnnotations())
 		}
 
-		storedSpec, _, err := unstructured.NestedMap(stored.Object, "spec")
-		updatedSpec, _, err := unstructured.NestedMap(updatedConstraint.Object, "spec")
+		storedSpec, _, _ := unstructured.NestedMap(stored.Object, "spec")
+		updatedSpec, _, _ := unstructured.NestedMap(updatedConstraint.Object, "spec")
 		if !reflect.DeepEqual(storedSpec, updatedSpec) {
 			t.Errorf("Spec mismatch: got %v, want %v", storedSpec, updatedSpec)
 		}
