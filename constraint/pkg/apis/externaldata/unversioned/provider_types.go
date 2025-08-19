@@ -83,6 +83,7 @@ const (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:skip
+// +kubebuilder:object:root=true
 
 // Provider is the Schema for the providers API
 // +k8s:openapi-gen=true
@@ -96,6 +97,7 @@ type Provider struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // ProviderList contains a list of Provider.
 type ProviderList struct {
