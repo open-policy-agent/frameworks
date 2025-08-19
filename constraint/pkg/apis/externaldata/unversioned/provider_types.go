@@ -74,9 +74,9 @@ type ProviderErrorType string
 
 const (
 	// ConversionError indicates an error converting provider configuration.
-	ConversionError ProviderErrorType = "conversion_error"
+	ConversionError ProviderErrorType = "Conversion"
 	// UpsertCacheError indicates an error updating the provider cache.
-	UpsertCacheError ProviderErrorType = "upsert_cache_error"
+	UpsertCacheError ProviderErrorType = "UpsertCache"
 )
 
 // +genclient
