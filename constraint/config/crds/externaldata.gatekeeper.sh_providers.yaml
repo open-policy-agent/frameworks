@@ -64,8 +64,9 @@ spec:
                   description: ProviderPodStatusStatus defines the observed state
                     of ProviderPodStatus.
                   properties:
+                    active:
+                      type: boolean
                     errors:
-                      description: Active              bool            `json:"active,omitempty"`
                       items:
                         description: ProviderError represents a single error caught
                           while managing providers.
@@ -113,6 +114,8 @@ spec:
         type: object
     served: true
     storage: false
+    subresources:
+      status: {}
   - name: v1beta1
     schema:
       openAPIV3Schema:
@@ -160,8 +163,9 @@ spec:
                   description: ProviderPodStatusStatus defines the observed state
                     of ProviderPodStatus.
                   properties:
+                    active:
+                      type: boolean
                     errors:
-                      description: Active              bool            `json:"active,omitempty"`
                       items:
                         description: ProviderError represents a single error caught
                           while managing providers.
@@ -209,3 +213,5 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
