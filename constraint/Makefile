@@ -36,9 +36,9 @@ install: manifests
 
 # Install the generation dependencies on the local machine
 gen-dependencies:
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0
-	go install k8s.io/code-generator/cmd/conversion-gen@v0.29.3
-	go install k8s.io/code-generator/cmd/defaulter-gen@v0.29.3
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
+	go install k8s.io/code-generator/cmd/conversion-gen@v0.34.1
+	go install k8s.io/code-generator/cmd/defaulter-gen@v0.34.1
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
