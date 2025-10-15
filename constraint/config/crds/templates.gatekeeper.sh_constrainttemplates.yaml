@@ -94,6 +94,11 @@ spec:
                       items:
                         type: string
                       type: array
+                    operations:
+                      items:
+                        description: OperationType specifies an operation for a request.
+                        type: string
+                      type: array
                     rego:
                       type: string
                     target:
@@ -226,6 +231,11 @@ spec:
                       items:
                         type: string
                       type: array
+                    operations:
+                      items:
+                        description: OperationType specifies an operation for a request.
+                        type: string
+                      type: array
                     rego:
                       type: string
                     target:
@@ -354,6 +364,11 @@ spec:
                       x-kubernetes-list-type: map
                     libs:
                       items:
+                        type: string
+                      type: array
+                    operations:
+                      items:
+                        description: OperationType specifies an operation for a request.
                         type: string
                       type: array
                     rego:

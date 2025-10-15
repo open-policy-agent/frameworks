@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"reflect"
 
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,6 +62,8 @@ type Target struct {
 	// The source code options for the constraint template, only one of this
 	// or "rego" can be specified.
 	Code []Code `json:"code,omitempty"`
+
+	Operations []admissionv1.OperationType `json:"operations,omitempty"`
 }
 
 type Code struct {
