@@ -73,11 +73,14 @@ generate: generate-defaults
 	# TODO: Once https://github.com/kubernetes/kubernetes/issues/101567 is fixed, update
 	# conversion-gen and get us back to running `make generate` in our CI pipeline
 	conversion-gen \
-		--input-dirs "./pkg/apis/templates/v1,./pkg/apis/templates/v1beta1,./pkg/apis/templates/v1alpha1,./pkg/apis/externaldata/v1alpha1,./pkg/apis/externaldata/v1beta1" \
-		--output-base=./ \
 		--go-header-file=./hack/boilerplate.go.txt \
-		--output-file-base=zz_generated.conversion \
-		--extra-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
+		--output-file=zz_generated.conversion.go \
+		--extra-peer-dirs=k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1 \
+		./pkg/apis/templates/v1 \
+		./pkg/apis/templates/v1beta1 \
+		./pkg/apis/templates/v1alpha1 \
+		./pkg/apis/externaldata/v1alpha1 \
+		./pkg/apis/externaldata/v1beta1
 
 CRD_SOURCE_FILE := deploy/crds.yaml
 FILE_STUB := "package schema\
@@ -100,9 +103,9 @@ constraint-template-string-constant: manifests
 
 generate-defaults: constraint-template-string-constant
 	defaulter-gen \
-		--input-dirs "./pkg/apis/templates/..." \
 		--go-header-file=./hack/boilerplate.go.txt \
-		--output-file-base=zz_generated.defaults
+		--output-file=zz_generated.defaults.go \
+		./pkg/apis/templates/...
 
 .PHONY: vendor
 vendor:

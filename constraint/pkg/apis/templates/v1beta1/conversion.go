@@ -16,8 +16,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	admissionv1 "k8s.io/api/admissionregistration/v1"
 	"unsafe"
+
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	coreTemplates "github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"

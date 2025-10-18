@@ -24,6 +24,7 @@ import (
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/schema"
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -716,6 +717,440 @@ func TestValidationVersionConversionAndTransformation(t *testing.T) {
 
 			if !reflect.DeepEqual(out, tc.exp) {
 				t.Fatalf("Conversion does not match expected result: %v", cmp.Diff(out, tc.exp))
+			}
+		})
+	}
+}
+
+// TestTargetOperationConversion tests that the Operation field is properly
+// converted between v1 and core templates.
+func TestTargetOperationConversion(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := AddToScheme(scheme); err != nil {
+		t.Fatalf("Could not add to scheme: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		input    *ConstraintTemplate
+		expected *ConstraintTemplate
+	}{
+		{
+			name: "Target with Operation field",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package test`,
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update, admissionv1.Delete},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target with all operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-all-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestAllOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package test`,
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.OperationAll},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target without Operation field",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-no-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestNoOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package test`,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Multiple targets with different operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-multiple-targets",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestMultipleTargets",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package test1`,
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update},
+						},
+						{
+							Target: "validation.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package test2`,
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Delete},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target with CEL code using K8sNativeValidation engine",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"variables": []map[string]interface{}{
+												{
+													"name":       "resourceName",
+													"expression": "object.metadata.name",
+												},
+											},
+											"validations": []map[string]interface{}{
+												{
+													"expression": "variables.resourceName != 'forbidden'",
+													"message":    "Resource name cannot be 'forbidden'",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target with CEL code for all operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-all-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELAllOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"validations": []map[string]interface{}{
+												{
+													"expression": "has(object.metadata.labels.required)",
+													"message":    "Required label must be present",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.OperationAll},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Mixed targets with Rego and CEL using different operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-mixed-rego-cel",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestMixedRegoCEL",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package mixedtest ; violation[{"msg": "rego validation failed"}] { true }`,
+										},
+									},
+								},
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"validations": []map[string]interface{}{
+												{
+													"expression": "object.metadata.name.startsWith('approved-')",
+													"message":    "Name must start with 'approved-'",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update, admissionv1.Delete},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "CEL with complex variables and multiple validations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-complex",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELComplex",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"variables": []map[string]interface{}{
+												{
+													"name":       "namespace",
+													"expression": "object.metadata.namespace",
+												},
+												{
+													"name":       "labels",
+													"expression": "object.metadata.labels",
+												},
+												{
+													"name":       "hasOwner",
+													"expression": "has(object.metadata.ownerReferences)",
+												},
+											},
+											"validations": []map[string]interface{}{
+												{
+													"expression":        "variables.namespace != 'kube-system'",
+													"message":           "Cannot create resources in kube-system namespace",
+													"messageExpression": "'Resource cannot be created in namespace: ' + variables.namespace",
+												},
+												{
+													"expression": "!variables.hasOwner || size(object.metadata.ownerReferences) <= 3",
+													"message":    "Too many owner references",
+												},
+												{
+													"expression": "has(variables.labels.environment) && variables.labels.environment in ['prod', 'staging', 'dev']",
+													"message":    "Environment label must be prod, staging, or dev",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			expected := test.expected
+			// if expected is nil, this should be a lossless round-trip
+			if expected == nil {
+				expected = test.input.DeepCopy()
+			}
+
+			// Kind and API Version do not survive the conversion process
+			expected.Kind = ""
+			expected.APIVersion = ""
+
+			// Convert v1 -> core templates
+			unversioned := &templates.ConstraintTemplate{}
+			if err := scheme.Convert(test.input, unversioned, nil); err != nil {
+				t.Fatalf("Conversion error (v1 -> core): %v", err)
+			}
+
+			// Verify Operation field was converted correctly to core templates
+			if len(test.input.Spec.Targets) > 0 {
+				for i, target := range test.input.Spec.Targets {
+					if target.Operations != nil {
+						if unversioned.Spec.Targets[i].Operations == nil {
+							t.Fatalf("Operation field not converted to core templates")
+						}
+						if len(target.Operations) != len(unversioned.Spec.Targets[i].Operations) {
+							t.Fatalf("Operation count mismatch: got %d, want %d",
+								len(unversioned.Spec.Targets[i].Operations), len(target.Operations))
+						}
+						for j, op := range target.Operations {
+							if string(op) != string(unversioned.Spec.Targets[i].Operations[j]) {
+								t.Fatalf("Operations mismatch at index %d: got %v, want %v",
+									j, unversioned.Spec.Targets[i].Operations[j], op)
+							}
+						}
+					}
+				}
+			}
+
+			// Convert core templates -> v1
+			recast := &ConstraintTemplate{}
+			if err := scheme.Convert(unversioned, recast, nil); err != nil {
+				t.Fatalf("Recast conversion error (core -> v1): %v", err)
+			}
+
+			// Verify round-trip conversion
+			if !reflect.DeepEqual(expected, recast) {
+				t.Fatalf("Unexpected template difference. Diff: %v", cmp.Diff(expected, recast))
 			}
 		})
 	}

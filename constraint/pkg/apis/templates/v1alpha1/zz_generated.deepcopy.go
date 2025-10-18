@@ -20,7 +20,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -256,7 +256,7 @@ func (in *Target) DeepCopyInto(out *Target) {
 	}
 	if in.Operations != nil {
 		in, out := &in.Operations, &out.Operations
-		*out = make([]admissionregistrationv1.OperationType, len(*in))
+		*out = make([]v1.OperationType, len(*in))
 		copy(*out, *in)
 	}
 }

@@ -17,9 +17,10 @@ package v1
 
 import (
 	"context"
-	admissionv1 "k8s.io/api/admissionregistration/v1"
 	"reflect"
 	"testing"
+
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 
 	"github.com/google/go-cmp/cmp"
 	regoSchema "github.com/open-policy-agent/frameworks/constraint/pkg/client/drivers/rego/schema"
@@ -803,7 +804,7 @@ func TestTargetOperationConversion(t *testing.T) {
 									},
 								},
 							},
-							Operations: []admissionv1.OperationType{admissionv1.Connect},
+							Operations: []admissionv1.OperationType{admissionv1.OperationAll},
 						},
 					},
 				},
@@ -891,6 +892,211 @@ func TestTargetOperationConversion(t *testing.T) {
 								},
 							},
 							Operations: []admissionv1.OperationType{admissionv1.Delete},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target with CEL code using K8sNativeValidation engine",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"variables": []map[string]interface{}{
+												{
+													"name":       "resourceName",
+													"expression": "object.metadata.name",
+												},
+											},
+											"validations": []map[string]interface{}{
+												{
+													"expression": "variables.resourceName != 'forbidden'",
+													"message":    "Resource name cannot be 'forbidden'",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Target with CEL code for all operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-all-operations",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELAllOperations",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"validations": []map[string]interface{}{
+												{
+													"expression": "has(object.metadata.labels.required)",
+													"message":    "Required label must be present",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.OperationAll},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Mixed targets with Rego and CEL using different operations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-mixed-rego-cel",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestMixedRegoCEL",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "Rego",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"rego": `package mixedtest ; violation[{"msg": "rego validation failed"}] { true }`,
+										},
+									},
+								},
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"validations": []map[string]interface{}{
+												{
+													"expression": "object.metadata.name.startsWith('approved-')",
+													"message":    "Name must start with 'approved-'",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create, admissionv1.Update, admissionv1.Delete},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "CEL with complex variables and multiple validations",
+			input: &ConstraintTemplate{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ConstraintTemplate",
+					APIVersion: "templates.gatekeeper.sh/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cel-complex",
+				},
+				Spec: ConstraintTemplateSpec{
+					CRD: CRD{
+						Spec: CRDSpec{
+							Names: Names{
+								Kind: "TestCELComplex",
+							},
+						},
+					},
+					Targets: []Target{
+						{
+							Target: "admission.k8s.gatekeeper.sh",
+							Code: []Code{
+								{
+									Engine: "K8sNativeValidation",
+									Source: &templates.Anything{
+										Value: map[string]interface{}{
+											"variables": []map[string]interface{}{
+												{
+													"name":       "namespace",
+													"expression": "object.metadata.namespace",
+												},
+												{
+													"name":       "labels",
+													"expression": "object.metadata.labels",
+												},
+												{
+													"name":       "hasOwner",
+													"expression": "has(object.metadata.ownerReferences)",
+												},
+											},
+											"validations": []map[string]interface{}{
+												{
+													"expression":        "variables.namespace != 'kube-system'",
+													"message":           "Cannot create resources in kube-system namespace",
+													"messageExpression": "'Resource cannot be created in namespace: ' + variables.namespace",
+												},
+												{
+													"expression": "!variables.hasOwner || size(object.metadata.ownerReferences) <= 3",
+													"message":    "Too many owner references",
+												},
+												{
+													"expression": "has(variables.labels.environment) && variables.labels.environment in ['prod', 'staging', 'dev']",
+													"message":    "Environment label must be prod, staging, or dev",
+												},
+											},
+										},
+									},
+								},
+							},
+							Operations: []admissionv1.OperationType{admissionv1.Create},
 						},
 					},
 				},
