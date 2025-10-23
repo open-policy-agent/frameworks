@@ -8,9 +8,6 @@ import (
 )
 
 const (
-	// WebhookEnforcementPoint is the enforcement point for admission.
-	WebhookEnforcementPoint = "validation.gatekeeper.sh"
-
 	// AuditEnforcementPoint is the enforcement point for audit.
 	AuditEnforcementPoint = "audit.gatekeeper.sh"
 
