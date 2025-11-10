@@ -7,7 +7,7 @@ require (
 	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
 	github.com/onsi/gomega v1.38.2
-	github.com/open-policy-agent/opa v1.10.0
+	github.com/open-policy-agent/opa v1.10.1
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
 	golang.org/x/net v0.46.0
