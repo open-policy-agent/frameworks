@@ -2,7 +2,7 @@
 # workflow.yaml
 GOLANGCI_LINT_VERSION ?= 1.64.8
 KUSTOMIZE_VERSION ?= 3.8.9
-KUBERNETES_VERSION ?= 1.29.0
+KUBERNETES_VERSION ?= 1.34.1
 
 # Detects the location of the user golangci-lint cache.
 GOLANGCI_LINT_CACHE := $(shell pwd)/.tmp/golangci-lint
@@ -129,4 +129,4 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GCO_ENABLED=0 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20230118154835-9241bceb3098
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GCO_ENABLED=0 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20251120113359-d81cc2de7a54
