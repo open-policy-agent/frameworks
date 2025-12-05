@@ -129,4 +129,4 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 .PHONY: envtest
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
-	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) GCO_ENABLED=0 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20251120113359-d81cc2de7a54
+	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) CGO_ENABLED=0 go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20251120113359-d81cc2de7a54
