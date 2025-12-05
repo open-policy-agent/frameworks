@@ -1130,3 +1130,108 @@ func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
 		}
 	}
 }
+
+// TestClient_Review_Namespace tests that namespace data is properly passed
+// to the Rego driver via input.namespace for namespace-based policy decisions.
+func TestClient_Review_Namespace(t *testing.T) {
+	tests := []struct {
+		name        string
+		namespace   map[string]interface{}
+		wantEnv     string
+		wantResults int
+		wantMsg     string
+	}{
+		{
+			name:        "no namespace provided - policy skips check",
+			namespace:   nil,
+			wantEnv:     "production",
+			wantResults: 1, // Violation because input.namespace is nil, missing environment label check triggers
+			wantMsg:     "namespace is missing environment label",
+		},
+		{
+			name: "namespace with matching environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"environment": "production",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 0, // No violation - environment matches
+		},
+		{
+			name: "namespace with wrong environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"environment": "staging",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace has environment staging but want production",
+		},
+		{
+			name: "namespace missing environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"team": "platform",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace is missing environment label",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			c := clienttest.New(t)
+
+			ct := clienttest.TemplateCheckNamespace()
+			_, err := c.AddTemplate(ctx, ct)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			constraint := cts.MakeConstraint(t, clienttest.KindCheckNamespace, "constraint", cts.WantEnvironment(tt.wantEnv))
+			_, err = c.AddConstraint(ctx, constraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			review := handlertest.NewReview("test-ns", "test-obj", "test-data")
+
+			// Pass namespace via reviews.Namespace option
+			var opts []reviews.ReviewOpt
+			if tt.namespace != nil {
+				opts = append(opts, reviews.Namespace(tt.namespace))
+			}
+
+			responses, err := c.Review(ctx, review, opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			results := responses.Results()
+			if len(results) != tt.wantResults {
+				t.Errorf("got %d results, want %d. Results: %v", len(results), tt.wantResults, results)
+			}
+
+			if tt.wantResults > 0 && len(results) > 0 {
+				if results[0].Msg != tt.wantMsg {
+					t.Errorf("got message %q, want %q", results[0].Msg, tt.wantMsg)
+				}
+			}
+		})
+	}
+}

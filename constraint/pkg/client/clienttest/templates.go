@@ -372,3 +372,60 @@ func TemplateFuture() *templates.ConstraintTemplate {
 
 	return ct
 }
+
+const KindCheckNamespace = "CheckNamespace"
+
+// moduleCheckNamespace defines a Rego package which checks the namespace object
+// passed via input.namespace. This tests that namespace data is available to
+// Rego policies for namespace-based policy decisions.
+const moduleCheckNamespace = `
+package foo
+
+violation[{"msg": msg}] {
+  # Check if namespace is provided and has the expected label
+  ns := input.namespace
+  not ns.metadata.labels.environment
+  msg := "namespace is missing environment label"
+}
+
+violation[{"msg": msg}] {
+  # Check if namespace has specific label value
+  ns := input.namespace
+  ns.metadata.labels.environment
+  ns.metadata.labels.environment != input.parameters.wantEnvironment
+  msg := sprintf("namespace has environment %v but want %v", [ns.metadata.labels.environment, input.parameters.wantEnvironment])
+}
+`
+
+// TemplateCheckNamespace returns a ConstraintTemplate that validates namespace
+// labels via input.namespace. This tests the Rego driver's namespace support.
+func TemplateCheckNamespace() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("checknamespace")
+	ct.Spec.CRD.Spec.Names.Kind = KindCheckNamespace
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+			Properties: map[string]apiextensions.JSONSchemaProps{
+				"wantEnvironment": {Type: "string"},
+			},
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleCheckNamespace,
+					}).ToUnstructured(),
+				},
+			},
+		},
+	}}
+
+	return ct
+}
