@@ -398,7 +398,7 @@ violation[{"msg": msg}] {
 `
 
 // TemplateCheckNamespace returns a ConstraintTemplate that validates namespace
-// labels via input.namespace. This tests the Rego driver's namespace support.
+// labels via input.review.namespaceObject. This tests the Rego driver's namespace support.
 func TemplateCheckNamespace() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 

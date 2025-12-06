@@ -1145,7 +1145,7 @@ func TestClient_Review_Namespace(t *testing.T) {
 			name:        "no namespace provided - expects violation for missing namespace",
 			namespace:   nil,
 			wantEnv:     "production",
-			wantResults: 1, // Violation because input.namespace is nil, missing environment label check triggers
+			wantResults: 1,
 			wantMsg:     "namespace is missing environment label",
 		},
 		{
