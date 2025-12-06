@@ -1132,7 +1132,7 @@ func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
 }
 
 // TestClient_Review_Namespace tests that namespace data is properly passed
-// to the Rego driver via input.namespace for namespace-based policy decisions.
+// to the Rego driver via input.review.namespaceObject for namespace-based policy decisions.
 func TestClient_Review_Namespace(t *testing.T) {
 	tests := []struct {
 		name        string

@@ -376,21 +376,21 @@ func TemplateFuture() *templates.ConstraintTemplate {
 const KindCheckNamespace = "CheckNamespace"
 
 // moduleCheckNamespace defines a Rego package which checks the namespace object
-// passed via input.namespace. This tests that namespace data is available to
+// passed via input.review.namespaceObject. This tests that namespace data is available to
 // Rego policies for namespace-based policy decisions.
 const moduleCheckNamespace = `
 package foo
 
 violation[{"msg": msg}] {
   # Check if namespace is provided and has the expected label
-  ns := input.namespace
+  ns := input.review.namespaceObject
   not ns.metadata.labels.environment
   msg := "namespace is missing environment label"
 }
 
 violation[{"msg": msg}] {
   # Check if namespace has specific label value
-  ns := input.namespace
+  ns := input.review.namespaceObject
   ns.metadata.labels.environment
   ns.metadata.labels.environment != input.parameters.wantEnvironment
   msg := sprintf("namespace has environment %v but want %v", [ns.metadata.labels.environment, input.parameters.wantEnvironment])
