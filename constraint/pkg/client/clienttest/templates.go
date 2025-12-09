@@ -383,6 +383,7 @@ package foo
 
 violation[{"msg": msg}] {
   # Check if namespace is provided and has the expected label
+  input.review.namespaceObject
   ns := input.review.namespaceObject
   not ns.metadata.labels.environment
   msg := "namespace is missing environment label"
@@ -390,6 +391,7 @@ violation[{"msg": msg}] {
 
 violation[{"msg": msg}] {
   # Check if namespace has specific label value
+  input.review.namespaceObject
   ns := input.review.namespaceObject
   ns.metadata.labels.environment
   ns.metadata.labels.environment != input.parameters.wantEnvironment

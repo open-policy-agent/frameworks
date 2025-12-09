@@ -1149,6 +1149,13 @@ func TestClient_Review_Namespace(t *testing.T) {
 			wantMsg:     "namespace is missing environment label",
 		},
 		{
+			name:        "empty namespace object - expects violation for missing namespace",
+			namespace:   map[string]interface{}{},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace is missing environment label",
+		},
+		{
 			name: "namespace with matching environment label",
 			namespace: map[string]interface{}{
 				"metadata": map[string]interface{}{
@@ -1234,4 +1241,82 @@ func TestClient_Review_Namespace(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClient_Review_ClusterScopedResource verifies that cluster-scoped resources
+// (resources without a namespace, like ClusterRole, PersistentVolume, etc.)
+// can be reviewed correctly. This ensures empty namespace handling doesn't cause
+// issues for cluster-scoped resources, including when namespace-aware policies are used.
+func TestClient_Review_ClusterScopedResource(t *testing.T) {
+	t.Run("with deny policy", func(t *testing.T) {
+		ctx := context.Background()
+
+		c := clienttest.New(t)
+
+		// Use TemplateDeny which unconditionally denies - doesn't depend on namespace
+		ct := clienttest.TemplateDeny()
+		_, err := c.AddTemplate(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		constraint := cts.MakeConstraint(t, clienttest.KindDeny, "deny-all")
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a cluster-scoped review (empty namespace in the object itself)
+		review := handlertest.NewReview("", "cluster-resource", "test-data")
+
+		responses, err := c.Review(ctx, review)
+		if err != nil {
+			t.Fatalf("unexpected error during review: %v", err)
+		}
+
+		results := responses.Results()
+		if len(results) != 1 {
+			t.Errorf("got %d results, want 1. Results: %v", len(results), results)
+		}
+	})
+
+	t.Run("with namespace-aware policy", func(t *testing.T) {
+		ctx := context.Background()
+
+		c := clienttest.New(t)
+
+		// Use TemplateCheckNamespace which checks namespace labels
+		ct := clienttest.TemplateCheckNamespace()
+		_, err := c.AddTemplate(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		constraint := cts.MakeConstraint(t, clienttest.KindCheckNamespace, "check-ns",
+			cts.WantEnvironment("production"))
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a cluster-scoped review (empty namespace in the object)
+		review := handlertest.NewReview("", "cluster-resource", "test-data")
+
+		responses, err := c.Review(ctx, review)
+		if err != nil {
+			t.Fatalf("unexpected error during review: %v", err)
+		}
+
+		results := responses.Results()
+		if len(results) != 1 {
+			t.Errorf("got %d results, want 1. Results: %v", len(results), results)
+		}
+
+		if len(results) > 0 {
+			wantMsg := "namespace is missing environment label"
+			if results[0].Msg != wantMsg {
+				t.Errorf("got message %q, want %q", results[0].Msg, wantMsg)
+			}
+		}
+	})
 }
