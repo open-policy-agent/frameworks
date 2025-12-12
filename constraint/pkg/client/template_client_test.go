@@ -253,7 +253,7 @@ func TestTemplateClient_MatchesOperation_BackwardCompatibility(t *testing.T) {
 	}
 }
 
-// Benchmark test to ensure the function is performant
+// Benchmark test to ensure the function is performant.
 func BenchmarkTemplateClient_MatchesOperation(b *testing.B) {
 	tc := &templateClient{
 		template: &templates.ConstraintTemplate{
