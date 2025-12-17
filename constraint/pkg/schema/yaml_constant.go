@@ -16,13 +16,13 @@ spec:
     listKind: ConstraintTemplateList
     plural: constrainttemplates
     singular: constrainttemplate
-  preserveUnknownFields: false
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -80,7 +80,8 @@ spec:
                       items:
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -112,8 +113,6 @@ spec:
                       type: string
                     target:
                       type: string
-                  required:
-                  - code
                   type: object
                 type: array
             type: object
@@ -128,7 +127,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -142,7 +142,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64
@@ -161,7 +162,8 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -219,7 +221,8 @@ spec:
                       items:
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -265,7 +268,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -279,7 +283,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64
@@ -298,7 +303,8 @@ spec:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -356,7 +362,8 @@ spec:
                       items:
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -402,7 +409,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -416,7 +424,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64
