@@ -274,6 +274,11 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 		opt(cfg)
 	}
 
+	// Add namespaceObject to review before the loop. This enables policies to access
+	// namespace labels and metadata via input.review.namespaceObject.
+	// Value is the namespace object for namespaced resources, or nil for cluster-scoped resources.
+	reviewMap["namespaceObject"] = cfg.Namespace
+
 	var statsEntries []*instrumentation.StatsEntry
 
 	for kind, kindConstraints := range constraintsByKind {

@@ -130,6 +130,14 @@ func WantData(data string) ConstraintArg {
 	}
 }
 
+// WantEnvironment sets the expected namespace environment label.
+// Only meaningful for CheckNamespace constraints.
+func WantEnvironment(env string) ConstraintArg {
+	return func(u *unstructured.Unstructured) error {
+		return unstructured.SetNestedField(u.Object, env, "spec", "parameters", "wantEnvironment")
+	}
+}
+
 // EnforcementAction sets the action to be taken if the Constraint is violated.
 func EnforcementAction(action string) ConstraintArg {
 	return func(u *unstructured.Unstructured) error {
