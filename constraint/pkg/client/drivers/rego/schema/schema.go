@@ -1,3 +1,4 @@
+// Package schema provides Rego driver source schema handling.
 package schema
 
 import (

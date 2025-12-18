@@ -1,3 +1,4 @@
+//nolint:revive // Test file package name matches the package being tested.
 package types
 
 import "testing"

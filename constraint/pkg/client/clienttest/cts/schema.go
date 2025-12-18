@@ -5,8 +5,10 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+// PropMap is a map of property names to their JSON schema definitions.
 type PropMap map[string]apiextensions.JSONSchemaProps
 
+// ExpectedSchema builds the expected OpenAPI schema for constraint validation.
 func ExpectedSchema(pm PropMap) *apiextensions.JSONSchemaProps {
 	defaultEnforcementAction := apiextensions.JSON("deny")
 	pm["enforcementAction"] = apiextensions.JSONSchemaProps{Type: "string", Default: &defaultEnforcementAction}

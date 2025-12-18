@@ -1,3 +1,4 @@
+// Package schema provides utilities for working with constraint schemas.
 package schema
 
 import (

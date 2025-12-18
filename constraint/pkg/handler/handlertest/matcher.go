@@ -10,7 +10,9 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("not found")
+	// ErrNotFound is returned when an object is not found in the cache.
+	ErrNotFound = errors.New("not found")
+	// ErrInvalidType is returned when an object has an invalid type.
 	ErrInvalidType = errors.New("invalid type")
 )
 

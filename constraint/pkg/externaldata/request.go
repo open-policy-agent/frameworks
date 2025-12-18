@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	HTTPScheme  = "http"
+	// HTTPScheme represents the HTTP URL scheme.
+	HTTPScheme = "http"
+	// HTTPSScheme represents the HTTPS URL scheme.
 	HTTPSScheme = "https"
 )
 

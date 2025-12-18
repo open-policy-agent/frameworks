@@ -1,3 +1,4 @@
+//nolint:revive // Package name intentionally conflicts with stdlib; use alias "clienterrors" when importing.
 package errors
 
 import (

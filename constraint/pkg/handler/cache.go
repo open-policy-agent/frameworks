@@ -1,3 +1,4 @@
+// Package handler provides interfaces and utilities for target handlers.
 package handler
 
 // Cacher is a type - usually a Handler - which needs to cache state.
@@ -29,16 +30,20 @@ type Cache interface {
 	Remove(relPath []string)
 }
 
+// NoCache is a Cache implementation that does not cache anything.
 type NoCache struct{}
 
+// Add is a no-op that always returns nil.
 func (n NoCache) Add(_ []string, _ interface{}) error {
 	return nil
 }
 
+// Get is a no-op that always returns nil.
 func (n NoCache) Get(_ []string) (interface{}, error) {
 	return nil, nil
 }
 
+// Remove is a no-op.
 func (n NoCache) Remove(_ []string) {}
 
 var _ Cache = NoCache{}

@@ -1,3 +1,4 @@
+// Package types defines types for constraint validation results.
 package types
 
 import (

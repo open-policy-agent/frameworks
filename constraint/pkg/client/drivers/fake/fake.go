@@ -1,3 +1,4 @@
+// Package fake provides a fake driver implementation for testing.
 package fake
 
 import (

@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	// ModuleDeny is a Rego module that denies all objects.
 	ModuleDeny = `
 package foo
 
@@ -18,10 +19,14 @@ violation contains {"msg": msg} if {
   msg := "denied"
 }
 `
-	MockTemplateName  string          = "fakes"
-	MockTemplate      string          = "Fakes"
-	MockTargetHandler string          = "foo"
-	RegoVersion       ast.RegoVersion = ast.RegoV0
+	// MockTemplateName is the default template name for tests.
+	MockTemplateName string = "fakes"
+	// MockTemplate is the default template kind for tests.
+	MockTemplate string = "Fakes"
+	// MockTargetHandler is the default target handler for tests.
+	MockTargetHandler string = "foo"
+	// RegoVersion is the default Rego version for tests.
+	RegoVersion ast.RegoVersion = ast.RegoV0
 )
 
 var defaults = []Opt{
@@ -30,6 +35,7 @@ var defaults = []Opt{
 	OptTargets(TargetWithVersion(handlertest.TargetName, ModuleDeny, ast.RegoV1)),
 }
 
+// New creates a new ConstraintTemplate with the given options.
 func New(opts ...Opt) *templates.ConstraintTemplate {
 	tmpl := &templates.ConstraintTemplate{}
 
@@ -45,14 +51,17 @@ func New(opts ...Opt) *templates.ConstraintTemplate {
 	return tmpl
 }
 
+// Opt is a function that configures a ConstraintTemplate.
 type Opt func(*templates.ConstraintTemplate)
 
+// OptName sets the name of the ConstraintTemplate.
 func OptName(name string) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Name = name
 	}
 }
 
+// OptCRDNames sets the CRD kind name.
 func OptCRDNames(kind string) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Spec.CRD.Spec.Names = templates.Names{
@@ -61,12 +70,14 @@ func OptCRDNames(kind string) Opt {
 	}
 }
 
+// OptLabels sets labels on the ConstraintTemplate.
 func OptLabels(labels map[string]string) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
 		tmpl.Labels = labels
 	}
 }
 
+// OptCRDSchema sets the OpenAPI schema for constraint parameters.
 func OptCRDSchema(pm PropMap) Opt {
 	p := Prop(pm)
 	return func(tmpl *templates.ConstraintTemplate) {
@@ -75,6 +86,7 @@ func OptCRDSchema(pm PropMap) Opt {
 	}
 }
 
+// Target creates a Target with Rego code.
 func Target(name string, rego string, libs ...string) templates.Target {
 	return templates.Target{
 		Target: name,
@@ -87,6 +99,7 @@ func Target(name string, rego string, libs ...string) templates.Target {
 	}
 }
 
+// TargetWithVersion creates a Target with Rego code and a specific version.
 func TargetWithVersion(name string, rego string, regoVersion ast.RegoVersion, libs ...string) templates.Target {
 	return templates.Target{
 		Target: name,
@@ -100,6 +113,7 @@ func TargetWithVersion(name string, rego string, regoVersion ast.RegoVersion, li
 	}
 }
 
+// Code creates a Code block with the given engine and source.
 func Code(engine string, source interface{}) templates.Code {
 	return templates.Code{
 		Engine: engine,
@@ -109,12 +123,14 @@ func Code(engine string, source interface{}) templates.Code {
 	}
 }
 
+// TargetCustomEngines creates a Target with custom engine codes.
 func TargetCustomEngines(name string, codes ...templates.Code) templates.Target {
 	target := templates.Target{Target: name}
 	target.Code = append(target.Code, codes...)
 	return target
 }
 
+// TargetNoEngine creates a Target with no engine codes.
 func TargetNoEngine(name string) templates.Target {
 	return templates.Target{
 		Target: name,
@@ -122,6 +138,7 @@ func TargetNoEngine(name string) templates.Target {
 	}
 }
 
+// OptTargets sets the targets for the ConstraintTemplate.
 func OptTargets(targets ...templates.Target) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
 		cpy := make([]templates.Target, len(targets))
