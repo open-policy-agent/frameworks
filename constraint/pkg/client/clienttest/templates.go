@@ -390,6 +390,7 @@ func TemplateFuture() *templates.ConstraintTemplate {
 	return ct
 }
 
+// KindCheckNamespace is CRD kind for CheckNamespace constraints.
 const KindCheckNamespace = "CheckNamespace"
 
 // moduleCheckNamespace defines a Rego package which checks the namespace object
