@@ -38,6 +38,7 @@ var (
 
 	localSchemeBuilder = runtime.NewSchemeBuilder(SchemeBuilder.AddToScheme)
 
+	// AddToScheme adds all types in this package to the given scheme.
 	AddToScheme = localSchemeBuilder.AddToScheme
 )
 

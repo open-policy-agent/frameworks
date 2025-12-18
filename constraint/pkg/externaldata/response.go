@@ -73,6 +73,7 @@ func NewRegoResponse(statusCode int, pr *ProviderResponse) *RegoResponse {
 	}
 }
 
+// PrepareRegoResponse marshals a RegoResponse into an AST term.
 func PrepareRegoResponse(regoResponse *RegoResponse) (*ast.Term, error) {
 	rr, err := json.Marshal(regoResponse)
 	if err != nil {
@@ -85,6 +86,7 @@ func PrepareRegoResponse(regoResponse *RegoResponse) (*ast.Term, error) {
 	return ast.NewTerm(v), nil
 }
 
+// HandleError creates an error response with the given status code and error.
 func HandleError(statusCode int, err error) (*ast.Term, error) {
 	regoResponse := RegoResponse{
 		StatusCode:  statusCode,

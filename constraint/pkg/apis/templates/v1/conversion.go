@@ -69,7 +69,7 @@ func Convert_v1_Validation_To_templates_Validation(in *Validation, out *coreTemp
 func Convert_v1_Target_To_templates_Target(in *Target, out *coreTemplates.Target, s conversion.Scope) error { // nolint:revive // Required exact function name.
 	out.Target = in.Target
 	out.Rego = in.Rego
-	out.Libs = *(*[]string)(unsafe.Pointer(&in.Libs))
+	out.Libs = *(*[]string)(unsafe.Pointer(&in.Libs)) //nolint:gosec // Intentional unsafe pointer conversion for performance.
 
 	out.Code = make([]coreTemplates.Code, len(in.Code))
 	for i := range in.Code {

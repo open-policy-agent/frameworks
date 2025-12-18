@@ -23,7 +23,7 @@ type Sources struct {
 type sourceFile interface {
 	// Reparent changes the root path for the source, for example, if a source is at /x/srcs/foo.rego
 	// Reparent("/x", "/y") will update the path to /y/srcs/foo.rego.
-	Reparent(old, new string) error
+	Reparent(old, newPath string) error
 	// Path returns the current path of the source
 	Path() string
 	// Content returns the source as a byte slice
@@ -81,10 +81,10 @@ func (s *Sources) forAll(fn func(s sourceFile) error) error {
 	return nil
 }
 
-// Reparent will reparent the sources from the root specified at old to a root specified at new.
-func (s *Sources) Reparent(old, new string) error {
+// Reparent will reparent the sources from the root specified at old to a root specified at newPath.
+func (s *Sources) Reparent(old, newPath string) error {
 	return s.forAll(func(s sourceFile) error {
-		return s.Reparent(old, new)
+		return s.Reparent(old, newPath)
 	})
 }
 

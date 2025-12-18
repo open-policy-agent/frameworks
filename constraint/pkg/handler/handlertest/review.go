@@ -6,6 +6,7 @@ type Review struct {
 	Object  Object `json:"object"`
 }
 
+// NewReview creates a new Review with the given parameters.
 func NewReview(namespace, name, data string) *Review {
 	return &Review{Object: Object{
 		Name:      name,

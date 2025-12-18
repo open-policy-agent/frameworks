@@ -41,6 +41,7 @@ func MakeConstraint(t testing.TB, kind, name string, args ...ConstraintArg) *uns
 	return u
 }
 
+// MakeConstraintWithoutActions creates a test constraint without enforcement actions.
 func MakeConstraintWithoutActions(t testing.TB, kind, name string, args ...ConstraintArg) *unstructured.Unstructured {
 	t.Helper()
 
@@ -67,6 +68,7 @@ func MakeConstraintWithoutActions(t testing.TB, kind, name string, args ...Const
 	return u
 }
 
+// MakeScopedEnforcementConstraint creates a test constraint with scoped enforcement actions.
 func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, globalAction string, actions []string, eps ...string) *unstructured.Unstructured {
 	t.Helper()
 
@@ -109,6 +111,7 @@ func MakeScopedEnforcementConstraint(t testing.TB, kind, name string, globalActi
 	return u
 }
 
+// ConstraintArg is a function that modifies a constraint during construction.
 type ConstraintArg func(*unstructured.Unstructured) error
 
 // MatchNamespace modifies the Constraint to only match objects with the passed

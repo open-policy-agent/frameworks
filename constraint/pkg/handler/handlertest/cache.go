@@ -1,3 +1,4 @@
+// Package handlertest provides test utilities for handlers.
 package handlertest
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 )
 
+// ErrInvalidObject is returned when an object is invalid for the cache.
 var ErrInvalidObject = errors.New("invalid object")
 
 // Cache is a threadsafe Cache for the test Handler which keeps track of
@@ -39,6 +41,7 @@ func (c *Cache) Add(key []string, object interface{}) error {
 	return nil
 }
 
+// Remove deletes an object from the cache by key.
 func (c *Cache) Remove(key []string) {
 	c.Namespaces.Delete(storage.Path(key).String())
 }

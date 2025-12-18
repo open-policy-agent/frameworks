@@ -1,3 +1,4 @@
+// Package main implements the rewrite-compatibility CLI tool for Rego rewriting.
 package main
 
 import (
@@ -6,7 +7,6 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	_ "github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
