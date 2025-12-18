@@ -1,3 +1,4 @@
+// Package client provides the main client for interacting with the constraint framework.
 package client
 
 import (
@@ -18,9 +19,9 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	admissionv1 "k8s.io/api/admission/v1"
 )
 
 const statusField = "status"
@@ -854,6 +855,7 @@ func (c *Client) Dump(ctx context.Context) (string, error) {
 	return dumpBuilder.String(), nil
 }
 
+// GetDescriptionForStat returns a human-readable description for a given stat name.
 func (c *Client) GetDescriptionForStat(source instrumentation.Source, statName string) string {
 	if source.Type != instrumentation.EngineSourceType {
 		// only handle engine source for now
@@ -930,9 +932,9 @@ func validateTemplateMetadata(templ *templates.ConstraintTemplate) error {
 			clienterrors.ErrInvalidConstraintTemplate, templ.GetName())
 	}
 
-	if !strings.EqualFold(templ.ObjectMeta.Name, kind) {
+	if !strings.EqualFold(templ.Name, kind) {
 		return fmt.Errorf("%w: the ConstraintTemplate's name %q is not equal to the lowercase of CRD's Kind: %q",
-			clienterrors.ErrInvalidConstraintTemplate, templ.ObjectMeta.Name, strings.ToLower(kind))
+			clienterrors.ErrInvalidConstraintTemplate, templ.Name, strings.ToLower(kind))
 	}
 
 	return nil

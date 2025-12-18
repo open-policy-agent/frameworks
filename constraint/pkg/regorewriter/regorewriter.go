@@ -70,6 +70,7 @@ func (r *RegoRewriter) addModule(path string, m *ast.Module, slice *[]*Module) {
 	*slice = append(*slice, &Module{FilePath: FilePath{path}, Module: m})
 }
 
+// AddEntryPointModule adds a module as an entry point.
 func (r *RegoRewriter) AddEntryPointModule(path string, m *ast.Module) {
 	r.addModule(path, m, &r.entryPoints)
 }
@@ -100,7 +101,7 @@ func (r *RegoRewriter) addTestDir(testDirPath string) error {
 		}
 
 		glog.V(vLog).Infof("reading %s", path)
-		bytes, err := os.ReadFile(path)
+		bytes, err := os.ReadFile(path) //nolint:gosec // Path is intentionally variable for reading test data files.
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrReadingFile, err)
 		}
@@ -119,7 +120,7 @@ func (r *RegoRewriter) addFileFromFs(path string, version ast.RegoVersion, slice
 		return fmt.Errorf("invalid file specified %s", path)
 	}
 
-	bytes, err := os.ReadFile(path)
+	bytes, err := os.ReadFile(path) //nolint:gosec // Path is intentionally variable for reading rego files.
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrReadingFile, err)
 	}

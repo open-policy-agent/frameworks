@@ -16,6 +16,7 @@ var _ handler.Cacher = &Handler{}
 // TargetName is the default target name.
 const TargetName = "test.target"
 
+// Handler is a test implementation of TargetHandler.
 type Handler struct {
 	// Name, if set, is the name of the Handler. Otherwise defaults to TargetName.
 	Name *string
@@ -33,6 +34,7 @@ type Handler struct {
 	Cache *Cache
 }
 
+// GetName returns the name of the Handler.
 func (h *Handler) GetName() string {
 	if h.Name != nil {
 		return *h.Name
@@ -41,6 +43,7 @@ func (h *Handler) GetName() string {
 	return TargetName
 }
 
+// ProcessData processes the given data object.
 func (h *Handler) ProcessData(obj interface{}) (bool, []string, interface{}, error) {
 	switch o := obj.(type) {
 	case *Object:
@@ -59,6 +62,7 @@ func (h *Handler) ProcessData(obj interface{}) (bool, []string, interface{}, err
 	}
 }
 
+// HandleReview handles a review request.
 func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 	switch data := obj.(type) {
 	case Review:
@@ -78,6 +82,7 @@ func (h *Handler) HandleReview(obj interface{}) (bool, interface{}, error) {
 	}
 }
 
+// MatchSchema returns the JSON schema for constraint matching.
 func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {
 	return apiextensions.JSONSchemaProps{
 		Type: "object",
@@ -87,6 +92,7 @@ func (h *Handler) MatchSchema() apiextensions.JSONSchemaProps {
 	}
 }
 
+// ValidateConstraint validates a constraint.
 func (h *Handler) ValidateConstraint(constraint *unstructured.Unstructured) error {
 	if h.ForbiddenEnforcement == nil {
 		return nil
@@ -108,6 +114,7 @@ func (h *Handler) ValidateConstraint(constraint *unstructured.Unstructured) erro
 	return nil
 }
 
+// ToMatcher creates a Matcher from a constraint.
 func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.Matcher, error) {
 	ns, _, err := unstructured.NestedString(constraint.Object, "spec", "match", "matchNamespace")
 	if err != nil {
@@ -117,6 +124,7 @@ func (h *Handler) ToMatcher(constraint *unstructured.Unstructured) (constraints.
 	return Matcher{Namespace: ns, Cache: h.Cache}, nil
 }
 
+// GetCache returns the Cache for the Handler.
 func (h *Handler) GetCache() handler.Cache {
 	if h.Cache == nil {
 		return handler.NoCache{}

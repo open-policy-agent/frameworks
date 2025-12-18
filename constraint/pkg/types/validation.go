@@ -1,3 +1,4 @@
+// Package types defines types for constraint validation results.
 package types
 
 import (
@@ -11,9 +12,11 @@ import (
 )
 
 const (
+	// TracingDisabledHeader is the message shown when tracing is disabled.
 	TracingDisabledHeader = "Trace: TRACING DISABLED"
 )
 
+// Result represents a single constraint violation result.
 type Result struct {
 	// Target is the target this violation is for.
 	Target string `json:"target"`
@@ -41,6 +44,7 @@ type Response struct {
 	Results []*Result
 }
 
+// AddResult adds a Result to the Response.
 func (r *Response) AddResult(results *Result) {
 	r.Results = append(r.Results, results)
 }
@@ -66,6 +70,7 @@ func (r *Response) Sort() {
 	})
 }
 
+// TraceDump returns a string representation of the Response for debugging.
 func (r *Response) TraceDump() string {
 	b := &strings.Builder{}
 	_, _ = fmt.Fprintf(b, "Target: %s\n", r.Target)
@@ -89,6 +94,7 @@ func (r *Response) TraceDump() string {
 	return b.String()
 }
 
+// NewResponses creates a new Responses instance.
 func NewResponses() *Responses {
 	return &Responses{
 		ByTarget:     make(map[string]*Response),
@@ -97,12 +103,14 @@ func NewResponses() *Responses {
 	}
 }
 
+// Responses aggregates Response objects across multiple targets.
 type Responses struct {
 	ByTarget     map[string]*Response
 	Handled      map[string]bool
 	StatsEntries []*instrumentation.StatsEntry
 }
 
+// Results returns all Result objects from all Responses.
 func (r *Responses) Results() []*Result {
 	if r == nil {
 		return nil
@@ -130,6 +138,7 @@ func (r *Responses) Results() []*Result {
 	return res
 }
 
+// HandledCount returns the number of targets that were handled.
 func (r *Responses) HandledCount() int {
 	if r == nil {
 		return 0
@@ -145,6 +154,7 @@ func (r *Responses) HandledCount() int {
 	return c
 }
 
+// TraceDump returns a string representation of all Responses for debugging.
 func (r *Responses) TraceDump() string {
 	b := &strings.Builder{}
 	for _, resp := range r.ByTarget {

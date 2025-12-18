@@ -9,6 +9,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 )
 
+// Opt is a functional option for configuring a Client.
 type Opt func(*Client) error
 
 // targetNameRegex defines allowable target names.
@@ -66,6 +67,7 @@ func Driver(d drivers.Driver) Opt {
 	}
 }
 
+// IgnoreNoReferentialDriverWarning suppresses the warning when no referential driver is configured.
 func IgnoreNoReferentialDriverWarning(ignore bool) Opt {
 	return func(client *Client) error {
 		client.ignoreNoReferentialDriverWarning = ignore
@@ -73,6 +75,7 @@ func IgnoreNoReferentialDriverWarning(ignore bool) Opt {
 	}
 }
 
+// EnforcementPoints sets the enforcement points for the client.
 func EnforcementPoints(eps ...string) Opt {
 	return func(client *Client) error {
 		client.enforcementPoints = eps

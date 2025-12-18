@@ -16,13 +16,13 @@ spec:
     listKind: ConstraintTemplateList
     plural: constrainttemplates
     singular: constrainttemplate
-  preserveUnknownFields: false
   scope: Cluster
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -45,10 +45,15 @@ spec:
             description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
+                description: CRD defines the custom resource definition specification
+                  for the constraint.
                 properties:
                   spec:
+                    description: CRDSpec defines the spec for the CRD.
                     properties:
                       names:
+                        description: Names defines the naming conventions for the
+                          constraint kind.
                         properties:
                           kind:
                             type: string
@@ -60,6 +65,8 @@ spec:
                       validation:
                         default:
                           legacySchema: false
+                        description: Validation defines the schema for constraint
+                          parameters.
                         properties:
                           legacySchema:
                             default: false
@@ -72,15 +79,20 @@ spec:
                 type: object
               targets:
                 items:
+                  description: Target defines the target handler and policy for the
+                    constraint template.
                   properties:
                     code:
                       description: |-
                         The source code options for the constraint template. "Rego" can only
                         be specified in one place (either here or in the "rego" field)
                       items:
+                        description: Code defines the policy source code for a specific
+                          engine.
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -112,8 +124,6 @@ spec:
                       type: string
                     target:
                       type: string
-                  required:
-                  - code
                   type: object
                 type: array
             type: object
@@ -128,7 +138,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -142,7 +153,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64
@@ -161,7 +173,8 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -184,10 +197,15 @@ spec:
             description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
+                description: CRD defines the custom resource definition specification
+                  for the constraint.
                 properties:
                   spec:
+                    description: CRDSpec defines the spec for the CRD.
                     properties:
                       names:
+                        description: Names defines the naming conventions for the
+                          constraint kind.
                         properties:
                           kind:
                             type: string
@@ -199,6 +217,8 @@ spec:
                       validation:
                         default:
                           legacySchema: true
+                        description: Validation defines the schema for constraint
+                          parameters.
                         properties:
                           legacySchema:
                             default: true
@@ -211,15 +231,20 @@ spec:
                 type: object
               targets:
                 items:
+                  description: Target defines the target handler and policy for the
+                    constraint template.
                   properties:
                     code:
                       description: |-
                         The source code options for the constraint template. "Rego" can only
                         be specified in one place (either here or in the "rego" field)
                       items:
+                        description: Code defines the policy source code for a specific
+                          engine.
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -265,7 +290,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -279,7 +305,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64
@@ -298,7 +325,8 @@ spec:
   - name: v1beta1
     schema:
       openAPIV3Schema:
-        description: ConstraintTemplate is the Schema for the constrainttemplates API
+        description: ConstraintTemplate is the Schema for the constrainttemplates
+          API
         properties:
           apiVersion:
             description: |-
@@ -321,10 +349,15 @@ spec:
             description: ConstraintTemplateSpec defines the desired state of ConstraintTemplate.
             properties:
               crd:
+                description: CRD defines the custom resource definition specification
+                  for the constraint.
                 properties:
                   spec:
+                    description: CRDSpec defines the spec for the CRD.
                     properties:
                       names:
+                        description: Names defines the naming conventions for the
+                          constraint kind.
                         properties:
                           kind:
                             type: string
@@ -336,6 +369,8 @@ spec:
                       validation:
                         default:
                           legacySchema: true
+                        description: Validation defines the schema for constraint
+                          parameters.
                         properties:
                           legacySchema:
                             default: true
@@ -348,15 +383,20 @@ spec:
                 type: object
               targets:
                 items:
+                  description: Target defines the target handler and policy for the
+                    constraint template.
                   properties:
                     code:
                       description: |-
                         The source code options for the constraint template. "Rego" can only
                         be specified in one place (either here or in the "rego" field)
                       items:
+                        description: Code defines the policy source code for a specific
+                          engine.
                         properties:
                           engine:
-                            description: 'The engine used to evaluate the code. Example: "Rego". Required.'
+                            description: 'The engine used to evaluate the code. Example:
+                              "Rego". Required.'
                             type: string
                           source:
                             description: The source code for the template. Required.
@@ -402,7 +442,8 @@ spec:
                   properties:
                     errors:
                       items:
-                        description: CreateCRDError represents a single error caught during parsing, compiling, etc.
+                        description: CreateCRDError represents a single error caught
+                          during parsing, compiling, etc.
                         properties:
                           code:
                             type: string
@@ -416,7 +457,8 @@ spec:
                         type: object
                       type: array
                     id:
-                      description: a unique identifier for the pod that wrote the status
+                      description: a unique identifier for the pod that wrote the
+                        status
                       type: string
                     observedGeneration:
                       format: int64

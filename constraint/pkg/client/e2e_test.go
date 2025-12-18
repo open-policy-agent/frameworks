@@ -1130,3 +1130,193 @@ func TestE2E_Client_GetDescriptionForStat(t *testing.T) {
 		}
 	}
 }
+
+// TestClient_Review_Namespace tests that namespace data is properly passed
+// to the Rego driver via input.review.namespaceObject for namespace-based policy decisions.
+func TestClient_Review_Namespace(t *testing.T) {
+	tests := []struct {
+		name        string
+		namespace   map[string]interface{}
+		wantEnv     string
+		wantResults int
+		wantMsg     string
+	}{
+		{
+			name:        "no namespace provided - expects violation for missing namespace",
+			namespace:   nil,
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace is missing environment label",
+		},
+		{
+			name:        "empty namespace object - expects violation for missing namespace",
+			namespace:   map[string]interface{}{},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace is missing environment label",
+		},
+		{
+			name: "namespace with matching environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"environment": "production",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 0, // No violation - environment matches
+		},
+		{
+			name: "namespace with wrong environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"environment": "staging",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace has environment staging but want production",
+		},
+		{
+			name: "namespace missing environment label",
+			namespace: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name": "test-ns",
+					"labels": map[string]interface{}{
+						"team": "platform",
+					},
+				},
+			},
+			wantEnv:     "production",
+			wantResults: 1,
+			wantMsg:     "namespace is missing environment label",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			c := clienttest.New(t)
+
+			ct := clienttest.TemplateCheckNamespace()
+			_, err := c.AddTemplate(ctx, ct)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			constraint := cts.MakeConstraint(t, clienttest.KindCheckNamespace, "constraint", cts.WantEnvironment(tt.wantEnv))
+			_, err = c.AddConstraint(ctx, constraint)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			review := handlertest.NewReview("test-ns", "test-obj", "test-data")
+
+			// Pass namespace via reviews.Namespace option
+			var opts []reviews.ReviewOpt
+			if tt.namespace != nil {
+				opts = append(opts, reviews.Namespace(tt.namespace))
+			}
+
+			responses, err := c.Review(ctx, review, opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			results := responses.Results()
+			if len(results) != tt.wantResults {
+				t.Errorf("got %d results, want %d. Results: %v", len(results), tt.wantResults, results)
+			}
+
+			if tt.wantResults > 0 && len(results) > 0 {
+				if results[0].Msg != tt.wantMsg {
+					t.Errorf("got message %q, want %q", results[0].Msg, tt.wantMsg)
+				}
+			}
+		})
+	}
+}
+
+// TestClient_Review_ClusterScopedResource verifies that cluster-scoped resources
+// (resources without a namespace, like ClusterRole, PersistentVolume, etc.)
+// can be reviewed correctly. This ensures empty namespace handling doesn't cause
+// issues for cluster-scoped resources, including when namespace-aware policies are used.
+func TestClient_Review_ClusterScopedResource(t *testing.T) {
+	t.Run("with deny policy", func(t *testing.T) {
+		ctx := context.Background()
+
+		c := clienttest.New(t)
+
+		// Use TemplateDeny which unconditionally denies - doesn't depend on namespace
+		ct := clienttest.TemplateDeny()
+		_, err := c.AddTemplate(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		constraint := cts.MakeConstraint(t, clienttest.KindDeny, "deny-all")
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a cluster-scoped review (empty namespace in the object itself)
+		review := handlertest.NewReview("", "cluster-resource", "test-data")
+
+		responses, err := c.Review(ctx, review)
+		if err != nil {
+			t.Fatalf("unexpected error during review: %v", err)
+		}
+
+		results := responses.Results()
+		if len(results) != 1 {
+			t.Errorf("got %d results, want 1. Results: %v", len(results), results)
+		}
+	})
+
+	t.Run("with namespace-aware policy", func(t *testing.T) {
+		ctx := context.Background()
+
+		c := clienttest.New(t)
+
+		// Use TemplateCheckNamespace which checks namespace labels
+		ct := clienttest.TemplateCheckNamespace()
+		_, err := c.AddTemplate(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		constraint := cts.MakeConstraint(t, clienttest.KindCheckNamespace, "check-ns",
+			cts.WantEnvironment("production"))
+		_, err = c.AddConstraint(ctx, constraint)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a cluster-scoped review (empty namespace in the object)
+		review := handlertest.NewReview("", "cluster-resource", "test-data")
+
+		responses, err := c.Review(ctx, review)
+		if err != nil {
+			t.Fatalf("unexpected error during review: %v", err)
+		}
+
+		results := responses.Results()
+		if len(results) != 1 {
+			t.Errorf("got %d results, want 1. Results: %v", len(results), results)
+		}
+
+		if len(results) > 0 {
+			wantMsg := "namespace is missing environment label"
+			if results[0].Msg != wantMsg {
+				t.Errorf("got message %q, want %q", results[0].Msg, wantMsg)
+			}
+		}
+	})
+}

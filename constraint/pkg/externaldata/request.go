@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	HTTPScheme  = "http"
+	// HTTPScheme represents the HTTP URL scheme.
+	HTTPScheme = "http"
+	// HTTPSScheme represents the HTTPS URL scheme.
 	HTTPSScheme = "https"
 )
 
@@ -85,7 +87,7 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to send external data request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

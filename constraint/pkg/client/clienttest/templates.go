@@ -11,14 +11,22 @@ import (
 )
 
 const (
-	KindAllow            = "Allow"
-	KindDeny             = "Deny"
-	KindDenyPrint        = "DenyPrint"
-	KindDenyImport       = "DenyImport"
-	KindCheckData        = "CheckData"
-	KindRuntimeError     = "RuntimeError"
+	// KindAllow is the kind for templates that allow all objects.
+	KindAllow = "Allow"
+	// KindDeny is the kind for templates that deny all objects.
+	KindDeny = "Deny"
+	// KindDenyPrint is the kind for templates that deny with print statements.
+	KindDenyPrint = "DenyPrint"
+	// KindDenyImport is the kind for templates that deny with imports.
+	KindDenyImport = "DenyImport"
+	// KindCheckData is the kind for templates that check data.
+	KindCheckData = "CheckData"
+	// KindRuntimeError is the kind for templates that produce runtime errors.
+	KindRuntimeError = "RuntimeError"
+	// KindForbidDuplicates is the kind for templates that forbid duplicates.
 	KindForbidDuplicates = "ForbidDuplicates"
-	KindFuture           = "Future"
+	// KindFuture is the kind for templates testing future behavior.
+	KindFuture = "Future"
 )
 
 // ModuleAllow defines a Rego package which allows all objects it reviews.
@@ -31,6 +39,7 @@ violation[{"msg": msg}] {
 }
 `
 
+// TemplateAllow returns a ConstraintTemplate that allows all objects.
 func TemplateAllow() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -70,6 +79,7 @@ violation[{"msg": msg}] {
 }
 `
 
+// TemplateDeny returns a ConstraintTemplate that denies all objects.
 func TemplateDeny() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -109,6 +119,7 @@ violation[{"msg": msg}] {
 }
 `
 
+// TemplateDenyPrint returns a ConstraintTemplate that denies with print statements.
 func TemplateDenyPrint() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -203,6 +214,7 @@ violation[{"msg": msg, "details": details}] {
 }
 `
 
+// TemplateCheckData returns a ConstraintTemplate that checks data fields.
 func TemplateCheckData() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -234,10 +246,12 @@ func TemplateCheckData() *templates.ConstraintTemplate {
 	return ct
 }
 
+// KindCheckDataNumbered returns a numbered CheckData kind name.
 func KindCheckDataNumbered(i int) string {
 	return fmt.Sprintf("%s-%d", KindCheckData, i)
 }
 
+// TemplateCheckDataNumbered returns a numbered TemplateCheckData template.
 func TemplateCheckDataNumbered(i int) *templates.ConstraintTemplate {
 	ct := TemplateCheckData()
 
@@ -266,6 +280,7 @@ violation[{"msg": msg}] {
 
 `
 
+// TemplateRuntimeError returns a ConstraintTemplate that produces runtime errors.
 func TemplateRuntimeError() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -305,6 +320,7 @@ violation[{"msg": msg}] {
 }
 `
 
+// TemplateForbidDuplicates returns a ConstraintTemplate that forbids duplicate data.
 func TemplateForbidDuplicates() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -345,6 +361,7 @@ violation[{"msg": msg}] {
 }
 `
 
+// TemplateFuture returns a ConstraintTemplate that uses future Rego keywords.
 func TemplateFuture() *templates.ConstraintTemplate {
 	ct := &templates.ConstraintTemplate{}
 
@@ -364,6 +381,66 @@ func TemplateFuture() *templates.ConstraintTemplate {
 				Source: &templates.Anything{
 					Value: (&schema.Source{
 						Rego: moduleFuture,
+					}).ToUnstructured(),
+				},
+			},
+		},
+	}}
+
+	return ct
+}
+
+// KindCheckNamespace is CRD kind for CheckNamespace constraints.
+const KindCheckNamespace = "CheckNamespace"
+
+// moduleCheckNamespace defines a Rego package which checks the namespace object
+// passed via input.review.namespaceObject. This tests that namespace data is available to
+// Rego policies for namespace-based policy decisions.
+const moduleCheckNamespace = `
+package foo
+
+violation[{"msg": msg}] {
+  # Check if namespace is provided and has the expected label
+  input.review.namespaceObject
+  ns := input.review.namespaceObject
+  not ns.metadata.labels.environment
+  msg := "namespace is missing environment label"
+}
+
+violation[{"msg": msg}] {
+  # Check if namespace has specific label value
+  input.review.namespaceObject
+  ns := input.review.namespaceObject
+  ns.metadata.labels.environment
+  ns.metadata.labels.environment != input.parameters.wantEnvironment
+  msg := sprintf("namespace has environment %v but want %v", [ns.metadata.labels.environment, input.parameters.wantEnvironment])
+}
+`
+
+// TemplateCheckNamespace returns a ConstraintTemplate that validates namespace
+// labels via input.review.namespaceObject. This tests the Rego driver's namespace support.
+func TemplateCheckNamespace() *templates.ConstraintTemplate {
+	ct := &templates.ConstraintTemplate{}
+
+	ct.SetName("checknamespace")
+	ct.Spec.CRD.Spec.Names.Kind = KindCheckNamespace
+	ct.Spec.CRD.Spec.Validation = &templates.Validation{
+		OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+			Type: "object",
+			Properties: map[string]apiextensions.JSONSchemaProps{
+				"wantEnvironment": {Type: "string"},
+			},
+		},
+	}
+
+	ct.Spec.Targets = []templates.Target{{
+		Target: handlertest.TargetName,
+		Code: []templates.Code{
+			{
+				Engine: schema.Name,
+				Source: &templates.Anything{
+					Value: (&schema.Source{
+						Rego: moduleCheckNamespace,
 					}).ToUnstructured(),
 				},
 			},

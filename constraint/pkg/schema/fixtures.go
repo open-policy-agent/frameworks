@@ -1,3 +1,4 @@
+// Package schema provides utilities for working with constraint schemas.
 package schema
 
 import (
@@ -6,6 +7,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+// VersionedIncompleteSchema returns a test schema with versioned API extensions.
 func VersionedIncompleteSchema() *apiextensionsv1.JSONSchemaProps {
 	return &apiextensionsv1.JSONSchemaProps{
 		Properties: map[string]apiextensionsv1.JSONSchemaProps{
@@ -28,6 +30,7 @@ func VersionedIncompleteSchema() *apiextensionsv1.JSONSchemaProps {
 	}
 }
 
+// VersionlessSchemaWithXPreserve returns a test schema with x-preserve-unknown-fields set.
 func VersionlessSchemaWithXPreserve() *apiextensions.JSONSchemaProps {
 	return &apiextensions.JSONSchemaProps{
 		XPreserveUnknownFields: ptr.To[bool](true),
@@ -52,6 +55,7 @@ func VersionlessSchemaWithXPreserve() *apiextensions.JSONSchemaProps {
 	}
 }
 
+// VersionlessSchema returns a basic test schema without versioning.
 func VersionlessSchema() *apiextensions.JSONSchemaProps {
 	return &apiextensions.JSONSchemaProps{
 		Properties: map[string]apiextensions.JSONSchemaProps{

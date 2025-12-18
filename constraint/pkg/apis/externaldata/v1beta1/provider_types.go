@@ -77,6 +77,8 @@ const (
 	UpsertCacheError ProviderErrorType = "UpsertCache"
 )
 
+// Provider is the Schema for the providers API.
+//
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -85,7 +87,6 @@ const (
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +k8s:conversion-gen-external-types=github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata
-// Provider is the Schema for the providers API
 // +k8s:openapi-gen=true
 type Provider struct {
 	metav1.TypeMeta   `json:",inline"`

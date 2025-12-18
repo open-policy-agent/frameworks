@@ -31,21 +31,25 @@ type ConstraintTemplateSpec struct {
 	Targets []Target `json:"targets,omitempty"`
 }
 
+// CRD defines the custom resource definition specification for the constraint.
 type CRD struct {
 	Spec CRDSpec `json:"spec,omitempty"`
 }
 
+// CRDSpec defines the spec for the CRD.
 type CRDSpec struct {
 	Names Names `json:"names,omitempty"`
 	// +kubebuilder:default={legacySchema: true}
 	Validation *Validation `json:"validation,omitempty"`
 }
 
+// Names defines the naming conventions for the constraint kind.
 type Names struct {
 	Kind       string   `json:"kind,omitempty"`
 	ShortNames []string `json:"shortNames,omitempty"`
 }
 
+// Validation defines the schema for constraint parameters.
 type Validation struct {
 	// +kubebuilder:validation:Schemaless
 	// +kubebuilder:validation:Type=object
@@ -56,6 +60,7 @@ type Validation struct {
 	LegacySchema *bool `json:"legacySchema,omitempty"` // *bool allows for "unset" state which we need to apply appropriate defaults
 }
 
+// Target defines the target handler and policy for the constraint template.
 type Target struct {
 	Target string   `json:"target,omitempty"`
 	Rego   string   `json:"rego,omitempty"`
@@ -70,6 +75,7 @@ type Target struct {
 	Operations []admissionv1.OperationType `json:"operations,omitempty"`
 }
 
+// Code defines the policy source code for a specific engine.
 type Code struct {
 	// The engine used to evaluate the code. Example: "Rego". Required.
 	// +kubebuilder:validation:Required

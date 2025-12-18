@@ -45,9 +45,14 @@ func (errs Errors) Format(s fmt.State, verb rune) {
 }
 
 var (
-	ErrInvalidModule  = errors.New("invalid module")
-	ErrInvalidImport  = errors.New("invalid import")
-	ErrInvalidLibs    = errors.New("invalid lib prefix")
+	// ErrInvalidModule is returned when a module is invalid.
+	ErrInvalidModule = errors.New("invalid module")
+	// ErrInvalidImport is returned when an import is invalid.
+	ErrInvalidImport = errors.New("invalid import")
+	// ErrInvalidLibs is returned when a lib prefix is invalid.
+	ErrInvalidLibs = errors.New("invalid lib prefix")
+	// ErrDataReferences is returned when data references are invalid.
 	ErrDataReferences = errors.New("invalid data references")
-	ErrReadingFile    = errors.New("error reading file")
+	// ErrReadingFile is returned when there is an error reading a file.
+	ErrReadingFile = errors.New("error reading file")
 )

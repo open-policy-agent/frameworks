@@ -1,4 +1,4 @@
-// package instrumentation defines primitives to
+// Package instrumentation defines primitives to
 // support more observability throughout the constraint framework.
 package instrumentation
 
@@ -12,13 +12,14 @@ const (
 	// ConstraintScope means the state is associated with a constraint.
 	ConstraintScope = "constraint"
 
-	// description constants.
+	// UnknownDescription is used when the description is not available.
 	UnknownDescription = "unknown description"
 
-	// source constants.
+	// EngineSourceType identifies the source type as an engine.
 	EngineSourceType = "engine"
 )
 
+// RegoSource is the Source configuration for the Rego engine.
 var RegoSource = Source{
 	Type:  EngineSourceType,
 	Value: schema.Name,

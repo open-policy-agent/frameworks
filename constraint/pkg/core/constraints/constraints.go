@@ -1,3 +1,4 @@
+// Package constraints provides utility functions for working with constraint resources.
 package constraints
 
 import (

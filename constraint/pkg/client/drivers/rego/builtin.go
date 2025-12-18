@@ -22,16 +22,6 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 			return nil, err
 		}
 
-		provider, err := d.providerCache.Get(regoReq.ProviderName)
-		if err != nil {
-			return externaldata.HandleError(http.StatusBadRequest, err)
-		}
-
-		clientCert, err := d.getTLSCertificate()
-		if err != nil {
-			return externaldata.HandleError(http.StatusBadRequest, err)
-		}
-
 		// check provider response cache
 		var providerRequestKeys []string
 		var providerResponseStatusCode int
@@ -72,6 +62,16 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 		}
 
 		if len(providerRequestKeys) > 0 {
+			provider, err := d.providerCache.Get(regoReq.ProviderName)
+			if err != nil {
+				return externaldata.HandleError(http.StatusBadRequest, err)
+			}
+
+			clientCert, err := d.getTLSCertificate()
+			if err != nil {
+				return externaldata.HandleError(http.StatusBadRequest, err)
+			}
+
 			externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, providerRequestKeys, clientCert)
 			if err != nil {
 				return externaldata.HandleError(statusCode, err)

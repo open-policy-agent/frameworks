@@ -1,3 +1,4 @@
+// Package externaldata provides caching and request handling for external data providers.
 package externaldata
 
 import (
@@ -14,21 +15,25 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+// ProviderCache caches external data provider configurations.
 type ProviderCache struct {
 	cache map[string]unversioned.Provider
 	mux   sync.RWMutex
 }
 
+// ProviderResponseCache caches responses from external data providers.
 type ProviderResponseCache struct {
 	cache sync.Map
 	TTL   time.Duration
 }
 
+// CacheKey is the key for looking up cached provider responses.
 type CacheKey struct {
 	ProviderName string
 	Key          string
 }
 
+// CacheValue holds a cached response from an external data provider.
 type CacheValue struct {
 	Received   int64
 	Value      interface{}
@@ -36,6 +41,7 @@ type CacheValue struct {
 	Idempotent bool
 }
 
+// NewProviderResponseCache creates a new ProviderResponseCache with the specified TTL.
 func NewProviderResponseCache(ctx context.Context, ttl time.Duration) *ProviderResponseCache {
 	providerResponseCache := &ProviderResponseCache{
 		cache: sync.Map{},
@@ -49,6 +55,7 @@ func NewProviderResponseCache(ctx context.Context, ttl time.Duration) *ProviderR
 	return providerResponseCache
 }
 
+// Get retrieves a cached value by key.
 func (c *ProviderResponseCache) Get(key CacheKey) (*CacheValue, error) {
 	if v, ok := c.cache.Load(key); ok {
 		value, ok := v.(*CacheValue)
@@ -60,10 +67,12 @@ func (c *ProviderResponseCache) Get(key CacheKey) (*CacheValue, error) {
 	return nil, fmt.Errorf("key '%s:%s' is not found in provider response cache", key.ProviderName, key.Key)
 }
 
+// Upsert inserts or updates a cached value.
 func (c *ProviderResponseCache) Upsert(key CacheKey, value CacheValue) {
 	c.cache.Store(key, &value)
 }
 
+// Remove deletes a cached value by key.
 func (c *ProviderResponseCache) Remove(key CacheKey) {
 	c.cache.Delete(key)
 }
@@ -86,12 +95,14 @@ func (c *ProviderResponseCache) invalidateProviderResponseCache(ttl time.Duratio
 	})
 }
 
+// NewCache creates a new ProviderCache.
 func NewCache() *ProviderCache {
 	return &ProviderCache{
 		cache: make(map[string]unversioned.Provider),
 	}
 }
 
+// Get retrieves a provider by name from the cache.
 func (c *ProviderCache) Get(key string) (unversioned.Provider, error) {
 	c.mux.RLock()
 	defer c.mux.RUnlock()
@@ -103,6 +114,7 @@ func (c *ProviderCache) Get(key string) (unversioned.Provider, error) {
 	return unversioned.Provider{}, fmt.Errorf("key is not found in provider cache")
 }
 
+// Upsert inserts or updates a provider in the cache.
 func (c *ProviderCache) Upsert(provider *unversioned.Provider) error {
 	c.mux.Lock()
 	defer c.mux.Unlock()
@@ -124,6 +136,7 @@ func (c *ProviderCache) Upsert(provider *unversioned.Provider) error {
 	return nil
 }
 
+// Remove deletes a provider from the cache by name.
 func (c *ProviderCache) Remove(name string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()

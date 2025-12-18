@@ -1,6 +1,8 @@
+version: "2"
+
 run:
   timeout: 5m
-  go: "1.22"
+  go: "1.25"
 
 linters-settings:
   gocritic:
@@ -24,24 +26,22 @@ linters:
   - gocritic
   - goconst
   - godot
-  - gofmt
-  - gofumpt
-  - goimports
   - gosec
-  - gosimple
   - govet
   - ineffassign
   - misspell
   - nilerr
   - revive # replacement for golint
   - staticcheck
-  - typecheck
   - unused
   - whitespace
 
+formatters:
+  enable:
+  - gofmt
+  - gofumpt
+  - goimports
+
 issues:
-  exclude-rules:
-    - linters: [revive]
-      text: 'redefines-builtin-id: redefinition of the built-in function new'
   exclude:
     - 'deprecated: This package is intended for older projects transitioning from OPA v0.x and will remain for the lifetime of OPA v1.x'

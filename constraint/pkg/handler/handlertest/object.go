@@ -16,6 +16,7 @@ type Object struct {
 	Data string `json:"data"`
 }
 
+// Key returns the storage key for the Object.
 func (o Object) Key() []string {
 	if o.Namespace == "" {
 		return []string{"cluster", o.Name}

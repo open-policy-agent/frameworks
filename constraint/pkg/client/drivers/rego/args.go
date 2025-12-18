@@ -1,3 +1,4 @@
+// Package rego provides the Rego driver for policy evaluation.
 package rego
 
 import (
@@ -13,8 +14,10 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 )
 
+// Arg is a functional option for configuring a Rego Driver.
 type Arg func(*Driver) error
 
+// Defaults returns an Arg that sets default values for the Driver.
 func Defaults() Arg {
 	return func(d *Driver) error {
 		if d.storage.storage == nil {
@@ -53,6 +56,7 @@ func Defaults() Arg {
 	}
 }
 
+// Tracing enables or disables tracing for the Driver.
 func Tracing(enabled bool) Arg {
 	return func(d *Driver) error {
 		d.traceEnabled = enabled
@@ -61,6 +65,7 @@ func Tracing(enabled bool) Arg {
 	}
 }
 
+// PrintEnabled enables or disables print statements in Rego.
 func PrintEnabled(enabled bool) Arg {
 	return func(d *Driver) error {
 		d.printEnabled = enabled
@@ -69,6 +74,7 @@ func PrintEnabled(enabled bool) Arg {
 	}
 }
 
+// PrintHook sets a custom print hook for Rego print statements.
 func PrintHook(hook print.Hook) Arg {
 	return func(d *Driver) error {
 		d.printHook = hook
@@ -77,6 +83,7 @@ func PrintHook(hook print.Hook) Arg {
 	}
 }
 
+// Storage sets the storage stores for the Driver.
 func Storage(s map[string]storage.Store) Arg {
 	return func(d *Driver) error {
 		d.storage = storages{storage: s}
@@ -85,6 +92,7 @@ func Storage(s map[string]storage.Store) Arg {
 	}
 }
 
+// AddExternalDataProviderCache sets the provider cache for external data.
 func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg {
 	return func(d *Driver) error {
 		d.providerCache = providerCache
@@ -93,6 +101,7 @@ func AddExternalDataProviderCache(providerCache *externaldata.ProviderCache) Arg
 	}
 }
 
+// AddExternalDataProviderResponseCache sets the provider response cache for external data.
 func AddExternalDataProviderResponseCache(providerResponseCache *externaldata.ProviderResponseCache) Arg {
 	return func(d *Driver) error {
 		d.providerResponseCache = providerResponseCache
@@ -101,6 +110,7 @@ func AddExternalDataProviderResponseCache(providerResponseCache *externaldata.Pr
 	}
 }
 
+// DisableBuiltins disables specified OPA built-in functions.
 func DisableBuiltins(builtins ...string) Arg {
 	return func(d *Driver) error {
 		if d.compilers.capabilities == nil {
@@ -125,6 +135,7 @@ func DisableBuiltins(builtins ...string) Arg {
 	}
 }
 
+// AddExternalDataClientCertWatcher sets the certificate watcher for external data client authentication.
 func AddExternalDataClientCertWatcher(clientCertWatcher *certwatcher.CertWatcher) Arg {
 	return func(d *Driver) error {
 		d.clientCertWatcher = clientCertWatcher
@@ -133,6 +144,7 @@ func AddExternalDataClientCertWatcher(clientCertWatcher *certwatcher.CertWatcher
 	}
 }
 
+// EnableExternalDataClientAuth enables client certificate authentication for external data providers.
 func EnableExternalDataClientAuth() Arg {
 	return func(d *Driver) error {
 		d.enableExternalDataClientAuth = true
