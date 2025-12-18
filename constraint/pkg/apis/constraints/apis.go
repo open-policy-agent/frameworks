@@ -1,3 +1,4 @@
+// Package constraints defines types and functions for working with constraint resources.
 package constraints
 
 import (
@@ -8,13 +9,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// ScopedEnforcementAction defines an enforcement action with its associated enforcement points.
 type ScopedEnforcementAction struct {
 	Action            string             `json:"action"`
 	EnforcementPoints []EnforcementPoint `json:"enforcementPoints"`
 }
 
+// EnforcementAction represents the action to take when a constraint is violated.
 type EnforcementAction string
 
+// EnforcementPoint defines where an enforcement action should be applied.
 type EnforcementPoint struct {
 	Name string `json:"name"`
 }
@@ -36,8 +40,10 @@ const (
 	// validation are treated as failing validation.
 	//
 	// This is the default EnforcementAction.
-	Deny   EnforcementAction = "deny"
-	Warn   EnforcementAction = "warn"
+	Deny EnforcementAction = "deny"
+	// Warn indicates that violations should be reported but not rejected.
+	Warn EnforcementAction = "warn"
+	// Scoped indicates that enforcement actions are scoped to specific enforcement points.
 	Scoped EnforcementAction = "scoped"
 )
 
@@ -52,6 +58,7 @@ var (
 	// ErrMissingRequiredField is a specific error that a field is missing from a Constraint.
 	ErrMissingRequiredField = errors.New("missing required field")
 
+	// ErrInvalidSpecEnforcementAction is returned when scopedEnforcementActions has an invalid format.
 	ErrInvalidSpecEnforcementAction = errors.New("scopedEnforcementActions value must be a [{action: string, enforcementPoints: [{name: string}]}]")
 )
 
@@ -73,6 +80,7 @@ func GetEnforcementAction(constraint *unstructured.Unstructured) (string, error)
 	return action, nil
 }
 
+// IsEnforcementActionScoped returns true if the action is scoped to specific enforcement points.
 func IsEnforcementActionScoped(action string) bool {
 	return action == string(Scoped)
 }

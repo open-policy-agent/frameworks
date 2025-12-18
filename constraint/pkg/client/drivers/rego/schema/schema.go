@@ -12,10 +12,13 @@ import (
 const Name = "Rego"
 
 var (
-	ErrBadType      = errors.New("Could not recognize the type")
-	ErrMissingField = errors.New("Rego source missing required field")
+	// ErrBadType is returned when the source type cannot be recognized.
+	ErrBadType = errors.New("could not recognize the type")
+	// ErrMissingField is returned when a required field is missing from the rego source.
+	ErrMissingField = errors.New("rego source missing required field")
 )
 
+// Source represents the Rego source code configuration for a constraint template.
 type Source struct {
 	// Rego holds the main code for the constraint template. The `Violations` rule is the entry point.
 	Rego string `json:"rego,omitempty"`
@@ -25,6 +28,7 @@ type Source struct {
 	Libs []string `json:"libs,omitempty"`
 }
 
+// ToUnstructured converts the Source to an unstructured map representation.
 func (in *Source) ToUnstructured() map[string]interface{} {
 	if in == nil {
 		return nil
@@ -46,6 +50,7 @@ func (in *Source) ToUnstructured() map[string]interface{} {
 	return out
 }
 
+// GetSource extracts Source from a templates.Code object.
 func GetSource(code templates.Code) (*Source, error) {
 	rawCode := code.Source
 	v, ok := rawCode.Value.(map[string]interface{})

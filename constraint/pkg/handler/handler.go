@@ -6,6 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// TargetHandler defines the interface for handling target-specific constraint operations.
 type TargetHandler interface {
 	crds.MatchSchemaProvider
 

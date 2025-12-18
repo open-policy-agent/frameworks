@@ -18,8 +18,10 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
 
+// ErrTesting is a test error returned by the fake driver when configured to error.
 var ErrTesting = errors.New("test error")
 
+// New creates a new fake Driver with the given name.
 func New(name string) *Driver {
 	return &Driver{
 		name:        name,
@@ -51,6 +53,7 @@ type Driver struct {
 	constraints map[string]map[string]*unstructured.Unstructured
 }
 
+// SetErrOnAddTemplate configures the driver to return an error on AddTemplate calls.
 func (d *Driver) SetErrOnAddTemplate(raiseErr bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -58,6 +61,7 @@ func (d *Driver) SetErrOnAddTemplate(raiseErr bool) {
 	d.errOnTemplateAdd = raiseErr
 }
 
+// SetErrOnRemoveTemplate configures the driver to return an error on RemoveTemplate calls.
 func (d *Driver) SetErrOnRemoveTemplate(raiseErr bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -65,6 +69,7 @@ func (d *Driver) SetErrOnRemoveTemplate(raiseErr bool) {
 	d.errOnTemplateRemove = raiseErr
 }
 
+// SetErrOnAddConstraint configures the driver to return an error on AddConstraint calls.
 func (d *Driver) SetErrOnAddConstraint(raiseErr bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -72,6 +77,7 @@ func (d *Driver) SetErrOnAddConstraint(raiseErr bool) {
 	d.errOnConstraintAdd = raiseErr
 }
 
+// SetErrOnRemoveConstraint configures the driver to return an error on RemoveConstraint calls.
 func (d *Driver) SetErrOnRemoveConstraint(raiseErr bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -79,6 +85,7 @@ func (d *Driver) SetErrOnRemoveConstraint(raiseErr bool) {
 	d.errOnConstraintRemove = raiseErr
 }
 
+// GetConstraintsForTemplate returns the constraints for a given template.
 func (d *Driver) GetConstraintsForTemplate(template *templates.ConstraintTemplate) map[string]*unstructured.Unstructured {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
@@ -90,6 +97,7 @@ func (d *Driver) GetConstraintsForTemplate(template *templates.ConstraintTemplat
 	return ret
 }
 
+// GetTemplateCode returns the template code map.
 func (d *Driver) GetTemplateCode() map[string]string {
 	d.mtx.RLock()
 	defer d.mtx.RUnlock()
@@ -199,6 +207,7 @@ func (d *Driver) RemoveData(_ context.Context, _ string, _ storage.Path) error {
 	return nil
 }
 
+// Query executes a query against the fake driver.
 func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.Unstructured, _ interface{}, _ ...reviews.ReviewOpt) (*drivers.QueryResponse, error) {
 	results := []*types.Result{}
 	for i := range constraints {
@@ -216,10 +225,12 @@ func (d *Driver) Query(_ context.Context, _ string, constraints []*unstructured.
 	return &drivers.QueryResponse{Results: results}, nil
 }
 
+// Dump returns a string representation of the driver state.
 func (d *Driver) Dump(_ context.Context) (string, error) {
 	return "", nil
 }
 
+// GetDescriptionForStat returns the description for a stat name.
 func (d *Driver) GetDescriptionForStat(_ string) (string, error) {
 	return "", fmt.Errorf("unknown stat name")
 }

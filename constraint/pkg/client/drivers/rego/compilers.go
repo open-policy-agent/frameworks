@@ -13,7 +13,8 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/regorewriter"
 )
 
-var ErrNoRego = errors.New("Could not extract Rego from the constraint template")
+// ErrNoRego indicates that Rego source code could not be extracted from the constraint template.
+var ErrNoRego = errors.New("could not extract Rego from the constraint template")
 
 // Compilers is a threadsafe store of Compilers for ConstraintTemplates.
 type Compilers struct {

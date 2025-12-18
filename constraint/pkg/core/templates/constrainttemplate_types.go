@@ -35,26 +35,31 @@ type ConstraintTemplateSpec struct {
 	Targets []Target `json:"targets,omitempty"`
 }
 
+// CRD defines the custom resource definition specification for the constraint.
 type CRD struct {
 	Spec CRDSpec `json:"spec,omitempty"`
 }
 
+// CRDSpec defines the spec for the CRD.
 type CRDSpec struct {
 	Names      Names       `json:"names,omitempty"`
 	Validation *Validation `json:"validation,omitempty"`
 }
 
+// Names defines the naming conventions for the constraint kind.
 type Names struct {
 	Kind       string   `json:"kind,omitempty"`
 	ShortNames []string `json:"shortNames,omitempty"`
 }
 
+// Validation defines the schema for constraint parameters.
 type Validation struct {
 	// +kubebuilder:validation:Schemaless
 	OpenAPIV3Schema *apiextensions.JSONSchemaProps `json:"openAPIV3Schema,omitempty"`
 	LegacySchema    *bool                          `json:"legacySchema,omitempty"`
 }
 
+// Target defines the target handler and policy for the constraint template.
 type Target struct {
 	Target string   `json:"target,omitempty"`
 	Rego   string   `json:"rego,omitempty"`
@@ -67,6 +72,7 @@ type Target struct {
 	Operations []admissionv1.OperationType `json:"operations,omitempty"`
 }
 
+// Code defines the policy source code for a specific engine.
 type Code struct {
 	// +kubebuilder:validation:Required
 	// The engine used to evaluate the code. Example: "Rego". Required.
@@ -135,10 +141,12 @@ type Anything struct {
 	Value interface{} `json:"-"`
 }
 
+// GetValue returns a deep copy of the underlying value.
 func (in *Anything) GetValue() interface{} {
 	return runtime.DeepCopyJSONValue(in.Value)
 }
 
+// UnmarshalJSON implements json.Unmarshaler.
 func (in *Anything) UnmarshalJSON(val []byte) error {
 	if bytes.Equal(val, []byte("null")) {
 		return nil
@@ -156,6 +164,7 @@ func (in Anything) MarshalJSON() ([]byte, error) {
 	return json.Marshal(in.Value)
 }
 
+// DeepCopy returns a deep copy of Anything.
 func (in *Anything) DeepCopy() *Anything {
 	if in == nil {
 		return nil
@@ -164,6 +173,7 @@ func (in *Anything) DeepCopy() *Anything {
 	return &Anything{Value: runtime.DeepCopyJSONValue(in.Value)}
 }
 
+// DeepCopyInto copies the receiver into the given Anything.
 func (in *Anything) DeepCopyInto(out *Anything) {
 	*out = *in
 
@@ -178,5 +188,5 @@ func (in *Anything) DeepCopyInto(out *Anything) {
 // because the labels of a constraint may impact functionality (e.g. whether
 // a constraint is expected to be enforced by Kubernetes' Validating Admission Policy).
 func (ct *ConstraintTemplate) SemanticEqual(other *ConstraintTemplate) bool {
-	return reflect.DeepEqual(ct.Spec, other.Spec) && reflect.DeepEqual(ct.ObjectMeta.Labels, other.ObjectMeta.Labels)
+	return reflect.DeepEqual(ct.Spec, other.Spec) && reflect.DeepEqual(ct.Labels, other.Labels)
 }

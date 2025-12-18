@@ -20,6 +20,7 @@ func init() {
 	}
 }
 
+// CRDSchema returns the Structural schema for a specific ConstraintTemplate CRD version.
 func CRDSchema(sch *runtime.Scheme, version string) (*schema.Structural, error) {
 	// Fill version map with Structural types derived from ConstraintTemplate versions
 	for _, crdVersion := range constraintTemplateCRD.Spec.Versions {

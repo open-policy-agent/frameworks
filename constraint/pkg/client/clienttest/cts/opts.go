@@ -49,7 +49,7 @@ type Opt func(*templates.ConstraintTemplate)
 
 func OptName(name string) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.ObjectMeta.Name = name
+		tmpl.Name = name
 	}
 }
 
@@ -63,7 +63,7 @@ func OptCRDNames(kind string) Opt {
 
 func OptLabels(labels map[string]string) Opt {
 	return func(tmpl *templates.ConstraintTemplate) {
-		tmpl.ObjectMeta.Labels = labels
+		tmpl.Labels = labels
 	}
 }
 

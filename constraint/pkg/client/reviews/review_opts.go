@@ -1,5 +1,7 @@
+// Package reviews provides options and configuration for review queries.
 package reviews
 
+// ReviewCfg holds configuration options for a review query.
 type ReviewCfg struct {
 	TracingEnabled   bool
 	StatsEnabled     bool
@@ -17,7 +19,7 @@ func Tracing(enabled bool) ReviewOpt {
 	}
 }
 
-// Stats(true) enables the driver to return evaluation stats for a single
+// Stats enables the driver to return evaluation stats for a single
 // query. If stats is enabled for the Driver at construction time, then
 // Stats(false) does not disable Stats for this single query.
 func Stats(enabled bool) ReviewOpt {

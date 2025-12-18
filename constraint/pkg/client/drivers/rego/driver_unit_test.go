@@ -702,7 +702,7 @@ func TestDriver_Query_Stats(t *testing.T) {
 								case templateRunTimeNS:
 									switch actualValue := actualStat.Value.(type) {
 									case uint64:
-										if !(actualValue > 0) {
+										if actualValue <= 0 {
 											t.Errorf("expected positive value for stat: %s; got: %d", templateRunTimeNS, actualValue)
 										}
 									default:
@@ -798,19 +798,19 @@ func TestDriver_ExternalData(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer os.Remove(clientCertFile.Name())
+			defer func() { _ = os.Remove(clientCertFile.Name()) }()
 
 			_, _ = clientCertFile.WriteString(tt.clientCertContent)
-			clientCertFile.Close()
+			_ = clientCertFile.Close()
 
 			clientKeyFile, err := os.CreateTemp("", "client-key")
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer os.Remove(clientKeyFile.Name())
+			defer func() { _ = os.Remove(clientKeyFile.Name()) }()
 
 			_, _ = clientKeyFile.WriteString(tt.clientKeyContent)
-			clientKeyFile.Close()
+			_ = clientKeyFile.Close()
 
 			clientCertWatcher, err := certwatcher.New(clientCertFile.Name(), clientKeyFile.Name())
 			if err != nil {

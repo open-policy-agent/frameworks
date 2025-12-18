@@ -31,6 +31,7 @@ func (e *ErrorMap) Error() string {
 	return b.String()
 }
 
+// Is implements error comparison for ErrorMap.
 func (e *ErrorMap) Is(target error) bool {
 	t, ok := target.(*ErrorMap)
 	if !ok {
@@ -50,6 +51,7 @@ func (e *ErrorMap) Is(target error) bool {
 	return true
 }
 
+// Add adds an error to the ErrorMap for the given key.
 func (e *ErrorMap) Add(key string, err error) {
 	(*e)[key] = err
 }

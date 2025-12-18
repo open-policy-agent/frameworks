@@ -245,6 +245,7 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 	return res, t, err
 }
 
+// Query evaluates constraints against the given review object and returns the results.
 func (d *Driver) Query(ctx context.Context, target string, constraints []*unstructured.Unstructured, review interface{}, opts ...reviews.ReviewOpt) (*drivers.QueryResponse, error) {
 	if len(constraints) == 0 {
 		return nil, nil
@@ -366,6 +367,7 @@ func (d *Driver) Query(ctx context.Context, target string, constraints []*unstru
 	return &drivers.QueryResponse{Results: results, StatsEntries: statsEntries}, nil
 }
 
+// Dump returns a string representation of the driver's internal state for debugging.
 func (d *Driver) Dump(ctx context.Context) (string, error) {
 	// we want to create:
 	// targetName.modules.kind.moduleName = contents
@@ -406,6 +408,7 @@ func (d *Driver) Dump(ctx context.Context) (string, error) {
 	return string(b), nil
 }
 
+// GetDescriptionForStat returns a human-readable description for a given stat name.
 func (d *Driver) GetDescriptionForStat(statName string) (string, error) {
 	switch statName {
 	case templateRunTimeNS:

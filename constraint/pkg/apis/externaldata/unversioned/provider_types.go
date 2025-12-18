@@ -108,6 +108,7 @@ type ProviderList struct {
 	Items []Provider `json:"items"`
 }
 
+// SemanticEqual returns true if the Provider spec is semantically equal to another.
 func (p *Provider) SemanticEqual(other *Provider) bool {
 	return reflect.DeepEqual(p.Spec, other.Spec)
 }

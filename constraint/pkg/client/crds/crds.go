@@ -1,3 +1,4 @@
+// Package crds provides utilities for creating and managing constraint CRDs.
 package crds
 
 import (
@@ -88,14 +89,14 @@ func CreateCRD(templ *templates.ConstraintTemplate, schema *apiextensions.JSONSc
 	if err := scheme.Convert(crdv1, crd2, nil); err != nil {
 		return nil, err
 	}
-	crd2.ObjectMeta.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraints.Group)
+	crd2.Name = fmt.Sprintf("%s.%s", crd.Spec.Names.Plural, constraints.Group)
 
-	labels := templ.ObjectMeta.Labels
+	labels := templ.Labels
 	if labels == nil {
 		labels = make(map[string]string)
 	}
 	labels["gatekeeper.sh/constraint"] = "yes"
-	crd2.ObjectMeta.Labels = labels
+	crd2.Labels = labels
 
 	return crd2, nil
 }

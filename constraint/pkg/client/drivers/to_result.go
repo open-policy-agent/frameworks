@@ -10,6 +10,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
 )
 
+// KeyMap creates a map from ConstraintKey to Unstructured constraint for fast lookup.
 func KeyMap(constraints []*unstructured.Unstructured) map[ConstraintKey]*unstructured.Unstructured {
 	result := make(map[ConstraintKey]*unstructured.Unstructured)
 
@@ -21,6 +22,7 @@ func KeyMap(constraints []*unstructured.Unstructured) map[ConstraintKey]*unstruc
 	return result
 }
 
+// ToResults converts a Rego ResultSet into a slice of Result objects.
 func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, resultSet rego.ResultSet) ([]*types.Result, error) {
 	var results []*types.Result
 	for _, r := range resultSet {
@@ -34,6 +36,7 @@ func ToResults(constraints map[ConstraintKey]*unstructured.Unstructured, resultS
 	return results, nil
 }
 
+// ToResult converts a single Rego Result into a Result object.
 func ToResult(constraints map[ConstraintKey]*unstructured.Unstructured, r rego.Result) (*types.Result, error) {
 	result := &types.Result{}
 

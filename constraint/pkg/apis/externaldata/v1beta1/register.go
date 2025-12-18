@@ -38,6 +38,7 @@ var (
 
 	localSchemeBuilder = runtime.NewSchemeBuilder(SchemeBuilder.AddToScheme)
 
+	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = localSchemeBuilder.AddToScheme
 )
 
