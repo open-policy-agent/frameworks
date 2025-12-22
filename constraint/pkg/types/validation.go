@@ -1,5 +1,5 @@
 // Package types defines types for constraint validation results.
-package types
+package types //nolint: revive
 
 import (
 	"fmt"
