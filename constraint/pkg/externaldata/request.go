@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
@@ -144,6 +146,174 @@ func getClient(provider *unversioned.Provider, clientCert *tls.Certificate) (*ht
 	}
 
 	return client, nil
+}
+
+// ClientCache caches HTTP clients per provider to prevent goroutine leaks
+// from creating a new transport on every request.
+type ClientCache struct {
+	mu      sync.Mutex
+	clients map[string]*cachedClient
+}
+
+type cachedClient struct {
+	client    *http.Client
+	transport *http.Transport
+	spec      providerSpec
+	cert      atomic.Pointer[tls.Certificate]
+}
+
+// providerSpec holds the fields that affect HTTP client configuration.
+// Used to detect when a provider's config has changed and the client
+// needs to be recreated.
+// Source of truth: getClient() in request.go (fields used in client creation).
+type providerSpec struct {
+	URL      string
+	Timeout  int
+	CABundle string
+}
+
+func specFrom(provider *unversioned.Provider) providerSpec {
+	return providerSpec{
+		URL:      provider.Spec.URL,
+		Timeout:  provider.Spec.Timeout,
+		CABundle: provider.Spec.CABundle,
+	}
+}
+
+// NewClientCache creates a new ClientCache.
+func NewClientCache() *ClientCache {
+	return &ClientCache{
+		clients: make(map[string]*cachedClient),
+	}
+}
+
+// getOrCreate returns a cached client if one exists for the provider with
+// matching spec, otherwise creates a new one. Handles client cert rotation
+// via atomic pointer update.
+func (c *ClientCache) getOrCreate(provider *unversioned.Provider, clientCert *tls.Certificate) (*http.Client, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	name := provider.GetName()
+	spec := specFrom(provider)
+
+	if entry, ok := c.clients[name]; ok && entry.spec == spec {
+		// Update cert atomically for next TLS handshake
+		if clientCert != nil {
+			entry.cert.Store(clientCert)
+		}
+		return entry.client, nil
+	}
+
+	// Spec changed or new provider - close old transport if exists
+	if old, ok := c.clients[name]; ok {
+		old.transport.CloseIdleConnections()
+	}
+
+	entry := &cachedClient{spec: spec}
+	if clientCert != nil {
+		entry.cert.Store(clientCert)
+	}
+
+	// Build TLS config (same logic as getClient but with GetClientCertificate)
+	u, err := url.Parse(provider.Spec.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse provider URL %s: %w", provider.Spec.URL, err)
+	}
+	if u.Scheme != HTTPSScheme {
+		return nil, fmt.Errorf("only HTTPS scheme is supported")
+	}
+
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+
+	// Always set callback so cert rotation works even if first call has no cert
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		if cert := entry.cert.Load(); cert != nil {
+			return cert, nil
+		}
+		return &tls.Certificate{}, nil
+	}
+
+	caBundleData, err := base64.StdEncoding.DecodeString(provider.Spec.CABundle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode CA bundle: %w", err)
+	}
+	providerCertPool := x509.NewCertPool()
+	if ok := providerCertPool.AppendCertsFromPEM(caBundleData); !ok {
+		return nil, fmt.Errorf("failed to append provider's CA bundle to certificate pool")
+	}
+	tlsConfig.RootCAs = providerCertPool
+
+	transport := &http.Transport{
+		TLSClientConfig:     tlsConfig,
+		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConnsPerHost: 10,
+	}
+	client := &http.Client{
+		Timeout:   time.Duration(provider.Spec.Timeout) * time.Second,
+		Transport: transport,
+	}
+
+	entry.client = client
+	entry.transport = transport
+	c.clients[name] = entry
+
+	return client, nil
+}
+
+// Invalidate closes idle connections and removes the cached client for a provider.
+func (c *ClientCache) Invalidate(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if entry, ok := c.clients[name]; ok {
+		entry.transport.CloseIdleConnections()
+		delete(c.clients, name)
+	}
+}
+
+// NewCachedSendRequestToProvider returns a SendRequestToProvider that caches
+// HTTP clients per provider, preventing goroutine leaks from orphaned transports.
+func NewCachedSendRequestToProvider(cache *ClientCache) SendRequestToProvider {
+	return func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
+		externaldataRequest := NewProviderRequest(keys)
+		body, err := json.Marshal(externaldataRequest)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to marshal external data request: %w", err)
+		}
+
+		client, err := cache.getOrCreate(provider, clientCert)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to get HTTP client: %w", err)
+		}
+
+		req, err := http.NewRequest(http.MethodPost, provider.Spec.URL, bytes.NewBuffer(body))
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create external data request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		ctxWithDeadline, cancel := context.WithDeadline(ctx, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
+		defer cancel()
+
+		resp, err := client.Do(req.WithContext(ctxWithDeadline))
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to send external data request: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to read external data response: %w", err)
+		}
+
+		var externaldataResponse ProviderResponse
+		if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
+			return nil, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal external data response: %w", err)
+		}
+
+		return &externaldataResponse, resp.StatusCode, nil
+	}
 }
 
 // ProviderKind strings are special string constants for Providers.
