@@ -1,20 +1,24 @@
 package externaldata
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"go.uber.org/goleak"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestNewProviderRequest(t *testing.T) {
@@ -197,4 +201,307 @@ func pemEncodeCertificate(cert *x509.Certificate) []byte {
 		Type:  "CERTIFICATE",
 		Bytes: cert.Raw,
 	})
+}
+
+// newTLSProvider creates a provider pointing at the given TLS test server.
+func newTLSProvider(name string, server *httptest.Server) *unversioned.Provider {
+	return &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: unversioned.ProviderSpec{
+			URL:      server.URL,
+			Timeout:  5,
+			CABundle: base64.StdEncoding.EncodeToString(pemEncodeCertificate(server.Certificate())),
+		},
+	}
+}
+
+// newProviderResponseServer returns an httptest.NewTLSServer that responds
+// with a valid ProviderResponse.
+func newProviderResponseServer() *httptest.Server {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := ProviderResponse{
+			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
+			Kind:       "ProviderResponse",
+			Response: Response{
+				Idempotent: true,
+				Items:      []Item{{Key: "key1", Value: "value1"}},
+			},
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+}
+
+func TestClientCache_Reuse(t *testing.T) {
+	cache := NewClientCache()
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "reuse-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      "https://example.com",
+			Timeout:  5,
+			CABundle: validCABundle,
+		},
+	}
+
+	client1, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	client2, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 != client2 {
+		t.Error("expected same *http.Client pointer on reuse, got different pointers")
+	}
+}
+
+func TestClientCache_InvalidateOnSpecChange(t *testing.T) {
+	cache := NewClientCache()
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "spec-change-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      "https://example.com",
+			Timeout:  5,
+			CABundle: validCABundle,
+		},
+	}
+
+	client1, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	// Change timeout → spec change
+	provider.Spec.Timeout = 10
+	client2, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 == client2 {
+		t.Error("expected different *http.Client after spec change, got same pointer")
+	}
+}
+
+func TestClientCache_Invalidate(t *testing.T) {
+	cache := NewClientCache()
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "invalidate-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      "https://example.com",
+			Timeout:  5,
+			CABundle: validCABundle,
+		},
+	}
+
+	client1, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	cache.Invalidate(provider.GetName())
+
+	client2, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 == client2 {
+		t.Error("expected different *http.Client after Invalidate, got same pointer")
+	}
+}
+
+func TestClientCache_ConcurrentAccess(t *testing.T) {
+	cache := NewClientCache()
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "concurrent-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      "https://example.com",
+			Timeout:  5,
+			CABundle: validCABundle,
+		},
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 10)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := cache.getOrCreate(provider, nil)
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Errorf("concurrent getOrCreate failed: %v", err)
+	}
+}
+
+func TestClientCache_ConnectionReuse(t *testing.T) {
+	server := newProviderResponseServer()
+	defer server.Close()
+
+	cache := NewClientCache()
+	provider := newTLSProvider("conn-reuse-provider", server)
+
+	client, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("getOrCreate failed: %v", err)
+	}
+
+	ctx := context.Background()
+	body := []byte(`{"apiVersion":"externaldata.gatekeeper.sh/v1beta1","kind":"ProviderRequest","request":{"keys":["key1"]}}`)
+
+	// Make first request to establish connection
+	req, err := http.NewRequest(http.MethodPost, provider.Spec.URL, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		t.Fatalf("first request failed: %v", err)
+	}
+	// Drain body fully to allow connection reuse
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	// Second request: use httptrace to verify connection was reused
+	var gotReused bool
+	trace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			gotReused = info.Reused
+		},
+	}
+	req2, err := http.NewRequest(http.MethodPost, provider.Spec.URL, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	req2.Header.Set("Content-Type", "application/json")
+	req2 = req2.WithContext(httptrace.WithClientTrace(ctx, trace))
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatalf("second request failed: %v", err)
+	}
+	io.Copy(io.Discard, resp2.Body)
+	resp2.Body.Close()
+
+	if !gotReused {
+		t.Error("expected TCP connection to be reused on second request, but it was not")
+	}
+}
+
+func TestClientCache_NilCert(t *testing.T) {
+	cache := NewClientCache()
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "nil-cert-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      "https://example.com",
+			Timeout:  5,
+			CABundle: validCABundle,
+		},
+	}
+
+	// Create with nil cert
+	client1, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("getOrCreate with nil cert failed: %v", err)
+	}
+
+	// Same provider, still nil cert → same client
+	client2, err := cache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate with nil cert failed: %v", err)
+	}
+	if client1 != client2 {
+		t.Error("expected same client on second call with nil cert")
+	}
+
+	// Now supply a cert → same client returned (spec didn't change), but cert stored
+	cert := &tls.Certificate{}
+	client3, err := cache.getOrCreate(provider, cert)
+	if err != nil {
+		t.Fatalf("getOrCreate with cert failed: %v", err)
+	}
+	if client1 != client3 {
+		t.Error("expected same client when adding cert (spec unchanged)")
+	}
+
+	// Verify the cert was stored in the atomic pointer
+	cache.mu.Lock()
+	entry := cache.clients[provider.GetName()]
+	cache.mu.Unlock()
+	if stored := entry.cert.Load(); stored != cert {
+		t.Error("expected stored cert to match the one passed in")
+	}
+}
+
+func TestClientCache_NoGoroutineLeak(t *testing.T) {
+	server := newProviderResponseServer()
+	defer server.Close()
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	cache := NewClientCache()
+	provider := newTLSProvider("no-leak-provider", server)
+
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		client, err := cache.getOrCreate(provider, nil)
+		if err != nil {
+			t.Fatalf("getOrCreate failed: %v", err)
+		}
+
+		body := []byte(`{"apiVersion":"externaldata.gatekeeper.sh/v1beta1","kind":"ProviderRequest","request":{"keys":["key1"]}}`)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, provider.Spec.URL, nil)
+		if err != nil {
+			t.Fatalf("failed to create request: %v", err)
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("request %d failed: %v", i, err)
+		}
+		resp.Body.Close()
+	}
+
+	// Invalidate to close idle connections before goleak checks
+	cache.Invalidate(provider.GetName())
+}
+
+func TestDefaultSendRequestToProvider_Integration(t *testing.T) {
+	server := newProviderResponseServer()
+	defer server.Close()
+
+	provider := newTLSProvider("integration-provider", server)
+
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		resp, statusCode, err := DefaultSendRequestToProvider(ctx, provider, []string{"key1"}, nil)
+		if err != nil {
+			t.Fatalf("request %d failed: %v", i, err)
+		}
+		if statusCode != http.StatusOK {
+			t.Errorf("request %d: expected status 200, got %d", i, statusCode)
+		}
+		if len(resp.Response.Items) != 1 || resp.Response.Items[0].Key != "key1" {
+			t.Errorf("request %d: unexpected response items: %+v", i, resp.Response.Items)
+		}
+	}
+
+	// Clean up to avoid polluting other tests via the package-level cache
+	defaultClientCache.Invalidate(provider.GetName())
 }
