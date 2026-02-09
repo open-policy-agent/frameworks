@@ -10,8 +10,8 @@ import (
 	"encoding/pem"
 	"io"
 	"net/http"
-	"net/http/httptrace"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"reflect"
 	"sync"
 	"testing"
@@ -159,11 +159,13 @@ func TestClientCache_getOrCreate_TLSValidation(t *testing.T) {
 	}
 }
 
-func TestDefaultSendRequestToProvider_GoroutineLeak(t *testing.T) {
+func TestDefaultSendRequestToProvider_NoGoroutineLeak(t *testing.T) {
 	// Verifies that DefaultSendRequestToProvider does not leak goroutines.
-	// The package-level defaultClientCache reuses HTTP clients per provider,
-	// so only one transport (and its readLoop/writeLoop) exists at a time.
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// This is a regression test for a bug where each call created a new http.Transport
+	// with lingering goroutines (readLoop/writeLoop) that persisted until idle timeout (90s).
+	// The package-level defaultClientCache now reuses HTTP clients per provider,
+	// so only one transport (and its readLoop/writeLoop) exists per provider.
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		response := ProviderResponse{
 			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
 			Kind:       "ProviderResponse",
@@ -174,7 +176,7 @@ func TestDefaultSendRequestToProvider_GoroutineLeak(t *testing.T) {
 				},
 			},
 		}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	// Defer order is LIFO: server.Close (first) runs last,
 	// goleak.VerifyNone (second) runs before it — catching leaked
@@ -226,7 +228,7 @@ func newTLSProvider(name string, server *httptest.Server) *unversioned.Provider 
 // newProviderResponseServer returns an httptest.NewTLSServer that responds
 // with a valid ProviderResponse.
 func newProviderResponseServer() *httptest.Server {
-	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		resp := ProviderResponse{
 			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
 			Kind:       "ProviderResponse",
@@ -235,7 +237,7 @@ func newProviderResponseServer() *httptest.Server {
 				Items:      []Item{{Key: "key1", Value: "value1"}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 }
 
@@ -382,8 +384,8 @@ func TestClientCache_ConnectionReuse(t *testing.T) {
 		t.Fatalf("first request failed: %v", err)
 	}
 	// Drain body fully to allow connection reuse
-	io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
 
 	// Second request: use httptrace to verify connection was reused
 	var gotReused bool
@@ -402,8 +404,8 @@ func TestClientCache_ConnectionReuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second request failed: %v", err)
 	}
-	io.Copy(io.Discard, resp2.Body)
-	resp2.Body.Close()
+	_, _ = io.Copy(io.Discard, resp2.Body)
+	_ = resp2.Body.Close()
 
 	if !gotReused {
 		t.Error("expected TCP connection to be reused on second request, but it was not")
@@ -483,7 +485,7 @@ func TestClientCache_NoGoroutineLeak(t *testing.T) {
 		if err != nil {
 			t.Fatalf("request %d failed: %v", i, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Invalidate to close idle connections before goleak checks

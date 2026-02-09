@@ -193,11 +193,14 @@ func (c *ClientCache) getOrCreate(provider *unversioned.Provider, clientCert *tl
 
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
 
-	// Always set callback so cert rotation works even if first call has no cert
+	// Always set callback so cert rotation works even if first call has no cert.
+	// The callback is invoked during each TLS handshake, allowing dynamic cert updates
+	// via atomic.Pointer without recreating the HTTP client.
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		if cert := entry.cert.Load(); cert != nil {
 			return cert, nil
 		}
+		// Return empty certificate when client auth is not configured
 		return &tls.Certificate{}, nil
 	}
 
