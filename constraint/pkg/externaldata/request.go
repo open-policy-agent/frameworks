@@ -115,50 +115,6 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 	return &externaldataResponse, resp.StatusCode, nil
 }
 
-// getClient returns a new HTTP client, and set up its TLS configuration.
-func getClient(provider *unversioned.Provider, clientCert *tls.Certificate) (*http.Client, error) {
-	u, err := url.Parse(provider.Spec.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse provider URL %s: %w", provider.Spec.URL, err)
-	}
-
-	if u.Scheme != HTTPSScheme {
-		return nil, fmt.Errorf("only HTTPS scheme is supported")
-	}
-
-	client := &http.Client{
-		Timeout: time.Duration(provider.Spec.Timeout) * time.Second,
-	}
-
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
-
-	// present our client cert to the server
-	// in case provider wants to verify it
-	if clientCert != nil {
-		tlsConfig.Certificates = []tls.Certificate{*clientCert}
-	}
-
-	// if the provider presents its own CA bundle,
-	// we will use it to verify the server's certificate
-	caBundleData, err := base64.StdEncoding.DecodeString(provider.Spec.CABundle)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode CA bundle: %w", err)
-	}
-
-	providerCertPool := x509.NewCertPool()
-	if ok := providerCertPool.AppendCertsFromPEM(caBundleData); !ok {
-		return nil, fmt.Errorf("failed to append provider's CA bundle to certificate pool")
-	}
-
-	tlsConfig.RootCAs = providerCertPool
-
-	client.Transport = &http.Transport{
-		TLSClientConfig: tlsConfig,
-	}
-
-	return client, nil
-}
-
 // ClientCache caches HTTP clients per provider to prevent goroutine leaks
 // from creating a new transport on every request.
 type ClientCache struct {
@@ -176,7 +132,7 @@ type cachedClient struct {
 // providerSpec holds the fields that affect HTTP client configuration.
 // Used to detect when a provider's config has changed and the client
 // needs to be recreated.
-// Source of truth: getClient() in request.go (fields used in client creation).
+// These fields must match what getOrCreate() uses when building the HTTP client.
 type providerSpec struct {
 	URL      string
 	Timeout  int

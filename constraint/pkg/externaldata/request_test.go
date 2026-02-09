@@ -79,7 +79,7 @@ func TestNewProviderRequest(t *testing.T) {
 	}
 }
 
-func Test_getClient(t *testing.T) {
+func TestClientCache_getOrCreate_TLSValidation(t *testing.T) {
 	type args struct {
 		provider   *unversioned.Provider
 		clientCert *tls.Certificate
@@ -93,6 +93,7 @@ func Test_getClient(t *testing.T) {
 			name: "invalid http url",
 			args: args{
 				provider: &unversioned.Provider{
+					ObjectMeta: metav1.ObjectMeta{Name: "http-provider"},
 					Spec: unversioned.ProviderSpec{
 						URL: "http://foo",
 					},
@@ -105,6 +106,7 @@ func Test_getClient(t *testing.T) {
 			name: "no CA bundle",
 			args: args{
 				provider: &unversioned.Provider{
+					ObjectMeta: metav1.ObjectMeta{Name: "no-ca-provider"},
 					Spec: unversioned.ProviderSpec{
 						URL: "https://foo",
 					},
@@ -117,6 +119,7 @@ func Test_getClient(t *testing.T) {
 			name: "invalid CA bundle",
 			args: args{
 				provider: &unversioned.Provider{
+					ObjectMeta: metav1.ObjectMeta{Name: "bad-ca-provider"},
 					Spec: unversioned.ProviderSpec{
 						URL:      "https://foo",
 						CABundle: badCABundle,
@@ -130,6 +133,7 @@ func Test_getClient(t *testing.T) {
 			name: "valid CA bundle",
 			args: args{
 				provider: &unversioned.Provider{
+					ObjectMeta: metav1.ObjectMeta{Name: "valid-ca-provider"},
 					Spec: unversioned.ProviderSpec{
 						URL:      "https://foo",
 						CABundle: validCABundle,
@@ -142,10 +146,14 @@ func Test_getClient(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := getClient(tt.args.provider, tt.args.clientCert)
+			cache := NewClientCache()
+			client, err := cache.getOrCreate(tt.args.provider, tt.args.clientCert)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("getClient() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ClientCache.getOrCreate() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+			if !tt.wantErr && client == nil {
+				t.Error("ClientCache.getOrCreate() returned nil client for successful case")
 			}
 		})
 	}

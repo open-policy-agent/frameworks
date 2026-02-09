@@ -50,10 +50,9 @@ func Defaults() Arg {
 
 		if d.sendRequestToProvider == nil {
 			d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
-		}
-
-		if d.providerCache != nil {
-			d.providerCache.SetClientCache(externaldata.DefaultClientCache())
+			if d.providerCache != nil {
+				d.providerCache.SetClientCache(externaldata.DefaultClientCache())
+			}
 		}
 
 		return nil
