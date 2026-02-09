@@ -1,11 +1,20 @@
 package externaldata
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"go.uber.org/goleak"
 )
 
 func TestNewProviderRequest(t *testing.T) {
@@ -136,4 +145,53 @@ func Test_getClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDefaultSendRequestToProvider_GoroutineLeak(t *testing.T) {
+	// RED TEST: This test FAILS with the current implementation, proving
+	// that DefaultSendRequestToProvider leaks goroutines by creating a
+	// new http.Transport on every call. Each abandoned transport holds
+	// readLoop/writeLoop goroutines for idle connections (90s default).
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := ProviderResponse{
+			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
+			Kind:       "ProviderResponse",
+			Response: Response{
+				Idempotent: true,
+				Items: []Item{
+					{Key: "key1", Value: "value1"},
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	// Defer order is LIFO: server.Close (first) runs last,
+	// goleak.VerifyNone (second) runs before it — catching leaked
+	// goroutines while the server is still alive and connections idle.
+	defer server.Close()
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	provider := &unversioned.Provider{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-provider"},
+		Spec: unversioned.ProviderSpec{
+			URL:      server.URL,
+			Timeout:  5,
+			CABundle: base64.StdEncoding.EncodeToString(pemEncodeCertificate(server.Certificate())),
+		},
+	}
+
+	ctx := context.Background()
+	for i := 0; i < 5; i++ {
+		_, _, err := DefaultSendRequestToProvider(ctx, provider, []string{"key1"}, nil)
+		if err != nil {
+			t.Fatalf("Request %d failed: %v", i, err)
+		}
+	}
+}
+
+func pemEncodeCertificate(cert *x509.Certificate) []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	})
 }
