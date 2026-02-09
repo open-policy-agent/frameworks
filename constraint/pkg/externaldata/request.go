@@ -63,6 +63,17 @@ func NewProviderRequest(keys []string) *ProviderRequest {
 // SendRequestToProvider is a function that sends a request to the external data provider.
 type SendRequestToProvider func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error)
 
+// defaultClientCache is a package-level cache used by DefaultSendRequestToProvider
+// to reuse HTTP clients per provider, preventing goroutine leaks from orphaned transports.
+var defaultClientCache = NewClientCache()
+
+// DefaultClientCache returns the package-level ClientCache used by
+// DefaultSendRequestToProvider. Use this to wire invalidation into
+// a ProviderCache via SetClientCache.
+func DefaultClientCache() *ClientCache {
+	return defaultClientCache
+}
+
 // DefaultSendRequestToProvider is the default function to send the request to the external data provider.
 func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
 	externaldataRequest := NewProviderRequest(keys)
@@ -71,7 +82,7 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to marshal external data request: %w", err)
 	}
 
-	client, err := getClient(provider, clientCert)
+	client, err := defaultClientCache.getOrCreate(provider, clientCert)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get HTTP client: %w", err)
 	}
@@ -269,50 +280,6 @@ func (c *ClientCache) Invalidate(name string) {
 	if entry, ok := c.clients[name]; ok {
 		entry.transport.CloseIdleConnections()
 		delete(c.clients, name)
-	}
-}
-
-// NewCachedSendRequestToProvider returns a SendRequestToProvider that caches
-// HTTP clients per provider, preventing goroutine leaks from orphaned transports.
-func NewCachedSendRequestToProvider(cache *ClientCache) SendRequestToProvider {
-	return func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
-		externaldataRequest := NewProviderRequest(keys)
-		body, err := json.Marshal(externaldataRequest)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to marshal external data request: %w", err)
-		}
-
-		client, err := cache.getOrCreate(provider, clientCert)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to get HTTP client: %w", err)
-		}
-
-		req, err := http.NewRequest(http.MethodPost, provider.Spec.URL, bytes.NewBuffer(body))
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to create external data request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		ctxWithDeadline, cancel := context.WithDeadline(ctx, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
-		defer cancel()
-
-		resp, err := client.Do(req.WithContext(ctxWithDeadline))
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to send external data request: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to read external data response: %w", err)
-		}
-
-		var externaldataResponse ProviderResponse
-		if err := json.Unmarshal(respBody, &externaldataResponse); err != nil {
-			return nil, http.StatusInternalServerError, fmt.Errorf("failed to unmarshal external data response: %w", err)
-		}
-
-		return &externaldataResponse, resp.StatusCode, nil
 	}
 }
 

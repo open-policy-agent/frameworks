@@ -49,13 +49,11 @@ func Defaults() Arg {
 		}
 
 		if d.sendRequestToProvider == nil {
-			if d.providerCache != nil {
-				clientCache := externaldata.NewClientCache()
-				d.providerCache.SetClientCache(clientCache)
-				d.sendRequestToProvider = externaldata.NewCachedSendRequestToProvider(clientCache)
-			} else {
-				d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
-			}
+			d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
+		}
+
+		if d.providerCache != nil {
+			d.providerCache.SetClientCache(externaldata.DefaultClientCache())
 		}
 
 		return nil

@@ -148,10 +148,9 @@ func Test_getClient(t *testing.T) {
 }
 
 func TestDefaultSendRequestToProvider_GoroutineLeak(t *testing.T) {
-	// RED TEST: This test FAILS with the current implementation, proving
-	// that DefaultSendRequestToProvider leaks goroutines by creating a
-	// new http.Transport on every call. Each abandoned transport holds
-	// readLoop/writeLoop goroutines for idle connections (90s default).
+	// Verifies that DefaultSendRequestToProvider does not leak goroutines.
+	// The package-level defaultClientCache reuses HTTP clients per provider,
+	// so only one transport (and its readLoop/writeLoop) exists at a time.
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := ProviderResponse{
 			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
@@ -187,6 +186,10 @@ func TestDefaultSendRequestToProvider_GoroutineLeak(t *testing.T) {
 			t.Fatalf("Request %d failed: %v", i, err)
 		}
 	}
+
+	// Clean up the cached client so idle connections are closed
+	// and goleak can verify no goroutines are leaked.
+	defaultClientCache.Invalidate(provider.GetName())
 }
 
 func pemEncodeCertificate(cert *x509.Certificate) []byte {
