@@ -165,18 +165,13 @@ func (c *ClientCache) getOrCreate(provider *unversioned.Provider, clientCert *tl
 	spec := specFrom(provider)
 
 	if entry, ok := c.clients[name]; ok && entry.spec == spec {
-		// Update cert atomically for next TLS handshake
-		if clientCert != nil {
-			entry.cert.Store(clientCert)
-		}
+		// Always update cert atomically (including nil to clear a previously
+		// configured cert) so the next TLS handshake reflects the caller's intent.
+		entry.cert.Store(clientCert)
 		return entry.client, nil
 	}
 
-	// Spec changed or new provider - close old transport if exists
-	if old, ok := c.clients[name]; ok {
-		old.transport.CloseIdleConnections()
-	}
-
+	// Build replacement before closing old transport so validation errors don't disrupt a working client.
 	entry := &cachedClient{spec: spec}
 	if clientCert != nil {
 		entry.cert.Store(clientCert)
@@ -226,6 +221,10 @@ func (c *ClientCache) getOrCreate(provider *unversioned.Provider, clientCert *tl
 
 	entry.client = client
 	entry.transport = transport
+
+	if old, ok := c.clients[name]; ok {
+		old.transport.CloseIdleConnections()
+	}
 	c.clients[name] = entry
 
 	return client, nil
