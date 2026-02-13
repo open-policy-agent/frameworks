@@ -266,3 +266,92 @@ func TestProviderResponseCache(t *testing.T) {
 		})
 	}
 }
+
+func TestProviderCache_RemoveInvalidatesClient(t *testing.T) {
+	providerCache := NewCache()
+	clientCache := NewClientCache()
+	providerCache.SetClientCache(clientCache)
+
+	provider := createProvider("remove-test", "https://example.com", 5, validCABundle)
+	if err := providerCache.Upsert(provider); err != nil {
+		t.Fatalf("Upsert failed: %v", err)
+	}
+
+	client1, err := clientCache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	providerCache.Remove(provider.GetName())
+
+	client2, err := clientCache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 == client2 {
+		t.Error("expected different *http.Client after ProviderCache.Remove, got same pointer")
+	}
+}
+
+func TestProviderCache_UpsertInvalidatesOnSpecChange(t *testing.T) {
+	providerCache := NewCache()
+	clientCache := NewClientCache()
+	providerCache.SetClientCache(clientCache)
+
+	provider := createProvider("upsert-change-test", "https://example.com", 5, validCABundle)
+	if err := providerCache.Upsert(provider); err != nil {
+		t.Fatalf("first Upsert failed: %v", err)
+	}
+
+	client1, err := clientCache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	// Upsert same provider with different timeout
+	updatedProvider := createProvider("upsert-change-test", "https://example.com", 10, validCABundle)
+	if err := providerCache.Upsert(updatedProvider); err != nil {
+		t.Fatalf("second Upsert failed: %v", err)
+	}
+
+	client2, err := clientCache.getOrCreate(updatedProvider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 == client2 {
+		t.Error("expected different *http.Client after spec change via Upsert, got same pointer")
+	}
+}
+
+func TestProviderCache_UpsertNoInvalidateOnSameSpec(t *testing.T) {
+	providerCache := NewCache()
+	clientCache := NewClientCache()
+	providerCache.SetClientCache(clientCache)
+
+	provider := createProvider("upsert-same-test", "https://example.com", 5, validCABundle)
+	if err := providerCache.Upsert(provider); err != nil {
+		t.Fatalf("first Upsert failed: %v", err)
+	}
+
+	client1, err := clientCache.getOrCreate(provider, nil)
+	if err != nil {
+		t.Fatalf("first getOrCreate failed: %v", err)
+	}
+
+	// Upsert same provider with identical spec
+	sameProvider := createProvider("upsert-same-test", "https://example.com", 5, validCABundle)
+	if err := providerCache.Upsert(sameProvider); err != nil {
+		t.Fatalf("second Upsert failed: %v", err)
+	}
+
+	client2, err := clientCache.getOrCreate(sameProvider, nil)
+	if err != nil {
+		t.Fatalf("second getOrCreate failed: %v", err)
+	}
+
+	if client1 != client2 {
+		t.Error("expected same *http.Client after Upsert with unchanged spec, got different pointer")
+	}
+}

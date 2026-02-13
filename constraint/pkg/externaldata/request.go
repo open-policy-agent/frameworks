@@ -11,6 +11,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
@@ -61,6 +63,17 @@ func NewProviderRequest(keys []string) *ProviderRequest {
 // SendRequestToProvider is a function that sends a request to the external data provider.
 type SendRequestToProvider func(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error)
 
+// defaultClientCache is a package-level cache used by DefaultSendRequestToProvider
+// to reuse HTTP clients per provider, preventing goroutine leaks from orphaned transports.
+var defaultClientCache = NewClientCache()
+
+// DefaultClientCache returns the package-level ClientCache used by
+// DefaultSendRequestToProvider. Use this to wire invalidation into
+// a ProviderCache via SetClientCache.
+func DefaultClientCache() *ClientCache {
+	return defaultClientCache
+}
+
 // DefaultSendRequestToProvider is the default function to send the request to the external data provider.
 func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
 	externaldataRequest := NewProviderRequest(keys)
@@ -69,7 +82,7 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to marshal external data request: %w", err)
 	}
 
-	client, err := getClient(provider, clientCert)
+	client, err := defaultClientCache.getOrCreate(provider, clientCert)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get HTTP client: %w", err)
 	}
@@ -102,48 +115,130 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 	return &externaldataResponse, resp.StatusCode, nil
 }
 
-// getClient returns a new HTTP client, and set up its TLS configuration.
-func getClient(provider *unversioned.Provider, clientCert *tls.Certificate) (*http.Client, error) {
+// ClientCache caches HTTP clients per provider to prevent goroutine leaks
+// from creating a new transport on every request.
+type ClientCache struct {
+	mu      sync.Mutex
+	clients map[string]*cachedClient
+}
+
+type cachedClient struct {
+	client    *http.Client
+	transport *http.Transport
+	spec      providerSpec
+	cert      atomic.Pointer[tls.Certificate]
+}
+
+// providerSpec holds the fields that affect HTTP client configuration.
+// Used to detect when a provider's config has changed and the client
+// needs to be recreated.
+// These fields must match what getOrCreate() uses when building the HTTP client.
+type providerSpec struct {
+	URL      string
+	Timeout  int
+	CABundle string
+}
+
+func specFrom(provider *unversioned.Provider) providerSpec {
+	return providerSpec{
+		URL:      provider.Spec.URL,
+		Timeout:  provider.Spec.Timeout,
+		CABundle: provider.Spec.CABundle,
+	}
+}
+
+// NewClientCache creates a new ClientCache.
+func NewClientCache() *ClientCache {
+	return &ClientCache{
+		clients: make(map[string]*cachedClient),
+	}
+}
+
+// getOrCreate returns a cached client if one exists for the provider with
+// matching spec, otherwise creates a new one. Handles client cert rotation
+// via atomic pointer update.
+func (c *ClientCache) getOrCreate(provider *unversioned.Provider, clientCert *tls.Certificate) (*http.Client, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	name := provider.GetName()
+	spec := specFrom(provider)
+
+	if entry, ok := c.clients[name]; ok && entry.spec == spec {
+		// Always update cert atomically (including nil to clear a previously
+		// configured cert) so the next TLS handshake reflects the caller's intent.
+		entry.cert.Store(clientCert)
+		return entry.client, nil
+	}
+
+	// Build replacement before closing old transport so validation errors don't disrupt a working client.
+	entry := &cachedClient{spec: spec}
+	if clientCert != nil {
+		entry.cert.Store(clientCert)
+	}
+
+	// Build TLS config (same logic as getClient but with GetClientCertificate)
 	u, err := url.Parse(provider.Spec.URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider URL %s: %w", provider.Spec.URL, err)
 	}
-
 	if u.Scheme != HTTPSScheme {
 		return nil, fmt.Errorf("only HTTPS scheme is supported")
 	}
 
-	client := &http.Client{
-		Timeout: time.Duration(provider.Spec.Timeout) * time.Second,
-	}
-
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
 
-	// present our client cert to the server
-	// in case provider wants to verify it
-	if clientCert != nil {
-		tlsConfig.Certificates = []tls.Certificate{*clientCert}
+	// Always set callback so cert rotation works even if first call has no cert.
+	// The callback is invoked during each TLS handshake, allowing dynamic cert updates
+	// via atomic.Pointer without recreating the HTTP client.
+	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		if cert := entry.cert.Load(); cert != nil {
+			return cert, nil
+		}
+		// Return empty certificate when client auth is not configured
+		return &tls.Certificate{}, nil
 	}
 
-	// if the provider presents its own CA bundle,
-	// we will use it to verify the server's certificate
 	caBundleData, err := base64.StdEncoding.DecodeString(provider.Spec.CABundle)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode CA bundle: %w", err)
 	}
-
 	providerCertPool := x509.NewCertPool()
 	if ok := providerCertPool.AppendCertsFromPEM(caBundleData); !ok {
 		return nil, fmt.Errorf("failed to append provider's CA bundle to certificate pool")
 	}
-
 	tlsConfig.RootCAs = providerCertPool
 
-	client.Transport = &http.Transport{
-		TLSClientConfig: tlsConfig,
+	transport := &http.Transport{
+		TLSClientConfig:     tlsConfig,
+		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConnsPerHost: 10,
+	}
+	client := &http.Client{
+		Timeout:   time.Duration(provider.Spec.Timeout) * time.Second,
+		Transport: transport,
 	}
 
+	entry.client = client
+	entry.transport = transport
+
+	if old, ok := c.clients[name]; ok {
+		old.transport.CloseIdleConnections()
+	}
+	c.clients[name] = entry
+
 	return client, nil
+}
+
+// Invalidate closes idle connections and removes the cached client for a provider.
+func (c *ClientCache) Invalidate(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if entry, ok := c.clients[name]; ok {
+		entry.transport.CloseIdleConnections()
+		delete(c.clients, name)
+	}
 }
 
 // ProviderKind strings are special string constants for Providers.
