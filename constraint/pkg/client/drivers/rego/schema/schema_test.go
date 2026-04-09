@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/core/templates"
@@ -73,6 +74,28 @@ func TestGetSourceVersions(t *testing.T) {
 
 			if source.Version != tc.ExpectedVersion {
 				t.Fatalf("expected version %s, got %s", tc.ExpectedVersion, source.Version)
+			}
+		})
+	}
+}
+
+func TestGetSourceMissingSource(t *testing.T) {
+	testCases := map[string]templates.Code{
+		"nil source": {
+			Engine: Name,
+			Source: nil,
+		},
+		"nil source value": {
+			Engine: Name,
+			Source: &templates.Anything{},
+		},
+	}
+
+	for name, code := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, err := GetSource(code)
+			if !errors.Is(err, ErrMissingField) {
+				t.Fatalf("expected %v, got %v", ErrMissingField, err)
 			}
 		})
 	}
