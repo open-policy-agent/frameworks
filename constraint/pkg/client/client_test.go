@@ -28,6 +28,14 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+type nilCacheHandler struct {
+	*handlertest.Handler
+}
+
+func (h *nilCacheHandler) GetCache() handler.Cache {
+	return nil
+}
+
 func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 	tcs := []struct {
 		name      string
@@ -2132,5 +2140,18 @@ func TestClient_RemoveData_Cache(t *testing.T) {
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+func TestClient_RemoveData_NilCache(t *testing.T) {
+	h := &nilCacheHandler{
+		Handler: &handlertest.Handler{},
+	}
+
+	c := clienttest.New(t, client.Targets(h))
+
+	_, err := c.RemoveData(context.Background(), &handlertest.Object{Namespace: "foo"})
+	if err != nil {
+		t.Fatalf("got RemoveData() error = %v, want nil", err)
 	}
 }
