@@ -3,7 +3,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/instrumentation"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/types"
+	"github.com/open-policy-agent/opa/v1/util"
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -539,15 +539,11 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			}
 		}
 
-		// Round trip data to force untyped JSON, as drivers are not type-aware
-		bytes, err := json.Marshal(processedData)
-		if err != nil {
-			errMap[name] = err
-
-			continue
-		}
-		var processedDataCpy interface{}
-		err = json.Unmarshal(bytes, &processedDataCpy)
+		// Round trip data to force untyped JSON, as drivers are not type-aware.
+		// Use OPA's JSON decoder to preserve numeric precision by decoding numbers
+		// as json.Number instead of float64.
+		var processedDataCpy interface{} = processedData
+		err = util.RoundTrip(&processedDataCpy)
 		if err != nil {
 			errMap[name] = err
 
