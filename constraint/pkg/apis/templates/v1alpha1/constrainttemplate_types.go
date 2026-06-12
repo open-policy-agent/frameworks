@@ -137,7 +137,3 @@ type ConstraintTemplateList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ConstraintTemplate `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&ConstraintTemplate{}, &ConstraintTemplateList{})
-}
