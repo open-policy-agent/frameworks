@@ -54,6 +54,10 @@ func (in *Source) ToUnstructured() map[string]interface{} {
 // GetSource extracts Source from a templates.Code object.
 func GetSource(code templates.Code) (*Source, error) {
 	rawCode := code.Source
+	if rawCode == nil || rawCode.Value == nil {
+		return nil, fmt.Errorf("%w: source", ErrMissingField)
+	}
+
 	v, ok := rawCode.Value.(map[string]interface{})
 	if !ok {
 		return nil, ErrBadType
