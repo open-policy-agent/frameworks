@@ -107,7 +107,3 @@ type ProviderList struct {
 	// Items contains the list of Providers.
 	Items []Provider `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&Provider{}, &ProviderList{})
-}
