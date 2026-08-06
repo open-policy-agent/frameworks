@@ -811,7 +811,7 @@ func (c *Client) review(ctx context.Context, target string, constraints []*unstr
 			stats = append(stats, qr.StatsEntries...)
 
 			if qr.Trace != nil {
-				tracesBuilder.WriteString(fmt.Sprintf("DRIVER %s:\n\n", driverName))
+				fmt.Fprintf(&tracesBuilder, "DRIVER %s:\n\n", driverName)
 				tracesBuilder.WriteString(*qr.Trace)
 				tracesBuilder.WriteString("\n\n")
 			}
@@ -848,7 +848,7 @@ func (c *Client) Dump(ctx context.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		dumpBuilder.WriteString(fmt.Sprintf("DRIVER: %s:\n\n", driverName))
+		fmt.Fprintf(&dumpBuilder, "DRIVER: %s:\n\n", driverName)
 		dumpBuilder.WriteString(dump)
 		dumpBuilder.WriteString("\n\n")
 	}
