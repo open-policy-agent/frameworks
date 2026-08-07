@@ -2,7 +2,9 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,6 +24,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/storage"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -78,6 +81,43 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 			}
 		})
 	}
+}
+
+type addDataHandler struct {
+	*handlertest.Handler
+	cache handler.Cache
+	data  interface{}
+}
+
+func (h *addDataHandler) ProcessData(interface{}) (bool, []string, interface{}, error) {
+	return true, []string{"cluster", "test"}, h.data, nil
+}
+
+func (h *addDataHandler) GetCache() handler.Cache {
+	return h.cache
+}
+
+type addDataCache struct {
+	calls int
+}
+
+func (c *addDataCache) Add([]string, interface{}) error {
+	c.calls++
+	return nil
+}
+
+func (*addDataCache) Remove([]string) {}
+
+type addDataRecorder struct {
+	*fake.Driver
+	calls int
+	data  interface{}
+}
+
+func (d *addDataRecorder) AddData(_ context.Context, _ string, _ storage.Path, data interface{}) error {
+	d.calls++
+	d.data = data
+	return nil
 }
 
 func TestClient_AddData(t *testing.T) {
@@ -180,6 +220,84 @@ func TestClient_AddData(t *testing.T) {
 
 			if diff := cmp.Diff(tc.wantHandled, r.Handled, cmpopts.EquateEmpty()); diff != "" {
 				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestClient_AddData_PreservesIntegerPrecision(t *testing.T) {
+	const largeInteger int64 = 1<<53 + 1
+
+	target := &addDataHandler{
+		Handler: &handlertest.Handler{},
+		data: map[string]interface{}{
+			"largeInteger": largeInteger,
+		},
+	}
+	driver := &addDataRecorder{Driver: fake.New(schema.Name)}
+	c, err := client.NewClient(
+		client.Targets(target),
+		client.Driver(driver),
+		client.EnforcementPoints("test"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.AddData(context.Background(), &handlertest.Object{})
+	if err != nil {
+		t.Fatalf("AddData() error = %v, want nil", err)
+	}
+
+	gotData, ok := driver.data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("driver data type = %T, want map[string]interface{}", driver.data)
+	}
+
+	want := json.Number("9007199254740993")
+	if diff := cmp.Diff(want, gotData["largeInteger"]); diff != "" {
+		t.Errorf("AddData() large integer mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestClient_AddData_RejectsInvalidTopLevelNumbers(t *testing.T) {
+	tcs := []struct {
+		name string
+		data interface{}
+	}{
+		{name: "NaN", data: math.NaN()},
+		{name: "positive infinity", data: math.Inf(1)},
+		{name: "negative infinity", data: math.Inf(-1)},
+		{name: "malformed JSON number", data: json.Number("invalid")},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := &addDataCache{}
+			target := &addDataHandler{
+				Handler: &handlertest.Handler{},
+				cache:   cache,
+				data:    tc.data,
+			}
+			driver := &addDataRecorder{Driver: fake.New(schema.Name)}
+			c, err := client.NewClient(
+				client.Targets(target),
+				client.Driver(driver),
+				client.EnforcementPoints("test"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddData(context.Background(), &handlertest.Object{})
+			if err == nil {
+				t.Fatal("AddData() error = nil, want invalid JSON number error")
+			}
+			if driver.calls != 0 {
+				t.Errorf("driver AddData() calls = %d, want 0", driver.calls)
+			}
+			if cache.calls != 0 {
+				t.Errorf("cache Add() calls = %d, want 0", cache.calls)
 			}
 		})
 	}
