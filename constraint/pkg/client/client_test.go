@@ -2,6 +2,7 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/handler/handlertest"
 	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/storage"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -70,6 +72,25 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 			}
 		})
 	}
+}
+
+type addDataHandler struct {
+	*handlertest.Handler
+	data interface{}
+}
+
+func (h *addDataHandler) ProcessData(interface{}) (bool, []string, interface{}, error) {
+	return true, []string{"cluster", "test"}, h.data, nil
+}
+
+type addDataRecorder struct {
+	*fake.Driver
+	data interface{}
+}
+
+func (d *addDataRecorder) AddData(_ context.Context, _ string, _ storage.Path, data interface{}) error {
+	d.data = data
+	return nil
 }
 
 func TestClient_AddData(t *testing.T) {
@@ -174,6 +195,41 @@ func TestClient_AddData(t *testing.T) {
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+func TestClient_AddData_PreservesIntegerPrecision(t *testing.T) {
+	const largeInteger int64 = 1<<53 + 1
+
+	target := &addDataHandler{
+		Handler: &handlertest.Handler{},
+		data: map[string]interface{}{
+			"largeInteger": largeInteger,
+		},
+	}
+	driver := &addDataRecorder{Driver: fake.New(schema.Name)}
+	c, err := client.NewClient(
+		client.Targets(target),
+		client.Driver(driver),
+		client.EnforcementPoints("test"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.AddData(context.Background(), &handlertest.Object{})
+	if err != nil {
+		t.Fatalf("AddData() error = %v, want nil", err)
+	}
+
+	gotData, ok := driver.data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("driver data type = %T, want map[string]interface{}", driver.data)
+	}
+
+	want := json.Number("9007199254740993")
+	if diff := cmp.Diff(want, gotData["largeInteger"]); diff != "" {
+		t.Errorf("AddData() large integer mismatch (-want +got):\n%s", diff)
 	}
 }
 
