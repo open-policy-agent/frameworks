@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -84,19 +85,37 @@ func TestBackend_NewClient_InvalidTargetName(t *testing.T) {
 
 type addDataHandler struct {
 	*handlertest.Handler
-	data interface{}
+	cache handler.Cache
+	data  interface{}
 }
 
 func (h *addDataHandler) ProcessData(interface{}) (bool, []string, interface{}, error) {
 	return true, []string{"cluster", "test"}, h.data, nil
 }
 
+func (h *addDataHandler) GetCache() handler.Cache {
+	return h.cache
+}
+
+type addDataCache struct {
+	calls int
+}
+
+func (c *addDataCache) Add([]string, interface{}) error {
+	c.calls++
+	return nil
+}
+
+func (*addDataCache) Remove([]string) {}
+
 type addDataRecorder struct {
 	*fake.Driver
-	data interface{}
+	calls int
+	data  interface{}
 }
 
 func (d *addDataRecorder) AddData(_ context.Context, _ string, _ storage.Path, data interface{}) error {
+	d.calls++
 	d.data = data
 	return nil
 }
@@ -238,6 +257,49 @@ func TestClient_AddData_PreservesIntegerPrecision(t *testing.T) {
 	want := json.Number("9007199254740993")
 	if diff := cmp.Diff(want, gotData["largeInteger"]); diff != "" {
 		t.Errorf("AddData() large integer mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestClient_AddData_RejectsInvalidTopLevelNumbers(t *testing.T) {
+	tcs := []struct {
+		name string
+		data interface{}
+	}{
+		{name: "NaN", data: math.NaN()},
+		{name: "positive infinity", data: math.Inf(1)},
+		{name: "negative infinity", data: math.Inf(-1)},
+		{name: "malformed JSON number", data: json.Number("invalid")},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := &addDataCache{}
+			target := &addDataHandler{
+				Handler: &handlertest.Handler{},
+				cache:   cache,
+				data:    tc.data,
+			}
+			driver := &addDataRecorder{Driver: fake.New(schema.Name)}
+			c, err := client.NewClient(
+				client.Targets(target),
+				client.Driver(driver),
+				client.EnforcementPoints("test"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = c.AddData(context.Background(), &handlertest.Object{})
+			if err == nil {
+				t.Fatal("AddData() error = nil, want invalid JSON number error")
+			}
+			if driver.calls != 0 {
+				t.Errorf("driver AddData() calls = %d, want 0", driver.calls)
+			}
+			if cache.calls != 0 {
+				t.Errorf("cache Add() calls = %d, want 0", cache.calls)
+			}
+		})
 	}
 }
 

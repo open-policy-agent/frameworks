@@ -3,6 +3,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -522,6 +523,24 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 			continue
 		}
 
+		// Round trip data to force untyped JSON, as drivers are not type-aware.
+		// Marshal first to reject invalid JSON values, then use OPA's JSON decoder
+		// to preserve numeric precision by decoding numbers as json.Number instead
+		// of float64.
+		bytes, err := json.Marshal(processedData)
+		if err != nil {
+			errMap[name] = err
+
+			continue
+		}
+		var processedDataCpy interface{}
+		err = util.UnmarshalJSON(bytes, &processedDataCpy)
+		if err != nil {
+			errMap[name] = err
+
+			continue
+		}
+
 		var cache handler.Cache
 		if cacher, ok := target.(handler.Cacher); ok {
 			cache = cacher.GetCache()
@@ -537,17 +556,6 @@ func (c *Client) AddData(ctx context.Context, data interface{}) (*types.Response
 
 				continue
 			}
-		}
-
-		// Round trip data to force untyped JSON, as drivers are not type-aware.
-		// Use OPA's JSON decoder to preserve numeric precision by decoding numbers
-		// as json.Number instead of float64.
-		var processedDataCpy interface{} = processedData
-		err = util.RoundTrip(&processedDataCpy)
-		if err != nil {
-			errMap[name] = err
-
-			continue
 		}
 
 		// To avoid maintaining duplicate caches, only Rego should get its own
