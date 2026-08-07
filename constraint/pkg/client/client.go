@@ -617,8 +617,9 @@ func (c *Client) RemoveData(ctx context.Context, data interface{}) (*types.Respo
 
 		if cacher, ok := h.(handler.Cacher); ok {
 			cache := cacher.GetCache()
-
-			cache.Remove(relPath)
+			if cache != nil {
+				cache.Remove(relPath)
+			}
 		}
 	}
 
