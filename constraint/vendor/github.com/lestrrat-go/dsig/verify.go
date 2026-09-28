@@ -47,8 +47,8 @@ func VerifyWithOpts(key any, alg string, payload, signature []byte, opts crypto.
 		return dispatchECDSAVerify(key, info, payload, signature)
 	case EdDSAFamily:
 		return dispatchEdDSAVerify(key, info, payload, signature)
-	case Custom:
-		return dispatchCustomVerify(key, info, payload, signature, opts)
+	case Custom, MLDSAFamily:
+		return dispatchMetaVerify(key, info, payload, signature, opts)
 	default:
 		return fmt.Errorf(`dsig.VerifyWithOpts: unsupported signature family %q`, info.Family)
 	}
@@ -93,6 +93,9 @@ func VerifyDigest(key any, alg string, digest, signature []byte) error {
 		// TODO: a DigestVerifier interface (optional, checked here) would let
 		// custom algorithms opt in to digest-based verification.
 		return fmt.Errorf(`dsig.VerifyDigest: custom algorithms do not support digest-based verification`)
+	case MLDSAFamily:
+		// mu is derived from the message, so there is no digest to supply here.
+		return fmt.Errorf(`dsig.VerifyDigest: ML-DSA does not support digest-based verification`)
 	default:
 		return fmt.Errorf(`dsig.VerifyDigest: unsupported signature family %q`, info.Family)
 	}
@@ -227,7 +230,7 @@ func dispatchEdDSAVerify(key any, _ AlgorithmInfo, payload, signature []byte) er
 	return VerifyEdDSA(pubkey, payload, signature)
 }
 
-func dispatchCustomVerify(key any, info AlgorithmInfo, payload, signature []byte, opts crypto.SignerOpts) error {
+func dispatchMetaVerify(key any, info AlgorithmInfo, payload, signature []byte, opts crypto.SignerOpts) error {
 	if verifier, ok := info.Meta.(VerifierWithOpts); ok {
 		return verifier.VerifyWithOpts(key, payload, signature, opts)
 	}

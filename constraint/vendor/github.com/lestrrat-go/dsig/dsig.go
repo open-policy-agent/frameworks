@@ -28,6 +28,12 @@ const (
 	ECDSA
 	EdDSAFamily
 	Custom
+	// MLDSAFamily covers the ML-DSA parameter sets. It is deliberately not
+	// Custom: Custom means this library knows nothing about the algorithm,
+	// which would be false here and misleads callers that switch on Family.
+	//
+	// It sits after Custom so the values earlier releases assigned stay put.
+	MLDSAFamily
 	maxFamily
 )
 
@@ -44,6 +50,8 @@ func (f Family) String() string {
 		return "EdDSA"
 	case Custom:
 		return "Custom"
+	case MLDSAFamily:
+		return "ML-DSA"
 	default:
 		return "InvalidFamily"
 	}
@@ -153,13 +161,17 @@ func RegisterAlgorithm(name string, info AlgorithmInfo) error {
 		}
 	case EdDSAFamily:
 		// EdDSA metadata is optional for now
-	case Custom:
+	case Custom, MLDSAFamily:
+		// Both families carry their implementation in Meta. The other families
+		// put passive metadata there. For ML-DSA this is forced: crypto/mldsa
+		// exists only from Go 1.27, so the algorithm cannot be described by a
+		// value type this file could name.
 		_, isSigner := info.Meta.(Signer)
 		_, isSignerWithOpts := info.Meta.(SignerWithOpts)
 		_, isVerifier := info.Meta.(Verifier)
 		_, isVerifierWithOpts := info.Meta.(VerifierWithOpts)
 		if !isSigner && !isSignerWithOpts && !isVerifier && !isVerifierWithOpts {
-			return fmt.Errorf("custom algorithm %s: Meta must implement Signer, SignerWithOpts, Verifier, or VerifierWithOpts", name)
+			return fmt.Errorf("%s algorithm %s: Meta must implement Signer, SignerWithOpts, Verifier, or VerifierWithOpts", info.Family, name)
 		}
 	default:
 		return fmt.Errorf("unsupported algorithm family %s for algorithm %s", info.Family, name)
@@ -297,4 +309,3 @@ func init() {
 		builtinAlgorithms[name] = struct{}{}
 	}
 }
-
