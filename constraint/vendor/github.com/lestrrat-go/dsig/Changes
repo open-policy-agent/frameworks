@@ -1,6 +1,24 @@
 Changes
 =======
 
+v1.4.0 20 Aug 2026
+  * Add ML-DSA (FIPS 204) support: the `MLDSA44`, `MLDSA65`, and `MLDSA87`
+    algorithms, the `SignMLDSA()` / `VerifyMLDSA()` primitives, and a new
+    `MLDSAFamily` algorithm family. ML-DSA requires Go 1.27 or later, which is
+    when `crypto/mldsa` joins the standard library; on earlier toolchains the
+    constants are not declared and the algorithms are not registered.
+
+    An ML-DSA key carries its own parameter set, so naming an algorithm that
+    disagrees with the key is an error on both the sign and verify paths.
+    `SignMLDSA()` takes a `crypto.SignerOpts` so that both signing modes stay
+    reachable: an `*mldsa.Options` supplies a context string, and
+    `crypto.MLDSAMu` signs a pre-hashed mu message representative.
+    `VerifyMLDSA()` takes an `*mldsa.Options` because verification has a single
+    mode. `SignDigest()` and `VerifyDigest()` return an error for ML-DSA, as
+    they already do for EdDSA.
+
+  * The minimum Go version is now 1.25.
+
 v1.3.0 13 Apr 2026
   * Add `SignWithOpts()` and `VerifyWithOpts()`, which thread an optional
     `crypto.SignerOpts` through to the underlying signer. For built-in

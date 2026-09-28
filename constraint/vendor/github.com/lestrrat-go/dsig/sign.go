@@ -53,8 +53,8 @@ func SignWithOpts(key any, alg string, payload []byte, opts crypto.SignerOpts, r
 		return dispatchECDSASign(key, info, payload, rr)
 	case EdDSAFamily:
 		return dispatchEdDSASign(key, info, payload, rr)
-	case Custom:
-		return dispatchCustomSign(key, info, payload, opts, rr)
+	case Custom, MLDSAFamily:
+		return dispatchMetaSign(key, info, payload, opts, rr)
 	default:
 		return nil, fmt.Errorf(`dsig.SignWithOpts: unsupported signature family %q`, info.Family)
 	}
@@ -124,7 +124,7 @@ func dispatchECDSASign(key any, info AlgorithmInfo, payload []byte, rr io.Reader
 	return SignECDSA(privkey, payload, meta.Hash, rr)
 }
 
-func dispatchCustomSign(key any, info AlgorithmInfo, payload []byte, opts crypto.SignerOpts, rr io.Reader) ([]byte, error) {
+func dispatchMetaSign(key any, info AlgorithmInfo, payload []byte, opts crypto.SignerOpts, rr io.Reader) ([]byte, error) {
 	if signer, ok := info.Meta.(SignerWithOpts); ok {
 		return signer.SignWithOpts(key, payload, opts, rr)
 	}
@@ -175,6 +175,11 @@ func SignDigest(key any, alg string, digest []byte, rr io.Reader) ([]byte, error
 		return nil, fmt.Errorf(`dsig.SignDigest: EdDSA does not support digest-based signing`)
 	case Custom:
 		return nil, fmt.Errorf(`dsig.SignDigest: custom algorithms do not support digest-based signing`)
+	case MLDSAFamily:
+		// ML-DSA's pre-hashed mode takes a mu representative. That is a
+		// different thing from a plain digest; pass mu to Sign with
+		// crypto.MLDSAMu.
+		return nil, fmt.Errorf(`dsig.SignDigest: ML-DSA does not support digest-based signing`)
 	default:
 		return nil, fmt.Errorf(`dsig.SignDigest: unsupported signature family %q`, info.Family)
 	}
@@ -242,4 +247,3 @@ func dispatchECDSASignDigest(key any, info AlgorithmInfo, digest []byte, rr io.R
 	}
 	return PackECDSASignature(r, s, privkey.Curve.Params().BitSize)
 }
-

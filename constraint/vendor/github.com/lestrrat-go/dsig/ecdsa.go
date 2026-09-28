@@ -12,7 +12,6 @@ import (
 	"github.com/lestrrat-go/dsig/internal/ecutil"
 )
 
-
 func ecdsaGetSignerKey(key any) (*ecdsa.PrivateKey, crypto.Signer, bool, error) {
 	cs, isCryptoSigner := key.(crypto.Signer)
 	if isCryptoSigner {
