@@ -864,13 +864,16 @@ func TestDriver_ExternalData(t *testing.T) {
 						[]*unstructured.Unstructured{cts.MakeConstraint(t, "Fakes", "foo-1")},
 						map[string]interface{}{"hi": "there"},
 					)
+					if tt.errorExpected {
+						if err == nil {
+							t.Fatalf("got Query() error = nil, want non-nil")
+						}
+						return
+					}
 					if err != nil {
-						t.Fatalf("got Query() error = %v, want %v", err, nil)
+						t.Fatalf("got Query() error = %v, want nil", err)
 					}
-					if tt.errorExpected && len(qr.Results) == 0 {
-						t.Fatalf("got 0 errors on normal query; want 1")
-					}
-					if !tt.errorExpected && len(qr.Results) > 0 {
+					if len(qr.Results) > 0 {
 						t.Fatalf("got %d errors on normal query; want 0", len(qr.Results))
 					}
 				})

@@ -1,7 +1,6 @@
 package rego
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/open-policy-agent/opa/v1/ast"
@@ -64,17 +63,17 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 		if len(providerRequestKeys) > 0 {
 			provider, err := d.providerCache.Get(regoReq.ProviderName)
 			if err != nil {
-				return externaldata.HandleError(http.StatusBadRequest, err)
+				return nil, err
 			}
 
 			clientCert, err := d.getTLSCertificate()
 			if err != nil {
-				return externaldata.HandleError(http.StatusBadRequest, err)
+				return nil, err
 			}
 
 			externaldataResponse, statusCode, err := d.sendRequestToProvider(bctx.Context, &provider, providerRequestKeys, clientCert)
 			if err != nil {
-				return externaldata.HandleError(statusCode, err)
+				return nil, err
 			}
 
 			// update provider response cache if it is enabled
