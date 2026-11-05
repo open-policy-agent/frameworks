@@ -25,6 +25,9 @@ const (
 	HTTPSScheme = "https"
 )
 
+// defaultProviderTimeout is the request timeout used when a provider does not set spec.timeout.
+const defaultProviderTimeout = 5 * time.Second
+
 // RegoRequest is the request for external_data rego function.
 type RegoRequest struct {
 	// ProviderName is the name of the external data provider.
@@ -93,7 +96,11 @@ func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Pro
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	ctxWithDeadline, cancel := context.WithDeadline(ctx, time.Now().Add(time.Duration(provider.Spec.Timeout)*time.Second))
+	timeout := time.Duration(provider.Spec.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = defaultProviderTimeout
+	}
+	ctxWithDeadline, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	resp, err := client.Do(req.WithContext(ctxWithDeadline))
