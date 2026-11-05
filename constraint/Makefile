@@ -2,7 +2,7 @@
 # workflow.yaml
 GOLANGCI_LINT_VERSION ?= 2.9.0
 KUSTOMIZE_VERSION ?= 3.8.9
-KUBERNETES_VERSION ?= 1.34.1
+KUBERNETES_VERSION ?= 1.37.0
 
 # Detects the location of the user golangci-lint cache.
 GOLANGCI_LINT_CACHE := $(shell pwd)/.tmp/golangci-lint
