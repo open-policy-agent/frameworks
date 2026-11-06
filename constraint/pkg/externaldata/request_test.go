@@ -516,3 +516,23 @@ func TestDefaultSendRequestToProvider_Integration(t *testing.T) {
 	// Clean up to avoid polluting other tests via the package-level cache
 	defaultClientCache.Invalidate(provider.GetName())
 }
+
+func TestDefaultSendRequestToProvider_UnsetTimeout(t *testing.T) {
+	server := newProviderResponseServer()
+	defer server.Close()
+
+	provider := newTLSProvider("unset-timeout-provider", server)
+	provider.Spec.Timeout = 0
+	defer defaultClientCache.Invalidate(provider.GetName())
+
+	resp, statusCode, err := DefaultSendRequestToProvider(context.Background(), provider, []string{"key1"}, nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if statusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", statusCode)
+	}
+	if len(resp.Response.Items) != 1 || resp.Response.Items[0].Key != "key1" {
+		t.Errorf("unexpected response items: %+v", resp.Response.Items)
+	}
+}
