@@ -78,8 +78,16 @@ func externalDataBuiltin(d *Driver) func(bctx rego.BuiltinContext, regorequest *
 			}
 
 			// update provider response cache if it is enabled
-			if d.providerResponseCache != nil {
+			if d.providerResponseCache != nil && externaldataResponse.Response.SystemError == "" {
+				requestedKeys := make(map[string]struct{}, len(providerRequestKeys))
+				for _, key := range providerRequestKeys {
+					requestedKeys[key] = struct{}{}
+				}
+
 				for _, item := range externaldataResponse.Response.Items {
+					if _, ok := requestedKeys[item.Key]; !ok {
+						continue
+					}
 					d.providerResponseCache.Upsert(
 						externaldata.CacheKey{
 							ProviderName: regoReq.ProviderName,
