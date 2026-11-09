@@ -9,7 +9,7 @@ require (
 	github.com/onsi/gomega v1.44.0
 	github.com/open-policy-agent/opa v1.21.2
 	github.com/spf13/cobra v1.10.2
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	go.uber.org/goleak v1.3.0
 	k8s.io/api v0.36.4
 	k8s.io/apiextensions-apiserver v0.36.4
