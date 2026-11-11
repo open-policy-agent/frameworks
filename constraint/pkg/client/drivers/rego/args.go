@@ -7,7 +7,6 @@ import (
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/storage"
 	"github.com/open-policy-agent/opa/v1/topdown/print"
-	opatypes "github.com/open-policy-agent/opa/v1/types"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/client/errors"
@@ -42,8 +41,8 @@ func Defaults() Arg {
 		// if a capability, like http.send, is disabled
 		if d.providerCache != nil {
 			newBuiltin := &ast.Builtin{
-				Name: "external_data",
-				Decl: opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+				Name: externalDataName,
+				Decl: externalDataDecl,
 			}
 			d.compilers.capabilities.Builtins = append(d.compilers.capabilities.Builtins, newBuiltin)
 		}
