@@ -48,9 +48,11 @@ func Defaults() Arg {
 		}
 
 		if d.sendRequestToProvider == nil {
-			d.sendRequestToProvider = externaldata.DefaultSendRequestToProvider
+			// Per-Driver HTTP clients, so Drivers never share TLS connections.
+			clientCache := externaldata.NewClientCache()
+			d.sendRequestToProvider = clientCache.SendRequestToProvider
 			if d.providerCache != nil {
-				d.providerCache.SetClientCache(externaldata.DefaultClientCache())
+				d.providerCache.SetClientCache(clientCache)
 			}
 		}
 

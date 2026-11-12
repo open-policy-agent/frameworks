@@ -2,10 +2,20 @@ package rego
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +181,48 @@ func newTestCertWatcher(t *testing.T) *certwatcher.CertWatcher {
 	return watcher
 }
 
+// newClientCertWatcher returns a CertWatcher for a new self-signed cert.
+func newClientCertWatcher(t *testing.T, commonName string) *certwatcher.CertWatcher {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: commonName},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	watcher, err := certwatcher.New(certFile, keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return watcher
+}
+
 // queryMessages returns the sorted violation messages for key.
 func queryMessages(ctx context.Context, d *Driver, constraint *unstructured.Unstructured, key string) ([]string, error) {
 	response, err := d.Query(ctx, cts.MockTargetHandler,
@@ -262,6 +314,84 @@ func TestDriver_ExternalDataBoundPerDriver(t *testing.T) {
 		}
 		if _, err := tc.other.Get(cacheKey); err == nil {
 			t.Errorf("key %q from the %s driver leaked into another driver's response cache", tc.key, tc.ownerLabel)
+		}
+	}
+}
+
+func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
+	ctx := t.Context()
+	constraint := cts.MakeConstraint(t, "Fakes", "foo-1")
+
+	// The Provider replies with the client cert's common name.
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		identity := "none"
+		if len(r.TLS.PeerCertificates) > 0 {
+			identity = r.TLS.PeerCertificates[0].Subject.CommonName
+		}
+
+		var req externaldata.ProviderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		resp := externaldata.ProviderResponse{
+			APIVersion: "externaldata.gatekeeper.sh/v1beta1",
+			Kind:       externaldata.ProviderResponseKind,
+		}
+		for _, key := range req.Request.Keys {
+			resp.Response.Items = append(resp.Response.Items, externaldata.Item{Key: key, Value: identity})
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	server.TLS = &tls.Config{ClientAuth: tls.RequestClientCert, MinVersion: tls.VersionTLS13}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	serverCA := base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))
+	newServerProviderCache := func() *externaldata.ProviderCache {
+		cache := externaldata.NewCache()
+		err := cache.Upsert(&unversioned.Provider{
+			ObjectMeta: metav1.ObjectMeta{Name: isolationProviderName},
+			Spec:       unversioned.ProviderSpec{URL: server.URL, Timeout: 5, CABundle: serverCA},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cache
+	}
+
+	// Same Provider for all drivers, default sender.
+	driverA := newIsolationDriver(t, isolationPolicy, nil,
+		AddExternalDataProviderCache(newServerProviderCache()),
+		EnableExternalDataClientAuth(),
+		AddExternalDataClientCertWatcher(newClientCertWatcher(t, "driver-a")),
+	)
+	driverWithoutAuth := newIsolationDriver(t, isolationPolicy, nil,
+		AddExternalDataProviderCache(newServerProviderCache()),
+	)
+	driverB := newIsolationDriver(t, isolationPolicy, nil,
+		AddExternalDataProviderCache(newServerProviderCache()),
+		EnableExternalDataClientAuth(),
+		AddExternalDataClientCertWatcher(newClientCertWatcher(t, "driver-b")),
+	)
+
+	// driverA runs first so its connection is idle and could be reused.
+	for _, tc := range []struct {
+		name   string
+		driver *Driver
+		want   string
+	}{
+		{name: "driver with certificate A", driver: driverA, want: "driver-a/driver-a"},
+		{name: "driver without client auth", driver: driverWithoutAuth, want: "none/none"},
+		{name: "driver with certificate B", driver: driverB, want: "driver-b/driver-b"},
+		{name: "driver with certificate A again", driver: driverA, want: "driver-a/driver-a"},
+	} {
+		got, err := queryMessages(ctx, tc.driver, constraint, tc.name)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if !slices.Equal(got, []string{tc.want}) {
+			t.Errorf("%s: Provider saw client certificates %q, want [%q]", tc.name, got, tc.want)
 		}
 	}
 }
