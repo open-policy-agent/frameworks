@@ -332,6 +332,20 @@ There are two types of clients. The local client creates an in-process instance 
 to respond to requests. The remote client dials an external OPA instance
 and makes requests via HTTP/HTTPS.
 
+### External Data
+
+With `rego.AddExternalDataProviderCache`, the Rego driver provides
+`external_data` and binds it to its own queries instead of registering it
+globally. A Driver only uses the Provider cache and response cache passed to
+it, and with the default sender each Driver has its own HTTP connections, so
+its client certificate is only used for its own requests. Drivers given the
+same Provider or response cache share its contents. A
+Provider cache enables `external_data` even if
+`rego.DisableBuiltins("external_data")` is passed. If `external_data` is
+already a global OPA built-in, `rego.New` with a Provider cache returns
+`rego.ErrExternalDataRegisteredGlobally`. Without a Provider cache, the driver
+does not provide `external_data` and does not check for a global one.
+
 ### Debugging
 
 There are three helpful levers for debugging:
