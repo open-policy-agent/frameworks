@@ -175,10 +175,26 @@ func newTestCertWatcher(t *testing.T) *certwatcher.CertWatcher {
 		t.Fatal(err)
 	}
 
+	return startCertWatcher(t, certFile, keyFile)
+}
+
+// startCertWatcher starts a CertWatcher and stops it before the test's
+// temporary directories are removed.
+func startCertWatcher(t *testing.T, certFile, keyFile string) *certwatcher.CertWatcher {
+	t.Helper()
+
 	watcher, err := certwatcher.New(certFile, keyFile)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	done := make(chan error, 1)
+	go func() { done <- watcher.Start(t.Context()) }()
+	t.Cleanup(func() {
+		if err := <-done; err != nil {
+			t.Errorf("cert watcher: %v", err)
+		}
+	})
 
 	return watcher
 }
@@ -217,12 +233,7 @@ func newClientCertWatcher(t *testing.T, commonName string) *certwatcher.CertWatc
 		t.Fatal(err)
 	}
 
-	watcher, err := certwatcher.New(certFile, keyFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return watcher
+	return startCertWatcher(t, certFile, keyFile)
 }
 
 // queryMessages returns the sorted violation messages for key.
