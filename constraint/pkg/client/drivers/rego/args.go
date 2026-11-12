@@ -53,6 +53,8 @@ func Defaults() Arg {
 			d.sendRequestToProvider = clientCache.SendRequestToProvider
 			if d.providerCache != nil {
 				d.providerCache.SetClientCache(clientCache)
+				// Keep cleaning up the shared cache used by DefaultSendRequestToProvider.
+				d.providerCache.SetClientCache(externaldata.DefaultClientCache())
 			}
 		}
 

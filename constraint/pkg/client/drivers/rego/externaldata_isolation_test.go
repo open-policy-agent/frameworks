@@ -14,11 +14,13 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -318,11 +320,11 @@ func TestDriver_ExternalDataBoundPerDriver(t *testing.T) {
 	}
 }
 
-func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
-	ctx := t.Context()
-	constraint := cts.MakeConstraint(t, "Fakes", "foo-1")
+// newIdentityProvider starts an HTTPS Provider that replies with the client
+// cert's common name. It returns a function that creates a ProviderCache for it.
+func newIdentityProvider(t *testing.T, connState func(net.Conn, http.ConnState)) func() *externaldata.ProviderCache {
+	t.Helper()
 
-	// The Provider replies with the client cert's common name.
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		identity := "none"
 		if len(r.TLS.PeerCertificates) > 0 {
@@ -344,11 +346,12 @@ func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	server.TLS = &tls.Config{ClientAuth: tls.RequestClientCert, MinVersion: tls.VersionTLS13}
+	server.Config.ConnState = connState
 	server.StartTLS()
 	t.Cleanup(server.Close)
 
 	serverCA := base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}))
-	newServerProviderCache := func() *externaldata.ProviderCache {
+	return func() *externaldata.ProviderCache {
 		cache := externaldata.NewCache()
 		err := cache.Upsert(&unversioned.Provider{
 			ObjectMeta: metav1.ObjectMeta{Name: isolationProviderName},
@@ -359,6 +362,12 @@ func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
 		}
 		return cache
 	}
+}
+
+func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
+	ctx := t.Context()
+	constraint := cts.MakeConstraint(t, "Fakes", "foo-1")
+	newServerProviderCache := newIdentityProvider(t, nil)
 
 	// Same Provider for all drivers, default sender.
 	driverA := newIsolationDriver(t, isolationPolicy, nil,
@@ -394,6 +403,53 @@ func TestDriver_ExternalDataClientCertificatePerDriver(t *testing.T) {
 			t.Errorf("%s: Provider saw client certificates %q, want [%q]", tc.name, got, tc.want)
 		}
 	}
+}
+
+func TestDriver_ExternalDataSharedProviderCacheClosesAllConnections(t *testing.T) {
+	var mu sync.Mutex
+	open := map[net.Conn]bool{}
+	openConns := func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(open)
+	}
+	newProviderCache := newIdentityProvider(t, func(c net.Conn, state http.ConnState) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch state {
+		case http.StateNew:
+			open[c] = true
+		case http.StateClosed, http.StateHijacked:
+			delete(open, c)
+		}
+	})
+
+	// Two drivers share one ProviderCache, each with its own HTTP clients.
+	providerCache := newProviderCache()
+	constraint := cts.MakeConstraint(t, "Fakes", "foo-1")
+	drivers := []*Driver{
+		newIsolationDriver(t, isolationPolicy, nil, AddExternalDataProviderCache(providerCache)),
+		newIsolationDriver(t, isolationPolicy, nil, AddExternalDataProviderCache(providerCache)),
+	}
+	for i, driver := range drivers {
+		if _, err := queryMessages(t.Context(), driver, constraint, fmt.Sprintf("driver-%d", i)); err != nil {
+			t.Fatalf("driver %d: %v", i, err)
+		}
+	}
+	if got := openConns(); got < len(drivers) {
+		t.Fatalf("got %d open connections, want at least %d", got, len(drivers))
+	}
+
+	providerCache.Remove(isolationProviderName)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for openConns() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := openConns(); got != 0 {
+		t.Errorf("%d connections still open after Remove, want 0", got)
+	}
+	runtime.KeepAlive(drivers)
 }
 
 func TestDriver_ExternalDataIsolatedAcrossOverlappingQueries(t *testing.T) {
