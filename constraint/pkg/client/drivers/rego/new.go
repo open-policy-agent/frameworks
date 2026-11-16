@@ -1,12 +1,24 @@
 package rego
 
 import (
+	"errors"
+
+	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
 	opatypes "github.com/open-policy-agent/opa/v1/types"
 )
 
-// New constructs a new Driver and registers the built-in external_data function
-// to OPA.
+// ErrExternalDataRegisteredGlobally is returned by New when a Provider cache is
+// configured and external_data is already a global OPA built-in, which would
+// take precedence over the Driver's.
+var ErrExternalDataRegisteredGlobally = errors.New("external_data is already registered as a global OPA built-in")
+
+const externalDataName = "external_data"
+
+var externalDataDecl = opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A)
+
+// New constructs a new Driver. If a Provider cache is configured, external_data
+// is bound to this Driver's queries rather than registered globally.
 func New(args ...Arg) (*Driver, error) {
 	d := &Driver{}
 	for _, arg := range args {
@@ -22,10 +34,13 @@ func New(args ...Arg) (*Driver, error) {
 	}
 
 	if d.providerCache != nil {
-		rego.RegisterBuiltin1(
+		if _, found := ast.BuiltinMap[externalDataName]; found {
+			return nil, ErrExternalDataRegisteredGlobally
+		}
+		d.externalDataFunc = rego.Function1(
 			&rego.Function{
-				Name:    "external_data",
-				Decl:    opatypes.NewFunction(opatypes.Args(opatypes.A), opatypes.A),
+				Name:    externalDataName,
+				Decl:    externalDataDecl,
 				Memoize: true,
 			},
 			externalDataBuiltin(d),

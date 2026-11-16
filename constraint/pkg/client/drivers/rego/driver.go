@@ -75,6 +75,9 @@ type Driver struct {
 	// providerCache allows Rego to read from external_data in Rego queries.
 	providerCache *externaldata.ProviderCache
 
+	// externalDataFunc binds external_data to this Driver's queries.
+	externalDataFunc func(*rego.Rego)
+
 	// providerResponseCache allows to cache responses from external_data providers.
 	providerResponseCache *externaldata.ProviderResponseCache
 
@@ -225,6 +228,9 @@ func (d *Driver) eval(ctx context.Context, compiler *ast.Compiler, target string
 		rego.EnablePrintStatements(d.printEnabled),
 		rego.PrintHook(d.printHook),
 		rego.SetRegoVersion(ast.RegoV0),
+	}
+	if d.externalDataFunc != nil {
+		args = append(args, d.externalDataFunc)
 	}
 
 	buf := topdown.NewBufferTracer()

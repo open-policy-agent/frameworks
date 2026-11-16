@@ -75,14 +75,21 @@ func DefaultClientCache() *ClientCache {
 }
 
 // DefaultSendRequestToProvider is the default function to send the request to the external data provider.
+// It uses a ClientCache shared by the whole process.
 func DefaultSendRequestToProvider(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
+	return defaultClientCache.SendRequestToProvider(ctx, provider, keys, clientCert)
+}
+
+// SendRequestToProvider sends the request using HTTP clients from c.
+// Connections are reused, so use one ClientCache per client certificate.
+func (c *ClientCache) SendRequestToProvider(ctx context.Context, provider *unversioned.Provider, keys []string, clientCert *tls.Certificate) (*ProviderResponse, int, error) {
 	externaldataRequest := NewProviderRequest(keys)
 	body, err := json.Marshal(externaldataRequest)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to marshal external data request: %w", err)
 	}
 
-	client, err := defaultClientCache.getOrCreate(provider, clientCert)
+	client, err := c.getOrCreate(provider, clientCert)
 	if err != nil {
 		return nil, http.StatusInternalServerError, fmt.Errorf("failed to get HTTP client: %w", err)
 	}
