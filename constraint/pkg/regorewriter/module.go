@@ -28,7 +28,7 @@ func (m *Module) Write() error {
 // Content returns the module as a byte slice of rego source code.
 func (m *Module) Content() ([]byte, error) {
 	return format.AstWithOpts(m.Module, format.Opts{
-		RegoVersion: m.Module.RegoVersion(),
+		RegoVersionSpan: m.Module.RegoVersionSpan(),
 	})
 }
 
