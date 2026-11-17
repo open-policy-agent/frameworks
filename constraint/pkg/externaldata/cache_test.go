@@ -355,3 +355,57 @@ func TestProviderCache_UpsertNoInvalidateOnSameSpec(t *testing.T) {
 		t.Error("expected same *http.Client after Upsert with unchanged spec, got different pointer")
 	}
 }
+
+func TestProviderCache_InvalidatesAllClientCaches(t *testing.T) {
+	providerCache := NewCache()
+	clientCacheA := NewClientCache()
+	clientCacheB := NewClientCache()
+	providerCache.SetClientCache(clientCacheA)
+	providerCache.SetClientCache(clientCacheB)
+
+	provider := createProvider("shared-test", "https://example.com", 5, validCABundle)
+	if err := providerCache.Upsert(provider); err != nil {
+		t.Fatalf("Upsert failed: %v", err)
+	}
+
+	for _, step := range []struct {
+		name   string
+		update func()
+	}{
+		{name: "Upsert with changed spec", update: func() {
+			if err := providerCache.Upsert(createProvider("shared-test", "https://example.com", 10, validCABundle)); err != nil {
+				t.Fatalf("Upsert failed: %v", err)
+			}
+		}},
+		{name: "Remove", update: func() { providerCache.Remove(provider.GetName()) }},
+	} {
+		for _, clientCache := range []*ClientCache{clientCacheA, clientCacheB} {
+			if _, err := clientCache.getOrCreate(provider, nil); err != nil {
+				t.Fatalf("getOrCreate failed: %v", err)
+			}
+		}
+
+		step.update()
+
+		for i, clientCache := range []*ClientCache{clientCacheA, clientCacheB} {
+			clientCache.mu.Lock()
+			_, ok := clientCache.clients[provider.GetName()]
+			clientCache.mu.Unlock()
+			if ok {
+				t.Errorf("%s: ClientCache %d still has a client for the provider", step.name, i)
+			}
+		}
+	}
+}
+
+func TestProviderCache_SetClientCacheRegistration(t *testing.T) {
+	providerCache := NewCache()
+	clientCache := NewClientCache()
+
+	providerCache.SetClientCache(clientCache)
+	providerCache.SetClientCache(clientCache)
+	providerCache.SetClientCache(nil)
+	if got := len(providerCache.clientCaches); got != 1 {
+		t.Errorf("got %d registered ClientCaches, want 1", got)
+	}
+}

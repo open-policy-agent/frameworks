@@ -8,8 +8,10 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
+	"weak"
 
 	"github.com/open-policy-agent/frameworks/constraint/pkg/apis/externaldata/unversioned"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -17,9 +19,10 @@ import (
 
 // ProviderCache caches external data provider configurations.
 type ProviderCache struct {
-	cache       map[string]unversioned.Provider
-	mux         sync.RWMutex
-	clientCache *ClientCache
+	cache map[string]unversioned.Provider
+	mux   sync.RWMutex
+	// Weak, so a registered ClientCache can be freed once its owner is gone.
+	clientCaches []weak.Pointer[ClientCache]
 }
 
 // ProviderResponseCache caches responses from external data providers.
@@ -103,18 +106,39 @@ func NewCache() *ProviderCache {
 	}
 }
 
-// SetClientCache sets the HTTP client cache for transport cleanup
-// when providers are removed or updated. Must be called before any
-// Upsert/Remove operations.
+// SetClientCache registers an HTTP client cache for transport cleanup
+// when providers are removed or updated. Every registered cache is
+// cleaned up, so Drivers sharing a ProviderCache can each register their
+// own. Registering the same cache again has no effect. Must be called
+// before any Upsert/Remove operations.
 //
 // Lock order invariant: ProviderCache.mux is always acquired before
 // ClientCache.mu. This order is maintained in Upsert() and Remove()
 // which hold mux while calling ClientCache.Invalidate(). No code path
 // acquires these locks in reverse order.
 func (c *ProviderCache) SetClientCache(cc *ClientCache) {
+	if cc == nil {
+		return
+	}
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	c.clientCache = cc
+
+	c.clientCaches = slices.DeleteFunc(c.clientCaches, func(p weak.Pointer[ClientCache]) bool {
+		return p.Value() == nil
+	})
+	wp := weak.Make(cc)
+	if !slices.Contains(c.clientCaches, wp) {
+		c.clientCaches = append(c.clientCaches, wp)
+	}
+}
+
+// invalidateClients must be called with c.mux held.
+func (c *ProviderCache) invalidateClients(name string) {
+	for _, p := range c.clientCaches {
+		if cc := p.Value(); cc != nil {
+			cc.Invalidate(name)
+		}
+	}
 }
 
 // Get retrieves a provider by name from the cache.
@@ -148,13 +172,11 @@ func (c *ProviderCache) Upsert(provider *unversioned.Provider) error {
 	}
 
 	// Invalidate cached HTTP client if provider spec changed
-	if c.clientCache != nil {
-		if existing, ok := c.cache[provider.GetName()]; ok {
-			if existing.Spec.URL != provider.Spec.URL ||
-				existing.Spec.Timeout != provider.Spec.Timeout ||
-				existing.Spec.CABundle != provider.Spec.CABundle {
-				c.clientCache.Invalidate(provider.GetName())
-			}
+	if existing, ok := c.cache[provider.GetName()]; ok {
+		if existing.Spec.URL != provider.Spec.URL ||
+			existing.Spec.Timeout != provider.Spec.Timeout ||
+			existing.Spec.CABundle != provider.Spec.CABundle {
+			c.invalidateClients(provider.GetName())
 		}
 	}
 
@@ -168,9 +190,7 @@ func (c *ProviderCache) Remove(name string) {
 	defer c.mux.Unlock()
 
 	delete(c.cache, name)
-	if c.clientCache != nil {
-		c.clientCache.Invalidate(name)
-	}
+	c.invalidateClients(name)
 }
 
 func isValidName(name string) bool {
