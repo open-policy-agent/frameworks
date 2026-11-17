@@ -425,10 +425,11 @@ func (r *RegoRewriter) Rewrite() (*Sources, error) {
 
 	// write updated modules
 	err = r.forAllModules(func(mod *Module) error {
+		span := mod.Module.RegoVersionSpan()
 		b, err := format.AstWithOpts(mod.Module, format.Opts{
-			RegoVersion: mod.Module.RegoVersion(),
+			RegoVersionSpan: span,
 			ParserOptions: &ast.ParserOptions{
-				RegoVersion: mod.Module.RegoVersion(),
+				RegoVersion: span.Min(),
 			},
 		})
 		if err != nil {
